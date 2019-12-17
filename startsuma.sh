@@ -14,9 +14,9 @@ suma -niml -spec $specFile -sv $t1image &
 sleep 30
 
 DriveSuma -com  viewer_cont \
-     -key ctrl+left\
-     -key F3 \
-     -key F6 \
-     -key:r:7 period \
-     -key:r:3 z   \
+     -key ctrl+left `#reorient the brain (all arrow keys)` \
+     -key F3 `#toggles crosshair on/off` \
+     -key F6 `#toggles background black/white` \
+     -key:r:8 period `#changes brain display (reverse through with comma)`\
+     -key:r:3 z  `# zooms out, Shift+z zooms in` \
      -key:r:3 t
