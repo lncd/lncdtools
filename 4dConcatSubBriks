@@ -46,6 +46,6 @@ outidx=$(3dROIstats -quiet  -mask "3dcalc( -expr step(a) -a $prefix[0] )"  $pref
 if [ -n "$outidx" ]; then
    echo "outlier idxes: $outidx"
    echo -n "outlier labels: "
-   3dinfo -label all_sub7.nii.gz[$outidx]
+   3dinfo -label "$prefix[$outidx]"
 fi
 
