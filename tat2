@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+set -eou pipefail
+
+usage(){
+  cat <<-HEREDOC
+  USAGE:
+    $0 '/paths/to/*/t2.nii.gz' [-mask /the/only/mask.nii.gz] [-mask_rel subject_mask.nii.gz ]  [-output tat2star.nii.gz] [-scale 10000] [-mkmask]
+HEREDOC
+  exit 1
+}
+err() { echo -e "$@" >&2; exit 1; }
+msg() { echo -e "# [$(date)] $@"; }
+
+# keep args around for 3dNotes history
+allargs="$@"
+
+
+# default values
+SCALE=1000
+MASK_REL="subject_mask.nii.gz"
+MASK=""
+MKMASK=0
+OUTPUT=tat2star.nii.gz
+
+[ -r "$OUTPUT" ] && echo "# have $OUTPUT; rm $OUTPUT # to redo" && exit 0
+
+[ $# -eq 0 ] && usage
+glob="$1"; shift
+
+# how many files do we have
+nfiles=$(find $glob | wc -l)
+[ $nfiles -eq 0 ] && err "no files match '$glob'"
+[ $nfiles -eq 1 ] && echo "WARNING: only one file matches '$glob'. expected all (>1) runs" 
+
+# read in any arguments/paramaters
+while [ $# -gt 0 ]; do
+ case $1 in
+  -mask)     MASK="$2"; shift 2;;
+  -mask_rel) MASK_REL="$2"; shift 2;;  
+  -output)   OUTPUT="$2"; shift 2;;
+  -scale)    SCALE="$2"; shift 2;;
+  -mkmask)   MKMASK=1; shift;;
+  *)       echo "UNKOWN ARGUMENT: '$1'; did you quote the input glob? like 'subj/run*/func.nii.gz'"; usage;;
+ esac
+done
+
+tmpd=$(mktemp -d /tmp/tat2star_XXXX)
+
+cnt=0
+for input in $glob; do
+   [ -n "$MASK" ] && mask="$MASK" || mask="$(dirname "$input")/$MASK_REL"
+   if [ ! -r $mask ]; then
+      [ $MKMASK -eq 0 ] && err "subject_mask '$mask' DNE; add -mkmask to create"
+      err "make mask not implemented!"
+   fi
+   # add _tat2.nii.gz to the end
+   runoutput="$tmpd/${cnt}_tat2.nii.gz"
+
+   # calc number of voxels
+   numvox=$(3dBrickStat -count -non-zero $mask)
+
+   # verbose
+   msg "tat2: $input -> $runoutput"
+   vol_sum=$tmpd/${cnt}_volsum.1D
+   3dROIstats -mask $mask -1Dformat $input > $vol_sum 
+
+   # actual do it
+   3dcalc \
+     -a $input \
+     -b $vol_sum\
+     -datum float -overwrite \
+     -expr "(a/b)*$SCALE/$numvox" \
+     -prefix $runoutput
+  let ++cnt
+done
+
+[ $cnt -ne $nfiles ] && err "ERROR: create $cnt/$nfiles in $tmpd"
+
+msg "tat2star $OUTPUT"
+if [ $nfiles -gt 1 ]; then
+   3dTcat -overwrite -prefix $tmpd/tat2_all.nii.gz $tmpd/*_tat2.nii.gz
+   3dTstat -prefix $OUTPUT -overwrite -nzmean $tmpd/tat2_all.nii.gz
+else
+   3dcopy $tmpd/*_tat2.nii.gz $OUTPUT
+fi
+
+3dNotes -h "$0 $allargs # $(pwd)" $OUTPUT
+rm -r $tmpd
