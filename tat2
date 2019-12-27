@@ -22,7 +22,6 @@ MASK=""
 MKMASK=0
 OUTPUT=tat2star.nii.gz
 
-[ -r "$OUTPUT" ] && echo "# have $OUTPUT; rm $OUTPUT # to redo" && exit 0
 
 [ $# -eq 0 ] && usage
 glob="$1"; shift
@@ -43,6 +42,8 @@ while [ $# -gt 0 ]; do
   *)       echo "UNKOWN ARGUMENT: '$1'; did you quote the input glob? like 'subj/run*/func.nii.gz'"; usage;;
  esac
 done
+
+[ -r "$OUTPUT" ] && echo "# have $OUTPUT; rm $OUTPUT # to redo" && exit 0
 
 tmpd=$(mktemp -d /tmp/tat2star_XXXX)
 
@@ -81,7 +82,7 @@ if [ $nfiles -gt 1 ]; then
    3dTcat -overwrite -prefix $tmpd/tat2_all.nii.gz $tmpd/*_tat2.nii.gz
    3dTstat -prefix $OUTPUT -overwrite -nzmean $tmpd/tat2_all.nii.gz
 else
-   3dcopy $tmpd/*_tat2.nii.gz $OUTPUT
+   3dTstat -prefix $OUTPUT -overwrite -nzmean $tmpd/*_tat2.nii.gz
 fi
 
 3dNotes -h "$0 $allargs # $(pwd)" $OUTPUT
