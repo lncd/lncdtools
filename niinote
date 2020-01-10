@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+#
+# run 3dNotes to annotate output ($1) of a cmd ($@)
+#
+# 20200110WF: init
+cmd=$(basename $0)
+[ $# -lt 2 ] && \
+  echo "USAGE: $cmd output cmd\nEXAMPLE: $cmd betted.nii.gz bet input.nii.gz betted.nii.gz" && \
+  exit 1
+
+export AFNI_NO_OBLIQUE_WARNING="YES" # 3dNotes likes to complain. silence it
+
+output="$1"; shift
+eval "$@" || exit $?
+[ ! -r $output ] && exit 1
+arg="$@"
+3dNotes -h "'${arg//\'/\"}'" $output || exit $?
+exit 0
