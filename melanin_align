@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+set -euo pipefail
+set -x
+[ $# -ne 2 ] && echo "USAGE: $0 NMinput T1DIR" && exit 1
+orgiargs="$@"
+input="$1"; shift
+T1DIR="$1"; shift
+[ ! -r $T1DIR/mprage_bet.nii.gz ] && echo "bad T1DIR '$T1DIR'!" && exit 1
+[ ! -r $input ] && echo "bad input '$input' (pwd: $PWD)!" && exit 1
+! [[ $input =~ .nii.gz$ ]] && echo "neuromelanin input must end with nii.gz ('$input')" && exit 1
+in=$(basename $input .nii.gz)
+
+# link in mprage
+! test -r t1-bet.nii.gz &&
+  ln -s $T1DIR/mprage_bet.nii.gz $_
+
+# reorient to match t1-bet, probably "RPI"
+[ ! -r $in.nii.gz -o $(3dinfo -orient $in.nii.gz ) != $(3dinfo -orient t1-bet.nii.gz) ] &&
+  niinote $input \
+    fslreorient2std $input $in.nii.gz
+
+! test -r $in-bet.nii.gz &&
+  niinote $_ \
+   bet $in.nii.gz $_  -f .01
+
+! test -r ${in}_t1.nii.gz &&
+   niinote $_ \
+    flirt -dof 6 -in $in-bet.nii.gz -ref  t1-bet.nii.gz  -omat $in-T1.mat -out $_
+
+if [ ! -r T12NM.mat ]; then
+   cat $in-T1.mat
+   convert_xfm -omat T12NM.mat -inverse $in-T1.mat
+fi
+
+# warp others to nn
+name=${in%%-NM}
+
+! test -r ${name}-fastwm_NN.nii.gz &&
+  niinote $_ \
+    flirt -interp nearestneighbour -in $T1DIR/mprage_bet_fast_wmseg.nii.gz -ref $in.nii.gz -applyxfm -init T12NM.mat -out $_
+
+! test -r mni2t1.nii.gz &&
+  niinote $_ \
+   invwarp -w $T1DIR/mprage_warpcoef.nii.gz -r t1-bet.nii.gz -o $_ 
+
+! test -r ${name}-mnigm_NM.nii.gz &&
+  niinote $_ \
+   applywarp \
+    -i /opt/ni_tools/standard_templates/mni_icbm152_nlin_asym_09c/mni_icbm152_wm_tal_nlin_asym_09c_2mm.nii  \
+    -w mni2t1.nii.gz \
+    --postmat=T12NM.mat \
+    -r $in.nii.gz \
+    -o $_
+
+! test -r $name-CC_NM.nii.gz &&
+  niinote $_ \
+    applywarp \
+      --interp=nn \
+      -i /opt/ni_tools/atlas/CC/nm_CC_mask_2mm.nii.gz \
+      -w mni2t1.nii.gz \
+      --postmat=T12NM.mat \
+      -r $in.nii.gz \
+      -o $_
+
+! test -r ${in}_mni.nii.gz && 
+  niinote $_ \
+   applywarp \
+    -i $in.nii.gz \
+    -w $T1DIR/mprage_warpcoef.nii.gz \
+    --premat=$in-T1.mat \
+    -r /opt/ni_tools/standard_templates/mni_icbm152_nlin_asym_09c/mni_icbm152_t1_tal_nlin_asym_09c_2mm.nii \
+    -o $_ &&
+  3dNotes -h "$0 $orgiargs" $_
