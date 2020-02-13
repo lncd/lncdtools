@@ -12,11 +12,11 @@ teardown(){
 }
 
 @test matlab_eval {
-   skip
+   command -v matlab || skip
    checkout $(m -e "$MLCMD")
 }
 @test matlab_file {
-   skip
+   command -v matlab || skip
    command -v octave || skip
    checkout $(m $BATS_TMPDIR/testm.m)
 }
@@ -32,7 +32,10 @@ teardown(){
    ! checkout $(m -o -e "disp('hi')")
 }
 @test missing_file {
-   ! checkout $(m /tmp/this_file_does_not_exit_$(date +%s))
+   badfile=/tmp/this_file_does_not_exit_$(date +%s)
+   ! checkout $(m $badfile)
+   m $badfile |
+   grep -iq 'bad file'
 }
 @test order_independent {
    ! checkout $(m -e -o "$MLCMD")
