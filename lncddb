@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# see ~/.pgpass for credentials
+psql -h arnold.wpic.upmc.edu lncddb lncd -AF$'\t' -qtc "$@"

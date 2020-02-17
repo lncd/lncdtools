@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+_selld8_query(){
+   lncddb "
+    select id || '_' || to_char(vtimestamp, 'YYYYMMDD') as ld8,
+    string_agg(study, ' ') as studies
+    from enroll
+    natural join visit
+    natural join visit_study
+    where etype like 'LunaID'
+    group by id,vid
+    order by vtimestamp desc"
+}
+_selld8(){
+   _selld8_query $@  |
+    fzf |
+    cut -f1
+}
+
+# copy/paste from fuzzy_arg
+# https://github.com/WillForan/fuzzy_arg
+_bash_insert() { perl -le 'ioctl(STDIN,0x5412,$_) for split "", join " ", @ARGV' -- "$@";}
+_zsh_insert() { LBUFFER+="$@"; }
+
+# put it all together
+_selld8_insert() { _${_SHELL}_insert $(_selld8); }
+
+_selld8_bind(){
+   _SHELL=bash
+   [ $(basename $SHELL) = "zsh" ] && _SHELL=zsh
+   # bind to keys (alt+a, ctrl+x ctrl+a)
+   if [ $(basename $SHELL) = "zsh" ]; then
+      zle -N _selld8_insert
+      bindkey "^[l" _selld8_insert
+   else
+      bind -x '"\C-x\C-l":"_selld8_insert"'
+   fi
+}
+
+_selld8_usage(){
+cat <<HERE
+ USAGE: $(basename $0) i[nit] | q[uery] | l[ist]
+ select id from database. optioanlly
+  - interactively with fzf
+  - with bash/zsh keybinding
+ EXAMPLE:
+    # add binding ctrl-x ctrl-l
+    eval "\$(selld8 init)"
+    # lookup and pipe
+    selld8 l | grep '2020.*PET'
+    
+HERE
+exit 1
+}
+_selld8_main() {
+   [ $# -eq 0 ] && _selld8_usage
+   case $1 in
+      -h*|help) _selld8_usage;;
+      i*) echo "source $0; _selld8_bind";;
+      l*) shift; _selld8_query $@;;
+      *) shift; _selld8 $@;;
+   esac
+}
+
+# if not sourced, run main
+([[ -n $ZSH_EVAL_CONTEXT && $ZSH_EVAL_CONTEXT =~ :file$ ]] ||
+ [[ -n $BASH_VERSION ]] && (return 0 2>/dev/null)) || _selld8_main $@
