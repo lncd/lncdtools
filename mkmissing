@@ -13,12 +13,14 @@ import re
 from glob import glob
 
 
-def patt_in_wildcard(patt, wildcards):
+def patt_in_wildcard(patt, wildcards, searchreplace=None):
     """expand wildcards and extract matches"""
     if not isinstance(wildcards, list):
         wildcards = [wildcards]
     ext = [patt.search(x) for w in wildcards for x in glob(w)]
     ext = [m.group(0) for m in ext if m is not None]
+    if searchreplace is not None:
+        ext = [re.sub(searchreplace[0], searchreplace[1], x) for x in ext]
     # set: sort and uniq
     return set(ext)
 
@@ -35,7 +37,13 @@ def __main__():
                         help="step 2 file wildcard")
     parser.add_argument('-p', '--pattern', dest='patt',
                         help="pattern to match in file names",
-                        default="\d{5}_\d{8}")
+                        default="\d{5}[-_/]\d{8}")
+    parser.add_argument('-s', '--search', dest='search',
+                        help="regexp search. pair with -r/--replace",
+                        default=None)
+    parser.add_argument('-r', '--replace', dest='replace',
+                        help="string replacement. pair with -s/--search",
+                        default=None)
     parser.add_argument('-v', '--verbose', action="store_true")
     parser.add_argument('-o', '--saveto', dest='saveto',
                         help="file to write if any differences\n" +
@@ -49,18 +57,31 @@ def __main__():
 
     p = re.compile(args.patt)
 
+    # setup search and replace if we have both
+    search_replace = None
+    if args.replace is None and args.search is not None or \
+       args.search is None and args.replace is not None:
+            print("need both -s and -r!")
+            parser.print_help()
+            parser.exit()
+    if args.search is not None:
+        search_replace = (re.compile(args.search), args.replace)
+
     # within 'in' set but missing from 'out' set
     # order matters: set([1,2,3]) - set([1,2,4]) = {3}
-    inset = patt_in_wildcard(p, args.in_glob)
-    outset = patt_in_wildcard(p, args.out_glob)
+    inset = patt_in_wildcard(p, args.in_glob, search_replace)
+    outset = patt_in_wildcard(p, args.out_glob, search_replace)
     missing = inset - outset
 
     # when debuging pattern, it's useful to see the matches
     if args.verbose:
+        print(p)
+        print(search_replace)
         print(args.in_glob)
         print(inset)
         print(args.out_glob)
         print(outset)
+        print(missing)
 
     outstr = "\n".join(missing)
     # dont write to file if none provided
