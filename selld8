@@ -2,12 +2,15 @@
 _selld8_query(){
    lncddb "
     select id || '_' || to_char(vtimestamp, 'YYYYMMDD') as ld8,
-    string_agg(study, ' ') as studies
+       round(age::numeric,1) as age,
+       sex,
+       string_agg(study, ' ') as studies
     from enroll
     natural join visit
     natural join visit_study
+    natural join person
     where etype like 'LunaID'
-    group by id,vid
+    group by id,sex,vid
     order by vtimestamp desc"
 }
 _selld8(){

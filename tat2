@@ -1,19 +1,9 @@
 #!/usr/bin/env bash
 set -eou pipefail
 
-usage(){
-  cat <<-HEREDOC
-  USAGE:
-    $0 '/paths/to/*/t2.nii.gz' [-mask /the/only/mask.nii.gz] [-mask_rel subject_mask.nii.gz ]  [-output tat2star.nii.gz] [-scale 10000] [-mkmask]
-HEREDOC
-  exit 1
-}
-err() { echo -e "$@" >&2; exit 1; }
-msg() { echo -e "# [$(date)] $@"; }
-
-# keep args around for 3dNotes history
-allargs="$@"
-
+# tat2:
+#  glue for 3dcalc 3dTcat and 3dTstat (+ 3dNotes)
+#  to compute time average T2
 
 # default values
 SCALE=1000
@@ -22,6 +12,19 @@ MASK=""
 MKMASK=0
 OUTPUT=tat2star.nii.gz
 
+
+usage(){
+  cat <<-HEREDOC
+  USAGE:
+    $0 '/paths/to/*/t2.nii.gz' [-mask /the/only/mask.nii.gz] [-mask_rel $MASK_REL]  [-output $OUTPUT] [-scale $SCALE] [-mkmask]
+HEREDOC
+  exit 1
+}
+err() { echo -e "$@" >&2; exit 1; }
+msg() { echo -e "# [$(date)] $@"; }
+
+# keep args around for 3dNotes history
+allargs="$@"
 
 [ $# -eq 0 ] && usage
 
@@ -40,6 +43,8 @@ while [ $# -gt 0 ]; do
  esac
 done
 
+# need to have at least one file to average
+[ -z "${glob[*]}" ] && usage
 
 # how many files do we have
 nfiles=$(find -L ${glob[@]} -maxdepth 0 | wc -l)
