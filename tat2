@@ -27,19 +27,21 @@ msg() { echo -e "# [$(date)] $@"; }
 allargs="$@"
 
 [ $# -eq 0 ] && usage
+normfunc="-nomeanout -nzmean"
 
 # read in any arguments/paramaters
 declare -a glob
 while [ $# -gt 0 ]; do
  case $1 in
-  -mask)     MASK="$2"; shift 2;;
-  -mask_rel) MASK_REL="$2"; shift 2;;  
-  -output)   OUTPUT="$2"; shift 2;;
-  -scale)    SCALE="$2"; shift 2;;
-  -mkmask)   MKMASK=1; shift;;
-  -h*)       usage;;
-  -*)        echo "unknown option '$1'"; usage;;
-  *)         glob+=("$1"); shift;;
+  -mask)       MASK="$2"; shift 2;;
+  -mask_rel)   MASK_REL="$2"; shift 2;;  
+  -output)     OUTPUT="$2"; shift 2;;
+  -scale)      SCALE="$2"; shift 2;;
+  -mkmask)     MKMASK=1; shift;;
+  -median)     normfunc="-nomeanout -nzmedian"; shift;;
+  -h*)         usage;;
+  -*)          echo "unknown option '$1'"; usage;;
+  *)           glob+=("$1"); shift;;
  esac
 done
 
@@ -73,7 +75,7 @@ for input in ${glob[@]}; do
    vol_mean=$tmpd/${cnt}_volsum.1D
 
    # calc sum of each volume
-   3dROIstats -mask $mask -1Dformat $input > $vol_mean 
+   3dROIstats $normfunc -mask $mask -1Dformat $input > $vol_mean 
 
    # normalize each voxel by the volume average
    # scale by SCALE and number of good (within mask) voxels in the run
