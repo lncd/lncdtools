@@ -16,7 +16,7 @@ OUTPUT=tat2star.nii.gz
 usage(){
   cat <<-HEREDOC
   USAGE:
-    $0 '/paths/to/*/t2.nii.gz' [-mask /the/only/mask.nii.gz] [-mask_rel $MASK_REL]  [-output $OUTPUT] [-scale $SCALE] [-mkmask]
+    $0 '/paths/to/*/t2.nii.gz' [-mask /the/only/mask.nii.gz] [-mask_rel $MASK_REL]  [-output $OUTPUT] [-scale $SCALE] [-mkmask] [-censor_rel relative/censor.1D] [-median]
 HEREDOC
   exit 1
 }
@@ -28,9 +28,11 @@ allargs="$@"
 
 [ $# -eq 0 ] && usage
 normfunc="-nomeanout -nzmean"
+censor_rel=""
 
-# read in any arguments/paramaters
+# variable to store all the inputs we want to work on
 declare -a glob
+# read in any arguments/paramaters
 while [ $# -gt 0 ]; do
  case $1 in
   -mask)       MASK="$2"; shift 2;;
@@ -39,6 +41,7 @@ while [ $# -gt 0 ]; do
   -scale)      SCALE="$2"; shift 2;;
   -mkmask)     MKMASK=1; shift;;
   -median)     normfunc="-nomeanout -nzmedian"; shift;;
+  -censor_rel) censor_rel="$2"; shift 2;;
   -h*)         usage;;
   -*)          echo "unknown option '$1'"; usage;;
   *)           glob+=("$1"); shift;;
@@ -52,8 +55,10 @@ done
 nfiles=$(find -L ${glob[@]} -maxdepth 0 | wc -l)
 [ $nfiles -eq 0 ] && err "no files match input globs: ${glob[@]}"
 [ $nfiles -eq 1 ] && echo "WARNING: only one file matches '${glob[@]}'. expected all (>1) runs" 
+[ $nfiles -gt 10 ] && echo "WARNING: running on $nfiles epi files! Are you sure you don't want to run one visit at a time?" 
 
 [ -r "$OUTPUT" ] && echo "# have $OUTPUT; rm $OUTPUT # to redo" && exit 0
+
 
 tmpd=$(mktemp -d /tmp/tat2star_XXXX)
 
@@ -61,7 +66,7 @@ cnt=0
 for input in ${glob[@]}; do
    [ -n "$MASK" ] && mask="$MASK" || mask="$(dirname "$input")/$MASK_REL"
    if [ ! -r $mask ]; then
-      [ $MKMASK -eq 0 ] && err "subject_mask '$mask' DNE; add -mkmask to create"
+      [ $MKMASK -eq 0 ] && err "mask '$mask' DNE; add -mkmask to create"
       err "make mask not implemented!"
    fi
    # add _tat2.nii.gz to the end
@@ -73,6 +78,24 @@ for input in ${glob[@]}; do
    # verbose
    msg "tat2: $input -> $runoutput"
    vol_mean=$tmpd/${cnt}_volsum.1D
+
+   # censor input
+   if [ -n "$censor_rel" ]; then
+      censor_file=$(dirname "$input")/$censor_rel
+      if [ ! -r $censor_file ]; then 
+         rm -r $tmpd 
+         err "censor file '$censor_file' DNE!"
+      fi
+      # pull out good index (censor=1 means keep). zero based
+      idxs=$(perl -lne 'push @i, $.-1 if /^1/; END{print join ",", @i;}' $censor_file)
+      nkeep=$(echo $idxs| tr ',' '\n' |wc -l)
+      msg "censor: using $nkeep/$(3dinfo -nt $input) timepoints"
+      # truncate input
+      newinput="$tmpd/${cnt}_inputcensor_$nkeep.nii.gz"
+      3dTcat -prefix $newinput "$input[$idxs]"
+      input="$newinput"
+      runoutput="$tmpd/${cnt}_keep${nkeep}_tat2.nii.gz"
+   fi
 
    # calc sum of each volume
    3dROIstats $normfunc -mask $mask -1Dformat $input > $vol_mean 
@@ -95,7 +118,7 @@ if [ $nfiles -gt 1 ]; then
    3dTcat -overwrite -prefix $tmpd/tat2_all.nii.gz $tmpd/*_tat2.nii.gz
    3dTstat -prefix $OUTPUT -overwrite -nzmean $tmpd/tat2_all.nii.gz
 else
-   3dTstat -prefix $OUTPUT -overwrite -nzmean $tmpd/0_tat2.nii.gz
+   3dTstat -prefix $OUTPUT -overwrite -nzmean $tmpd/*_tat2.nii.gz
 fi
 
 3dNotes -h "$0 $allargs # $(pwd)" $OUTPUT
