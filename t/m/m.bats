@@ -34,9 +34,12 @@ teardown(){
 @test missing_file {
    badfile=/tmp/this_file_does_not_exit_$(date +%s)
    ! checkout $(m $badfile)
-   m $badfile |
+   m $badfile 2>&1 |
    grep -iq 'bad file'
 }
 @test order_independent {
-   ! checkout $(m -e -o "$MLCMD")
+   checkout $(m -e -o "$MLCMD")
+   checkout $(m -eo "$MLCMD")
+   checkout $(m -oe "$MLCMD")
+   checkout $(m -o -e "$MLCMD")
 }
