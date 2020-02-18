@@ -1,16 +1,20 @@
 #!/usr/bin/env bash
 _selld8_query(){
    lncddb "
-    select id || '_' || to_char(vtimestamp, 'YYYYMMDD') as ld8,
+    select l.id || '_' || to_char(vtimestamp, 'YYYYMMDD') as ld8,
        round(age::numeric,1) as age,
        sex,
-       string_agg(study, ' ') as studies
-    from enroll
+       vtype,
+       string_agg(study, ' ') as studies,
+       string_agg(distinct vee.id,' ') as veid
+    from enroll l
     natural join visit
     natural join visit_study
     natural join person
-    where etype like 'LunaID'
-    group by id,sex,vid
+    left join visit_enroll ve on ve.vid = visit.vid
+    left join enroll vee on ve.eid = vee.eid
+    where l.etype like 'LunaID'
+    group by l.id,sex,visit.vid
     order by vtimestamp desc"
 }
 _selld8(){
