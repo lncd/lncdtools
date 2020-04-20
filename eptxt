@@ -1,0 +1,84 @@
+#!/usr/bin/env perl
+use strict; use warnings; use v5.28;
+use List::Util qw/uniq/;
+use Data::Dumper 'Dumper';
+use Getopt::Std;
+$Getopt::Std::STANDARD_HELP_VERSION=1;
+use Pod::Usage;
+our $VERSION="1.0";
+sub HELP_MESSAGE { pod2usage(-verbose => 2, -output => \*STDERR, -exitval=>1); }
+
+=head1 NAME
+
+eptxt - parse eprime txt output log
+
+=head1 SYNOPSIS
+
+    eptxt /Volumes/L/bea_res/Tasks/Digit-Symbol/DigitSymbol-20150813-10173-1.txt
+    eptxt -l -p '\d{5}' DigitSymbol-20150813-10173-1.txt
+    eptxt -k id,symbol,speed.RT,speed.ACC,TrialType,digit -p '\d{8}-\d{5}' DigitSymbol-20150813-10173-1.txt
+
+=head1 DESCRIPTION
+
+extract trial information from E-Prime logs
+
+=head2 PARAMATERS
+
+=over 12
+
+=item C<-l>
+use long format instead of wide
+
+=item C<-p> id_pattern
+id from file matches this pattern
+
+=item C<-k> key1,key2,...
+in wide form, only show provided keys. comman separate.
+C<id> is an automatically created key (using pattern optionally specified by C<-p>)
+
+=back
+=cut
+
+# setup paramaters
+my %opt=(l=>0, p=>'\d{5}_\d{8}', h=>0, k=>'');
+getopts('lp:hk:',\%opt);
+HELP_MESSAGE() if($opt{h});
+
+my $re = qr/$opt{p}/s;
+my @a;
+for my $f (@ARGV) {
+    open my $fid, "<:encoding(UTF-16LE):crlf", $f;
+    my $id = $f=~/$re/?$&:"NA";
+    my $h={id=>$id};
+    my %n_logframe = (1=>0);
+    while($_=<$fid>){
+        chomp;
+        my $level = ()=/\t/g; $level++;
+        if(m/LogFrame End/){
+            # count number of tabs.
+            $h->{level}=$level;
+            $n_logframe{$level}++;
+            # add hash to array
+            #say "UPDATE pushed ", Dumper($h);
+            push @a, $h;
+            $h={id=>$id};
+            next;
+        }
+        next unless $_=~m/(\S+): (\S+)$/;
+        $h->{$1}=$2;
+        $n_logframe{$level}=0 if !$n_logframe{$level};
+        my $cnt = $n_logframe{$level} + 1;
+        say "$id\t$level\t$cnt\t$1\t$2" if($opt{l});
+    }
+}
+
+exit if $opt{l};
+# collect all keys
+my @k = split /,/, $opt{k};
+if ($#k<0) {
+   my @keys = ();
+   push @keys, keys %$_ for @a;
+   @k = uniq @keys;
+}
+say join "\t", @k;
+say join("\t",map {$_?$_:"NA"} @{$_}{@k}) for @a;
