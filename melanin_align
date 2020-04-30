@@ -62,6 +62,16 @@ name=${in%%-NM}
       -r $in.nii.gz \
       -o $_
 
+! test -r $name-SN_NM.nii.gz &&
+  niinote $_ \
+    applywarp \
+      --interp=nn \
+      -i /opt/ni_tools/atlas/CC/nm_SN_mask.nii.gz \
+      -w mni2t1.nii.gz \
+      --postmat=T12NM.mat \
+      -r $in.nii.gz \
+      -o $_
+
 ! test -r ${in}_mni.nii.gz && 
   niinote $_ \
    applywarp \
