@@ -24,10 +24,12 @@ prefix="$1"; shift
 glob="$1"; shift
 [ $# -ne 0 ] && subbrik="$1" || subbrik=0
 
+! [[ $prefix =~ nii$|nii.gz$|.HEAD$ ]] && echo "prefix '$prefix' must end in .nii, .nii.gz, or .HEAD" && exit 1
 [ -z "$(ls $glob)" ] && echo "bad glob provided ($glob). consider .HEAD?" >&2 && exit 1
 
 ids="$(ls $glob | perl -lne 'print $& if m/\d{5}(_\d{8})?/')"
 [ -z "$ids" ] && echo "could not find lunaid(_date) in provided glob" >&2 && exit 1
+
 
 if [ ! -r "$prefix" ]; then
    echo "3dbucket: combine"
