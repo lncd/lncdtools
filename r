@@ -11,13 +11,13 @@ set -euo pipefail
 
 =head1 NAME
 
-roi2 - reimplement data science toolkit's Rio with more shortcuts and magic a la 'perl -e'
+r - reimplement data science toolkit's Rio with more shortcuts and magic a la 'perl -e'
 
 perfect for quick write-only one liner data exploration
 
 =head1 SYNOPSIS
 
-cat data | rio2 'r commands'
+cat data | r 'r commands'
 
 =head2 Magic Example
 
@@ -26,17 +26,17 @@ C<d> is read from data from stdin unless C<rt()> or C<rt()> are used to read in 
 C<p()> implies loading C<ggplot> and will wait for X11 window to close
 
    
-   echo -e '1\n2' | rio2 "m(d,x=V1+1)%>%p()+a(x,V1)+gp()"
+   echo -e '1\n2' | r "m(d,x=V1+1)%>%p()+a(x,V1)+gp()"
 
 
 =head2 Less Magic
 
-   echo -e '1\tdesc field\n2\tdesc' | rio2 "rt(sep='\t') %>% m(x=V1+1)%>%p()+a(V2,V1)+gp()" 
+   echo -e '1\tdesc field\n2\tdesc' | r "rt(sep='\t') %>% m(x=V1+1)%>%p()+a(V2,V1)+gp()" 
 
 =head2 Practical Example
 
   for f in /Volumes/Zeus/preproc/petrest_rac1/brnsuwdktm_rest/99998_20190*/tsnr/*txt; do echo $f $(cat $f); done |egrep -v 'usan_size|noise'| 
-   rio2 'r(f=V1, tsnr=V2) %>%
+   r 'r(f=V1, tsnr=V2) %>%
          m(id=e(f,ld8),
            prefix=e(f,"(?<=[0-9]-)([^._]*)"),
            step=str_length(prefix),
@@ -66,6 +66,8 @@ C<p()> implies loading C<ggplot> and will wait for X11 window to close
   * run with `R` and b() as browser() 
   * tr '\n' ';' and kill stand alone ';' that would cause error
 
+=head1 SEE ALSO
+  * https://github.com/lmendo/MATL octave/matlab code golf language
 =cut
 perldoc
 
@@ -105,5 +107,5 @@ fi
 
 CMD="suppressPackageStartupMessages({$LIBS}); $ALIAS $CMD"
 CMD="$(echo "${CMD}"|tr '\n' ' ')"
-set -x
+env |grep -q VERBOSE && set -x
 Rscript -e "$CMD"
