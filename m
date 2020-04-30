@@ -46,3 +46,4 @@ else
 fi
 
 $bin $opts "try, $run; catch e, disp(e); end; quit()"
+# while size(findobj(f))>0; pause; end;
