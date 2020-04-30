@@ -12,7 +12,7 @@ fixto1809c() {
   local input=$1; shift
   while [ $# -ne 0 ]; do
      case $1 in
-        -?mask) mask=1; shift;;
+        -mask) mask=1; shift;;
         -out) shift; output=$1; shift;;
         -mkbad) 
            reffolder="/opt/ni_tools/standard_old/mni_icbm152_nlin_asym_09c"
@@ -29,7 +29,7 @@ fixto1809c() {
   #output="$(dirname $input)/$(basename "$input" .nii.gz).18_09c.nii.gz"
 
   # checks
-  [ -z "$input" -o ! -r "$input" ] && echo "$FUNCNAME needs nifti to warp. given '$@'" >&2 && return 1
+  [ -z "$input" -o ! -r "$input" ] && echo "$FUNCNAME needs nifti to warp. given '$input'" >&2 && return 1
   ! 3dinfo -space $input | grep -iq mni && echo "$input is not in mni space!" >&2 && return 1
 
   dim=$(3dinfo -adj $input|sed 's/0\+$//;s/\.$//')
