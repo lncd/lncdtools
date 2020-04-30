@@ -39,4 +39,4 @@ files=($(awk "(NR>1){ print \$$fileidx}" $datatable))
 echo "3dbucket: combine"
 3dbucket -prefix "$prefix" ${files[@]}
 echo "3drefit: relabel"
-3drefit -relabel_all_str "${ids[@]}" "$prefix"
+3drefit -relabel_all_str "${ids[*]}" "$prefix"
