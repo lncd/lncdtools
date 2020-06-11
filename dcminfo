@@ -1,0 +1,134 @@
+#!/usr/bin/env perl
+use strict; use warnings; use autodie; 
+use File::Slurp; # read_file
+use Getopt::Long;
+use Pod::Usage;
+use Data::Dumper;
+
+my $sep="\t";
+
+my %opts=(subpat=>"\\d+", help=>0);
+GetOptions(\%opts, 'subpat|s=s', 'dirs|d=s@', 'config|c=s', 'sespat=s', 'help|?') or pod2usage(2);
+pod2usage(1) if $opts{help};
+
+my %conf=();
+# use afni's dicom_hdr. need tag ids.
+$conf{tags}={
+   "seqno" =>"0020,0011",
+   "tr"    =>"0018,0080",
+   "matrix"=>"0018,1310",
+   "pname" =>"0018,1030" 
+};
+$conf{tag_order} = [qw/seqno tr matrix pname/];
+$conf{subpat} = qr/$opts{subpat}/;
+# default file info things to grab
+$conf{path_order} = [qw/subj ndcm/];
+# configure 
+$conf{path_funcs} = {
+   subj => sub {$_=shift; print("subj $_\n");return(m/$conf{subpat}/?$&:"NOSUBJ");},
+   ndcm => sub {$_=shift; print("dcm $_\n");my @D=split /\n/, `find $_ -maxdepth 2 -type f,l`;return($#D);}
+};
+
+# if falsey, dont convert
+# $conf{convert} = sub convert { return("") };
+
+# overload with other things
+# TODO: test isfile, test exists convert
+#      while at it, test each tag_order  in tags
+eval read_file($opts{config}) if exists $opts{config};
+
+# initialize before looping
+my $cmd_tags = join " ", map {"-tag ". $conf{tags}->{$_} ." "} @{$conf{tag_order}};
+my @all=();
+# could give many globs. expand all
+foreach my $optd (@{$opts{dirs}}) {
+ foreach my $d (glob($optd))  {
+    print("d: $d; @{$conf{path_order}};\n");
+
+    # run functions on directory
+    my @F = map {$conf{path_funcs}->{$_}->($d)} (@{$conf{path_order}});
+
+    # use dicom_hinfo to get tag_order (via cmd_tags)
+    my $out = `
+      find $d -maxdepth 2 -type f,l -print -quit |
+      xargs -rI{} dicom_hinfo -full_entry -no_name -sepstr '$sep' $cmd_tags "{}"`;
+    chomp($out);
+    my @I = split /$sep/, $out;
+
+    #my $ses = $d=~m/$sespat/?$&:"NOSES";
+    print join($sep, @F, @I), "\n";
+
+    # populate acquisition with what we have
+    my $acq = {};
+    $acq->{@{$conf{path_order}}[$_]} = $F[$_] for 0..$#{$conf{path_order}};
+    $acq->{@{$conf{tag_order}}[$_]} = $I[$_] for 0..$#{$conf{tag_order}};
+
+    push @all, $acq;
+    print Dumper($acq),"\n";
+    print Dumper(%conf),"\n";
+ }
+}
+print Dumper(@all),"\n";
+
+__END__
+=head1 NAME
+
+dcminfo - get dicom info
+
+=head1 SYNOPSIS
+
+Options:
+
+=over 4
+
+=item -s --subpat:
+regexp describes how to find subjects
+
+=item -d --dirs:
+where to look for dicoms (can be more than one)
+
+=item -c --config:
+file.pl defines configuration. see L<CONFIG>
+
+=item --sespat:
+regexp defining session
+
+=item --help:
+this message
+
+=back
+
+Example:
+
+   # find subjects like E07 with config /tmp/test.pm
+   dcminfo -s 'E\d+' -d '/Volumes/L/bea_res/Data/EpilepsyMR/epilepsy_bold/E07/E07_MR3/scans/*/' -c /tmp/test.pm 
+
+
+
+=head1 CONFIG
+
+conf is a hash with keys
+
+=over 4
+
+=item tags - hash ref of dicom tag name and id to extract
+
+=item tag_order - array specfying order to show tags
+
+=item tag_order - array specfying order to show tags
+
+=item subpat    - same as -s. config wins if both provided
+
+=item path_order- order (and which) of functions to run on path
+
+=item path_funcs- how to extract info from provided path_order
+
+=back
+   
+
+=head1 NOTES
+
+ use look ahead in patterns
+
+
+=cut
