@@ -106,4 +106,4 @@ name=${in%%-NM}
 
 # log if we made any new files
 [ $(find . -type f -mtime -1 |sed 1q | wc -l) -gt 0 ] &&
-   echo "$0 $orgiargs # $(date)" >> nm_log.txt || :
+   echo "$0 $orgiargs # ver $(gitver $0) @ $(date)" >> nm_log.txt || :
