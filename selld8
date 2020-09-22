@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 _selld8_query(){
    lncddb "
-    select l.id || '_' || to_char(vtimestamp, 'YYYYMMDD') as ld8,
+    select
+       l.id || '_' || to_char(vtimestamp, 'YYYYMMDD') as ld8,
        round(age::numeric,1) as age,
        sex,
        vtype,
