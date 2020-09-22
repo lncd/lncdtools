@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 set -euo pipefail
-set -x
 trap 'e=$?; [ $e -ne 0 ] && echo "$0 exited in error"' EXIT
 
 # wrap around 3dbucket and 3drefit
