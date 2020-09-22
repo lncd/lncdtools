@@ -6,6 +6,7 @@ use Pod::Usage;
 use Data::Dumper;
 
 my $sep="\t";
+my $DEBUG=0;
 
 my %opts=(subpat=>"\\d+", help=>0);
 GetOptions(\%opts, 'subpat|s=s', 'dirs|d=s@', 'config|c=s', 'sespat=s', 'help|?') or pod2usage(2);
@@ -25,8 +26,8 @@ $conf{subpat} = qr/$opts{subpat}/;
 $conf{path_order} = [qw/subj ndcm/];
 # configure 
 $conf{path_funcs} = {
-   subj => sub {$_=shift; print("subj $_\n");return(m/$conf{subpat}/?$&:"NOSUBJ");},
-   ndcm => sub {$_=shift; print("dcm $_\n");my @D=split /\n/, `find $_ -maxdepth 2 -type f,l`;return($#D);}
+   subj => sub {my $p=shift;return($p=~m/$conf{subpat}/?$&:"NOSUBJ");},
+   ndcm => sub {my $p=shift;my @D=split /\n/, `find $p -maxdepth 2 -type f,l`;return($#D);}
 };
 
 # if falsey, dont convert
@@ -43,7 +44,7 @@ my @all=();
 # could give many globs. expand all
 foreach my $optd (@{$opts{dirs}}) {
  foreach my $d (glob($optd))  {
-    print("d: $d; @{$conf{path_order}};\n");
+    print("d: $d; @{$conf{path_order}};\n") if $DEBUG>2;
 
     # run functions on directory
     my @F = map {$conf{path_funcs}->{$_}->($d)} (@{$conf{path_order}});
@@ -64,11 +65,11 @@ foreach my $optd (@{$opts{dirs}}) {
     $acq->{@{$conf{tag_order}}[$_]} = $I[$_] for 0..$#{$conf{tag_order}};
 
     push @all, $acq;
-    print Dumper($acq),"\n";
-    print Dumper(%conf),"\n";
+    print Dumper($acq),"\n" if $DEBUG>2;
+    print Dumper(%conf),"\n" if $DEBUG>2;
  }
 }
-print Dumper(@all),"\n";
+print Dumper(@all),"\n" if $DEBUG>2;
 
 __END__
 =head1 NAME
