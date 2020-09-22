@@ -11,12 +11,13 @@ MASK_REL="subject_mask.nii.gz"
 MASK=""
 MKMASK=0
 OUTPUT=tat2star.nii.gz
+CLEAN=1
 
 
 usage(){
   cat <<-HEREDOC
   USAGE:
-    $0 '/paths/to/*/t2.nii.gz' [-mask /the/only/mask.nii.gz] [-mask_rel $MASK_REL]  [-output $OUTPUT] [-scale $SCALE] [-mkmask] [-censor_rel relative/censor.1D] [-median]
+    $0 '/paths/to/*/t2.nii.gz' [-mask /the/only/mask.nii.gz] [-mask_rel $MASK_REL]  [-output $OUTPUT] [-scale $SCALE] [-mkmask] [-censor_rel relative/censor.1D] [-median] [-noclean]
 HEREDOC
   exit 1
 }
@@ -42,6 +43,7 @@ while [ $# -gt 0 ]; do
   -mkmask)     MKMASK=1; shift;;
   -median)     normfunc="-nomeanout -nzmedian"; shift;;
   -censor_rel) censor_rel="$2"; shift 2;;
+  -noclean)    CLEAN=0; shift;;
   -h*)         usage;;
   -*)          echo "unknown option '$1'"; usage;;
   *)           glob+=("$1"); shift;;
@@ -124,4 +126,5 @@ else
 fi
 
 3dNotes -h "$0 $allargs # $(pwd); SCALE=$SCALE, nvoxes=$all_numvox" $OUTPUT
-rm -r $tmpd
+
+[ $CLEAN -eq 1 ] && rm -r $tmpd || echo "find temporary files in '$tmpd'; remove '-noclean' if not testing"
