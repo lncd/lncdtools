@@ -51,6 +51,11 @@ name=${in%%-NM}
   niinote $_ \
     flirt -interp nearestneighbour -in $T1DIR/mprage_bet_fast_wmseg.nii.gz -ref $in.nii.gz -applyxfm -init T12NM.mat -out $_
 
+# 20200909 - to inspect warp put t1 in NM space
+! test -r t1-bet_NM.nii.gz &&
+  niinote $_ \
+    flirt -in t1-bet.nii.gz -out $_ -ref 11639_20200206-NM.nii.gz -applyxfm -init T12NM.mat
+
 ! test -r mni2t1.nii.gz &&
   niinote $_ \
    invwarp -w $T1DIR/mprage_warpcoef.nii.gz -r t1-bet.nii.gz -o $_ 
