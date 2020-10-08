@@ -1,34 +1,42 @@
 #!/usr/bin/env perl
+use v5.28;
 use strict; use warnings; use autodie; 
+use feature qw/signatures/; no warnings qw(experimental::signatures);
 use File::Slurp; # read_file
 use Getopt::Long;
 use Pod::Usage;
 use Data::Dumper;
+use File::Basename;
+use File::Glob ":bsd_glob";
+use Carp;
+# glob is now bsd_glob. default glob doesn't handle spaces
 
 my $sep="\t";
 my $DEBUG=0;
 
-my %opts=(subpat=>"\\d+", help=>0);
-GetOptions(\%opts, 'subpat|s=s', 'dirs|d=s@', 'config|c=s', 'sespat=s', 'help|?') or pod2usage(2);
+my %opts=(subpat=>'\d+', help=>0);
+GetOptions(\%opts, 'subpat|s=s', 'dirs|d=s@', 'config|c=s', 'eval|e=s', 'help|?', 'no-header|H') or pod2usage(2);
 pod2usage(1) if $opts{help};
 
 my %conf=();
-# use afni's dicom_hdr. need tag ids.
-$conf{tags}={
-   "seqno" =>"0020,0011",
-   "tr"    =>"0018,0080",
-   "matrix"=>"0018,1310",
-   "pname" =>"0018,1030" 
-};
-$conf{tag_order} = [qw/seqno tr matrix pname/];
 $conf{subpat} = qr/$opts{subpat}/;
+$conf{dcmpat} = '.*MR.*\|.*dcm$';
 # default file info things to grab
-$conf{path_order} = [qw/subj ndcm/];
-# configure 
-$conf{path_funcs} = {
-   subj => sub {my $p=shift;return($p=~m/$conf{subpat}/?$&:"NOSUBJ");},
-   ndcm => sub {my $p=shift;my @D=split /\n/, `find $p -maxdepth 2 -type f,l`;return($#D);}
+
+$conf{columns}={
+   subj   => sub($p) {return($p=~m/$conf{subpat}/?$&:"NOSUBJ");},
+   ndcm   => sub($p) {my @D=split /\n/, `find -L "$p" -maxdepth 2 -regextype sed -iregex '$conf{dcmpat}' -type f,l`;return($#D +1);},
+   dname  => sub($p) {return basename($p);},
+   fullpath  => sub($p) {return $p},
+   # use afni's dicom_hdr. need tag ids.
+   "seqno" => "0020,0011",
+   "tr"    => "0018,0080",
+   "matrix"=> "0018,1310",
+   "dir"   => "0018,1312",
+   "dir2"  => "0051,100e",
+   "pname" => "0018,1030" 
 };
+$conf{col_order} = [qw/subj ndcm dname seqno tr matrix dir pname/];
 
 # if falsey, dont convert
 # $conf{convert} = sub convert { return("") };
@@ -36,37 +44,57 @@ $conf{path_funcs} = {
 # overload with other things
 # TODO: test isfile, test exists convert
 #      while at it, test each tag_order  in tags
-eval read_file($opts{config}) if exists $opts{config};
+if(exists $opts{config}){
+   eval read_file($opts{config}) or croak "config eval failed $@ $!";
+}
+if($opts{eval}){
+   eval "$opts{eval}" or croak "custom eval code failed! $@ $!";
+}
 
 # initialize before looping
-my $cmd_tags = join " ", map {"-tag ". $conf{tags}->{$_} ." "} @{$conf{tag_order}};
 my @all=();
+pod2usage(1) if $#{$opts{dirs}} <0;
+
+# break columns into tags (strings in hash) and path functions ("CODE")
+# CODE get passed in file name. others used as tag ids
+my @all_cols = @{$conf{'col_order'}};
+my @path_cols = grep {ref($conf{'columns'}->{$_}) eq 'CODE'} @all_cols;
+my @tag_cols  = grep {ref($conf{'columns'}->{$_}) eq ''    } @all_cols;
+my $cmd_tags = join " ", map {"-tag ". $conf{columns}->{$_} ." "} @tag_cols;
+
+sub first_dcm_info($d){
+    # use dicom_hinfo to get tag_order (via cmd_tags)
+    # N.B. globals '$sep' and '$cmd_tags'
+    my $first_dcm_cmd = qq/
+      find -L "$d" -maxdepth 2 -type f,l -regextype sed -iregex '$conf{dcmpat}' -print0 -quit |
+      xargs -0rI{} dicom_hinfo -full_entry -no_name -sepstr '$sep' $cmd_tags "{}"/;
+    print "$first_dcm_cmd\n" if $DEBUG>=2;
+    chomp(my $out = qx/$first_dcm_cmd/);
+    return(split /$sep/, $out);
+}
+
+# header: double negative to make providing options easy + default to header
+say join $sep, @all_cols if not $opts{'no-header'};
+
 # could give many globs. expand all
 foreach my $optd (@{$opts{dirs}}) {
- foreach my $d (glob($optd))  {
-    print("d: $d; @{$conf{path_order}};\n") if $DEBUG>2;
+ foreach my $d (glob("$optd"))  {
+    print("d: $d; @path_cols};\n") if $DEBUG>2;
 
-    # run functions on directory
-    my @F = map {$conf{path_funcs}->{$_}->($d)} (@{$conf{path_order}});
+    my %acq = ();
 
-    # use dicom_hinfo to get tag_order (via cmd_tags)
-    my $out = `
-      find $d -maxdepth 2 -type f,l -print -quit |
-      xargs -rI{} dicom_hinfo -full_entry -no_name -sepstr '$sep' $cmd_tags "{}"`;
-    chomp($out);
-    my @I = split /$sep/, $out;
+    @acq{@path_cols} = map {$conf{columns}->{$_}->($d)} @path_cols;
+    @acq{@tag_cols}  = first_dcm_info($d);
 
     #my $ses = $d=~m/$sespat/?$&:"NOSES";
-    print join($sep, @F, @I), "\n";
+    print join($sep, map {$_=$_?$_:""} @acq{@all_cols}), "\n";
 
-    # populate acquisition with what we have
-    my $acq = {};
-    $acq->{@{$conf{path_order}}[$_]} = $F[$_] for 0..$#{$conf{path_order}};
-    $acq->{@{$conf{tag_order}}[$_]} = $I[$_] for 0..$#{$conf{tag_order}};
+    # presumably run dcm2niix given info from this dcm
+    # would be set in -e or -c file.pm (untested!)
+    $conf{run}->(%acq) if($conf{run});
 
-    push @all, $acq;
-    print Dumper($acq),"\n" if $DEBUG>2;
-    print Dumper(%conf),"\n" if $DEBUG>2;
+    push @all, \%acq;
+    print Dumper(\%acq),"\n" if $DEBUG>2;
  }
 }
 print Dumper(@all),"\n" if $DEBUG>2;
@@ -86,15 +114,21 @@ Options:
 regexp describes how to find subjects
 
 =item -d --dirs:
-where to look for dicoms (can be more than one)
+dir glob pattern to dicom folders. e.g. C</path/1*_2*/*/*/>
+mulitple C<-d '/path/*/'> accepted
 
 =item -c --config:
-file.pl defines configuration. see L<CONFIG>
+path to config script. e.g. C<config.pl>.
 
-=item --sespat:
-regexp defining session
+see L<CONFIG> in C<perldoc $(which dcminfo)>
 
-=item --help:
+=item -e --eval:
+inline perl code. useful for quick modifications.
+For example, to add a column to the output:
+
+   -e 'push @{$conf{col_order}}, "dir2"'
+
+=item -h --help:
 this message
 
 =back
@@ -112,20 +146,26 @@ conf is a hash with keys
 
 =over 4
 
-=item tags - hash ref of dicom tag name and id to extract
-
-=item tag_order - array specfying order to show tags
-
-=item tag_order - array specfying order to show tags
 
 =item subpat    - same as -s. config wins if both provided
 
-=item path_order- order (and which) of functions to run on path
+=item col_order - order of output columns (array ref)
 
-=item path_funcs- how to extract info from provided path_order
+=item columns - hash ref of afni dcminfo colname=>'xxxx,yyyy' or colname=>sub($path){} path function
 
 =back
-   
+
+=head2 Default
+
+    $conf{columns}={
+       "seqno" =>"0020,0011",
+       "tr"    =>"0018,0080",
+       "matrix"=>"0018,1310",
+       "pname" =>"0018,1030" 
+       "subj" => sub($p){return($p=~m/$conf{subpat}/?$&:"NOSUBJ");},
+       "ndcm" => sub($p){return(split /\n/, `find -L "$p" -maxdepth 2 -type f,l` +1);}
+    };
+       
 
 =head1 NOTES
 
