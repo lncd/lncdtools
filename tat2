@@ -17,7 +17,18 @@ CLEAN=1
 usage(){
   cat <<-HEREDOC
   USAGE:
-    $0 '/paths/to/*/t2.nii.gz' [-mask /the/only/mask.nii.gz] [-mask_rel $MASK_REL]  [-output $OUTPUT] [-scale $SCALE] [-mkmask] [-censor_rel relative/censor.1D] [-median] [-noclean]
+    tat2 '/paths/to/*/t2.nii.gz' [-mask /the/only/mask.nii.gz] [-mask_rel $MASK_REL]  [-output $OUTPUT] [-scale $SCALE] [-mkmask] [-censor_rel relative/censor.1D] [-median|-mean] [-noclean] [-verbose]
+
+  * calculates time averaged T2* like:
+     1) 3dcalc -a input1  -b vol_norm -expr "(a/b)*SCALE/numvox #rep. f.ea. input
+     2) 3dTstat -nzmean 'allnormed_concated'
+  * final 'tat2start.nii.gz' will be in the cwd
+  * use censor_rel to specify the motion censor file. single column no header file. nLines = nVols. 0=exclude, 1=keep.
+    either a filename or regexp
+       as a filename in input nifti directory (resolves to \$(dirname \$input)/\$censor_rel)  OR
+       as a perl regexp run on \$input. like 's/(rest-\\d)_bold.nii.gz/\\1_cesnor.1d/'
+  * default is to take the median value not the mean (20201016)
+  * use -noclean to debug
 HEREDOC
   exit 1
 }
@@ -28,7 +39,7 @@ msg() { echo -e "# [$(date)] $@"; }
 allargs="$@"
 
 [ $# -eq 0 ] && usage
-normfunc="-nomeanout -nzmean"
+normfunc="-nomeanout -nzmedian"
 censor_rel=""
 
 # variable to store all the inputs we want to work on
@@ -40,10 +51,12 @@ while [ $# -gt 0 ]; do
   -mask_rel)   MASK_REL="$2"; shift 2;;  
   -output)     OUTPUT="$2"; shift 2;;
   -scale)      SCALE="$2"; shift 2;;
-  -mkmask)     MKMASK=1; shift;;
+  -mkmask)     MKMASK=1; MASK_REL=""; shift;;
   -median)     normfunc="-nomeanout -nzmedian"; shift;;
+  -mean)       normfunc="-nomeanout -nzmean"; shift;;
   -censor_rel) censor_rel="$2"; shift 2;;
   -noclean)    CLEAN=0; shift;;
+  -verbose)    set -x; shift;;
   -h*)         usage;;
   -*)          echo "unknown option '$1'"; usage;;
   *)           glob+=("$1"); shift;;
@@ -63,14 +76,14 @@ nfiles=$(find -L ${glob[@]} -maxdepth 0 | wc -l)
 
 
 tmpd=$(mktemp -d /tmp/tat2star_XXXX)
-
 cnt=0
 all_numvox="" # will be populated with each subjectmask
 for input in ${glob[@]}; do
    [ -n "$MASK" ] && mask="$MASK" || mask="$(dirname "$input")/$MASK_REL"
-   if [ ! -r $mask ]; then
+   if [ ! -f $mask ]; then
       [ $MKMASK -eq 0 ] && err "mask '$mask' DNE; add -mkmask to create"
-      err "make mask not implemented!"
+      mask="$tmpd/subj_mask.nii.gz" 
+      coverage_mask $mask "${glob[@]}"
    fi
    # add _tat2.nii.gz to the end
    runoutput="$tmpd/${cnt}_tat2.nii.gz"
@@ -80,14 +93,21 @@ for input in ${glob[@]}; do
 
    # verbose
    msg "tat2: $input -> $runoutput"
-   vol_mean=$tmpd/${cnt}_volsum.1D
+   vol_mean=$tmpd/${cnt}_volnorm.1D
 
    # censor input
    if [ -n "$censor_rel" ]; then
-      censor_file=$(dirname "$input")/$censor_rel
-      if [ ! -r $censor_file ]; then 
+      censor_file="$(dirname "$input")/$censor_rel"
+      # try regexp pattern replace if censor_rel looks like s/
+      [ ! -r "$censor_file" -a ${censor_rel:0:2} == "s/" ] &&
+         censor_file="$(echo "$input" | perl -pe "$censor_rel")"
+      if [ "$censor_file" == "$input" ]; then
          rm -r $tmpd 
-         err "censor file '$censor_file' DNE!"
+         err "ERR: censor file subsitition failed '$censor_file' matches inputfile! rel '$censor_rel' for '$input'"
+      fi
+      if [ ! -r "$censor_file" ]; then 
+         rm -r $tmpd 
+         err "ERR: censor file '$censor_file' DNE!"
       fi
       # pull out good index (censor=1 means keep). zero based
       idxs=$(perl -lne 'push @i, $.-1 if /^1/; END{print join ",", @i;}' $censor_file)
@@ -103,7 +123,7 @@ for input in ${glob[@]}; do
    # calc sum of each volume
    3dROIstats $normfunc -mask $mask -1Dformat $input > $vol_mean 
 
-   # normalize each voxel by the volume average
+   # normalize each voxel by the volume average or median
    # scale by SCALE and number of good (within mask) voxels in the run
    3dcalc \
      -a $input \
@@ -125,6 +145,6 @@ else
    3dTstat -prefix $OUTPUT -overwrite -nzmean $tmpd/*_tat2.nii.gz
 fi
 
-3dNotes -h "$0 $allargs # $(pwd); SCALE=$SCALE, nvoxes=$all_numvox" $OUTPUT
+3dNotes -h "$0 $allargs # $(pwd); SCALE=$SCALE, nvoxes=$all_numvox; nt=$(3dinfo -nt $tmpd/*_tat2.nii.gz)" $OUTPUT
 
 [ $CLEAN -eq 1 ] && rm -r $tmpd || echo "find temporary files in '$tmpd'; remove '-noclean' if not testing"

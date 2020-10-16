@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -eou pipefail
+usage(){
+cat <<HEREDOC
+USAGE: 
+   coverage_mask outputmask.nii.gz input1.nii.gz [input2.nii.gz input3.nii.gz ....]
+
+ make mask of coverage.
+ 1) idv masks: include any voxel with any non-zero value in the individual inputfiles
+ 2) include only voxels in all idv masks.
+
+ This is a wrapper for 3dTstat -absmax ...; 3dMean -mask_inter ...
+ You may want 3dTstat -absmax ..; 3dMean -count ... # for a more descriptive coverage map
+HEREDOC
+exit 1
+}
+
+[ $# -lt 2 ] && usage
+
+outfile="$1"; shift
+[ -r $outfile ] && echo -e "# already have output file.\n\t rm '$outfile' #to redo" && exit 0
+tmpd=$(mktemp -d /tmp/mkmask_XXXX)
+let i=1
+for f in "$@"; do
+   3dTstat -absmax -prefix $tmpd/mask_$i.nii.gz $f
+   let ++i
+done
+3dMean -prefix $outfile -mask_inter $tmpd/mask_*.nii.gz
+rm -r $tmpd
