@@ -46,7 +46,7 @@ sub path($self, $ext=".nii.gz") {
    my $subj=$self->{subj};
    my $ses =$self->{ses};
    my $prefix="sub-$subj/$mode_folder{$self->{mode}}/sub-${subj}_";
-   $prefix = "sub-$subj/$mode_folder{$self->{mode}}/ses-$ses/sub-${subj}_ses-${ses}_" if $ses;
+   $prefix = "sub-$subj/ses-$ses/$mode_folder{$self->{mode}}/sub-${subj}_ses-${ses}_" if $ses;
    
    my $file = join "_",
       grep {!/^-?$/}
@@ -78,11 +78,10 @@ sub dsl($class, $cfgstring) {
    # bold=mytask;pname=rest,ndcm=180;3
    # bold=rest;pname=rest,ndcm=180
    # T1w;pname=mprage,ndcm=176
-   $cfgstring =~ m/(?<mode>\w+)=?(?<task>\w+)?;(?<matches>[\w,=]+);?(?<n_expect>\d+)?$/ or
+   $cfgstring =~ m/(?<mode>\w+)=?(?<task>\w+)?;(?<matches>[^;]+);?(?<n_expect>\d+)?$/ or
      croak "criteria: failed to parse '$cfgstring'. want eg. bold=mytask;pname=MyTask,ndcm=180;3";
    my %bids = %+{qw/mode task/};
    my $n_expect = $+{n_expect};
-   #$n_expect =~ s/;//;
    my %matches = map {split /=/} (split /,/, $+{matches});
    return new($class,
               bids=>\%bids, 
@@ -115,24 +114,26 @@ no warnings 'experimental::signatures';
 
 use File::Basename;
 use Data::Dumper;
-sub dcm2niix_cmd($nii_out, $dcm_folder){
-   my $outdir = dirname($nii_out);
-   my $outname = basename($nii_out, ".nii.gz");
-   return "niinote $nii_out dcm2niix -b -f $outname -o $outdir $dcm_folder";
-}
 
-sub session_cmds($sequences, @criteria){
+sub bids_out($sequences, @criteria){
    # filter sequences to those with properties matching heuristic criteria
-   # return dcm2niix command to generate bids
    # check criteria for every session so we can enumerate matches (into run#s)
 
    #print "ses: ", Dumper($sequences), "\n";
    my %matches = ();
    for my $crt (@criteria) {
-      my $run = 1;
+      my $prevsesid="";
+      my $run;
       for my $seq (@$sequences) {
-         #print "seq: ", Dumper($seq), "\n";
-        next unless $crt->match_seq($seq);
+        my $sesid = join "_", map {$_||""} @{$seq}{qw/subj ses/};
+        $run = 0 if $prevsesid ne $sesid;
+        $prevsesid = $sesid;
+
+        #print "seq: ", Dumper($seq), "\n";
+        if (not $crt->match_seq($seq)){
+           print "NO MATCH: ".Dumper($seq).Dumper($crt->{matches}) if $ENV{DEBUG}=~/MISS/;
+           next;
+        }
 
         ++$run if $crt->{n_expect} != 1;
 
@@ -147,29 +148,24 @@ sub session_cmds($sequences, @criteria){
         }
 
 
-        my $cmd = dcm2niix_cmd($nii_out, $seq->{fullpath});
+        print "# MATCH: $seq->{fullpath} => $nii_out\n" if $ENV{DEBUG}=~/HIT/;
 
         # using hash so we only write out a file once. later we use values(%results)
         # this then always takes the last sequence if n_expected == 1
         #
         # maybe we want to keep a list of what we are replacing?
         # push @{$matches{$nii_out}}, $cmd;
-        $matches{$nii_out}=$cmd;
+        $matches{$nii_out}=$seq->{fullpath};
       }
    }
 
    return %matches;
 }
-sub mk_criteria(@criteria){
-   my @c = map {criteria->new(%$_)} @criteria;
-   return @c;
-}
 
 sub parse($sequences, $criteria){
-   my @criteria = mk_criteria(@$criteria);
-   my %cmds = session_cmds($sequences, @criteria);
+   my %bids = bids_out($sequences, @$criteria);
    #print "cmds: ",Dumper(%cmds), "\n";
-   return values(%cmds);
+   return map {[$bids{$_}, $_]} keys(%bids);
 }
 
 package main;
@@ -193,6 +189,7 @@ sub read_tsv(){
    my @header;
    my @all;
    while(<STDIN>){
+      chomp;
       my @line = split /\t/, $_;
       if(not @header) {
          @header=@line;
@@ -216,8 +213,10 @@ sub read_tsv(){
 if(not caller){
    my @criteria = get_criteria;
    my @sequences = read_tsv;
-   my %cmds = heuristic::session_cmds(\@sequences, @criteria);
-   print join "\n", values(%cmds);
+   my @in_out = heuristic::parse(\@sequences, \@criteria);
+
+   print join "\n", map {join "\t", @{$_}} @in_out;
+   print "\n";
 }
 
 1;
@@ -234,7 +233,7 @@ dcmtab_bids
 
 
 Generate commands from dicom info tsv and bids criteria.
-Using dcm2niix and 3dNotes wrapper C<tonii>
+output ready for C<dcmnii>
 
 Input likely from C<dcmdirtab>. See C<--help> for more.
 
@@ -246,7 +245,7 @@ Input likely from C<dcmdirtab>. See C<--help> for more.
 
 specification for data to BIDS. quote and provide as many as needed.
 
-Examples:
+Example criteria specifications
 
 =over 4 
 
@@ -259,6 +258,11 @@ Examples:
 =item -h --help:
 
 this message
+
+=item ENV
+use DEBUG=HIT, DEBUG=MISS, DEBUG=HITMISS to see criteria comparisons
+   dcmdirtab -s 'E\d+' -d 'E07/scans/*/' |
+    DEBUG=HIT dcmtab_bids 'bold=rest;ndcm=574;pname=EYESFIXED' 'T1w;pname=mprage,ndcm=176'
 
 =back
 
@@ -277,7 +281,10 @@ is(BIDS::combine_attr("anything",""), "", "combine_attr empty");
 is(BIDS::combine_attr("run","1"), "run-1", "combine_attr normal");
 is(BIDS::combine_attr("mode","bold"), "bold", "combine_attr mode");
 my $sequences = [{subj=>1, pname=>"rest",  ndcm=>180,fullpath=>'xxx/yyyy'  },
-                {subj=>2, pname=>"rest",ndcm=>76, fullpath=>'bad_rest'},
+                {subj=>2, pname=>"rest",ndcm=>76, fullpath=>'short1'},
+                {subj=>2, pname=>"rest",ndcm=>76, fullpath=>'short2'},
+                {subj=>3,ses=>1,pname=>"rest",ndcm=>76, fullpath=>'short3'},
+                {subj=>3,ses=>2,pname=>"rest",ndcm=>76, fullpath=>'short4'},
                 {subj=>3, pname=>"mprage",ndcm=>176,fullpath=>'y/x'       }];
 
 my %c=(n_expect=>1, matches=>{pname => qr/rest/, ndcm=>180}, bids=>{mode=>"bold",task=>"rest"});
@@ -296,14 +303,23 @@ is $cdsl->{bids}->{mode}, "T1w", "criteria dsl minimal bids:mode";
 is $crt->match_seq($sequences->[0]), 1, "heuristic match (rest)";
 is $crt->match_seq($sequences->[1]), 0, "heuristic no match (bad rest)";
 is $crt->match_seq($sequences->[2]), 0, "heuristic no match (mprage)";
-ok heuristic::session_cmds($sequences, $crt), "generic sequences cmds";
+ok heuristic::bids_out($sequences, $crt), "generic sequences cmds";
 ok heuristic::parse($sequences,[$crt]), "generic parse";
 my @res = heuristic::parse($sequences,[$crt]);
 is @res, 1, "parse returns only one";
-ok $res[0] =~ m:dcm2niix.*sub-1/.*func xxx/yyyy:, "is sub-1 rest xxx/yyyy";
+ok $res[0][0] =~ m:xxx/yyyy:, "input is xxx/yyyy";
+ok $res[0][1] =~ m:sub-1/.*func:, "output is sub-1 rest xxx/yyyy";
 
+# criteral->{bids} function instead of {mode=>xxx, ...}
 $c{bids} = sub {return "./nonsense.nii.gz"};
 my $crtf = criteria->new(%c);
 @res = heuristic::parse($sequences,[$crtf]);
-ok $res[0] =~ m/dcm2niix.*nonsense/, "use bids function instead of template";
+is $res[0][1], "./nonsense.nii.gz", "use criteria->{bids} is function instead of template";
+
+# run numbers were previously off
+@res = heuristic::parse($sequences,[criteria->dsl('bold=rest;pname=rest,ndcm=76;2')]);
+is @res, 4, "found all short rests ";
+is scalar(grep {$_->[1] =~ /run-2/} @res), 1, "only 1 run2";
+is scalar(grep {$_->[1] =~ /run-1/} @res), 3, "2 run 1s";
+
 done_testing;
