@@ -20,7 +20,7 @@ query <- sprintf("
           where i.id in (%s)", l_in)
 
 r <- LNCDR::db_query(query) 
-if(nrow(r) == 0L) stop('no ids found!')
+if(nrow(r) == 0L) stop(paste(collapse=",", d$id) %>% sprintf('#no ids found! %s', .))
 
 f <- merge(r, d, by='id', all=T)
 
