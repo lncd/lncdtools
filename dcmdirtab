@@ -21,7 +21,7 @@ sub get_config(){
       'subpat|s=s', 'sespat|b=s',
       'cols=s','add_cols|a=s',
       'config|c=s', 'eval|e=s',
-      'no-header|H','short|S',
+      'no-header|H','short|x',
       'list|l', 'help|?') or pod2usage(2);
 
    pod2usage(1) if $opts{help};
@@ -33,8 +33,8 @@ sub get_config(){
    # default file info things to grab
 
    $conf{columns}={
-      subj   => sub($p) {return($p=~m/$conf{subpat}/?$&:"NOSUBJ");},
-      ses    => sub($p) {return($p=~m/$conf{sespat}/?$&:"NOSES");},
+      subj   => $conf{subpat},
+      ses    => $conf{sespat},
       ndcm   => sub($p) {my @D=split /\n/, `find -L "$p" -maxdepth 2 -regextype sed -iregex '$conf{dcmpat}' -type f,l`;return($#D +1);},
       dname  => sub($p) {return basename($p);},
       fullpath  => sub($p) {return $p},
@@ -107,6 +107,12 @@ sub dcmdir_info(%conf) {
    # break columns into tags (strings in hash) and path functions ("CODE")
    # CODE get passed in file name. others used as tag ids
    my @all_cols = @{$conf{'col_order'}};
+   # convert regrexps to functions
+   my @regex_cols = grep {ref($conf{'columns'}->{$_}) eq 'Regexp'} @all_cols;
+   for my $regcol (@regex_cols) {
+      my $regexp = $conf{'columns'}->{$regcol};
+      $conf{'columns'}->{$regcol} = sub($p) { return(($p=~m/$regexp/)?$&:"NONE")};
+   }
    my @path_cols= grep {ref($conf{'columns'}->{$_}) eq 'CODE'} @all_cols;
    my @tag_cols = grep {ref($conf{'columns'}->{$_}) eq ''    } @all_cols;
    my @dcm_tags = map {$conf{columns}->{$_} ." "} @tag_cols;
@@ -158,7 +164,7 @@ dcmdirtab - get tab delm. dicom directory info
    dcmdirtab -l   # list built in column options (enable with -a
    dcmdirtab -s 'E\d+' -d 'E07_MR3/scans/*/'
    dcmdirtab -s 'E\d+' -d 'E07_MR3/scans/*/' --cols pname,ndcm,fullpath
-   dcmdirtab -s 'E\d+' -d 'E07_MR3/scans/*/' -S -a acqdir_alt # Short (no fullpath column), add acqdir_alt column
+   dcmdirtab -s 'E\d+' -d 'E07_MR3/scans/*/' -x -a acqdir_alt # Short (no fullpath column), add acqdir_alt column
    dcmdirtab -s 'E\d+' -d 'E07_MR3/scans/*/' -a acqdir_alt,sex -e '$conf{columns}->{sex}="0010,0040"' # add and use a sex column from dcm header
 
 extract tsv of dicom info using AFNI's C<dicom_hinfo>. extract subj and session. Use as input to C<dcmtab_bids>.
@@ -216,7 +222,7 @@ add a column to the list
 
   -a patname,acqdir_alt
 
-=item -S --short
+=item -x --short
 dont include longer columns (for quick looks). excludes C<acqdir,matrix,fullpath>
 
 =item -h --help
