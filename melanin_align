@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# @param NMinput - neuromelanin.nii.gz file
+# @param NMinput - xxxx_NM.nii.gz file
 # @param T1DIR - dir containing: 'mprage_warpcoef.nii.gz', 'mprage_bet_fast_wmseg.nii.gz'
 # @output - neuromelanin aligned atlases (in CWD) 
 #
@@ -9,18 +9,19 @@ set -euo pipefail
 
 # 20200909WF - update with VTASNLC, fix SN 2mm, fix NN->NM typo, add doc, add log
 
-set -x
-[ $# -ne 2 ] && echo "USAGE: $0 NMinput T1DIR" && exit 1
+[ $# -ne 2 ] && echo "USAGE: $0 NM.nii.gz T1ProcDir" && exit 1
 orgiargs="$@"
 input="$1"; shift
 T1DIR="$1"; shift
-[ ! -r $T1DIR/mprage_bet.nii.gz ] && echo "bad T1DIR '$T1DIR'!" && exit 1
+test ! -r $T1DIR/mprage_bet.nii.gz && echo "bad t1 preproc dir, bet file DNE: '$_'!" && exit 1
+test ! -r $T1DIR/mprage_warpcoef.nii.gz && echo "bad t1 preproc dir, warp file DNE: '$_'!" && exit 1
 [ ! -r $input ] && echo "bad input '$input' (pwd: $PWD)!" && exit 1
 ! [[ $input =~ .nii.gz$ ]] && echo "neuromelanin input must end with nii.gz ('$input')" && exit 1
 in=$(basename $input .nii.gz)
 
 [[ $in =~ NN$ ]] && echo "ERROR: expect input '$input' to end in NN.nii.gz" && exit 1
 
+set -x
 # link in mprage
 ! test -r t1-bet.nii.gz &&
   ln -s $T1DIR/mprage_bet.nii.gz $_
@@ -54,7 +55,7 @@ name=${in%%-NM}
 # 20200909 - to inspect warp put t1 in NM space
 ! test -r t1-bet_NM.nii.gz &&
   niinote $_ \
-    flirt -in t1-bet.nii.gz -out $_ -ref 11639_20200206-NM.nii.gz -applyxfm -init T12NM.mat
+    flirt -in t1-bet.nii.gz -out $_ -ref $in -applyxfm -init T12NM.mat
 
 ! test -r mni2t1.nii.gz &&
   niinote $_ \
