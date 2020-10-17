@@ -13,8 +13,8 @@ cmd=$(basename $0)
 export AFNI_NO_OBLIQUE_WARNING="YES" # 3dNotes likes to complain. silence it
 
 output="$1"; shift
-eval "$@" || exit $?
+arg="$(printf "%q " "$@")"
+eval "$arg" || exit $?
 [ ! -r $output ] && exit 1
-arg="$@"
 3dNotes -h "'${arg//\'/\"}'" $output || exit $?
 exit 0
