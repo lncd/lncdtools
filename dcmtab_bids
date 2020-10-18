@@ -165,7 +165,7 @@ sub bids_out($sequences, @criteria){
 sub parse($sequences, $criteria){
    my %bids = bids_out($sequences, @$criteria);
    #print "cmds: ",Dumper(%cmds), "\n";
-   return map {[$bids{$_}, $_]} keys(%bids);
+   return map {[$_, $bids{$_}]} keys(%bids);
 }
 
 package main;
@@ -307,19 +307,19 @@ ok heuristic::bids_out($sequences, $crt), "generic sequences cmds";
 ok heuristic::parse($sequences,[$crt]), "generic parse";
 my @res = heuristic::parse($sequences,[$crt]);
 is @res, 1, "parse returns only one";
-ok $res[0][0] =~ m:xxx/yyyy:, "input is xxx/yyyy";
-ok $res[0][1] =~ m:sub-1/.*func:, "output is sub-1 rest xxx/yyyy";
+ok $res[0][0] =~ m:sub-1/.*func:, "output is sub-1 rest xxx/yyyy";
+ok $res[0][1] =~ m:xxx/yyyy:, "input is xxx/yyyy";
 
 # criteral->{bids} function instead of {mode=>xxx, ...}
 $c{bids} = sub {return "./nonsense.nii.gz"};
 my $crtf = criteria->new(%c);
 @res = heuristic::parse($sequences,[$crtf]);
-is $res[0][1], "./nonsense.nii.gz", "use criteria->{bids} is function instead of template";
+is $res[0][0], "./nonsense.nii.gz", "use criteria->{bids} is function instead of template";
 
 # run numbers were previously off
 @res = heuristic::parse($sequences,[criteria->dsl('bold=rest;pname=rest,ndcm=76;2')]);
 is @res, 4, "found all short rests ";
-is scalar(grep {$_->[1] =~ /run-2/} @res), 1, "only 1 run2";
-is scalar(grep {$_->[1] =~ /run-1/} @res), 3, "2 run 1s";
+is scalar(grep {$_->[0] =~ /run-2/} @res), 1, "only 1 run2";
+is scalar(grep {$_->[0] =~ /run-1/} @res), 3, "2 run 1s";
 
 done_testing;
