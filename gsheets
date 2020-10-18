@@ -84,6 +84,11 @@ def mkreq(sheets, ws_id, reqs):
         execute()
 
 
+def remove_req(sheet_id, fname, delimiter=None):
+    """remove data for clean paste later"""
+    pass
+
+
 def upload_req(sheet_id, fname, delimiter=None):
     """craete pasteData request"""
 

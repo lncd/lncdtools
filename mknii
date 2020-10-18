@@ -43,7 +43,7 @@ outdir="$(dirname "$nii_out")"
 
 #pretimestamp=$(mktemp /tmp/dcmnii_XXXXXX) # -newercm $pretimestamp 
 # TODO: add trap to cleanup file?
-$DRYRUN dcm2niix -b y -f "$outname" -o "$outdir" "$dcm_folder" 
+$DRYRUN dcm2niix -z y -b y -f "$outname" -o "$outdir" "$dcm_folder" 
 [ -n "$DRYRUN" ] && exit 0
 # if above failed, script would bail (set -e)
 # so if we don't have the file it's probably has multiple echos
