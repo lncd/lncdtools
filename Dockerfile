@@ -1,7 +1,7 @@
 from neurodebian:buster-non-free
-# 20201017 - use neurodebian sid. pull in afni. afni not in non-free?!
-#          - afni/afni_dev_base. consider use poldracklab/fmriprep. but based on ubuntu:xenial-20200114
-#          - default neurodebian repo doesn't have afni!?
+# 20201017 - use neurodebian:buster (sid python broken?).
+#          - default ND sources don't have afni? replace with ones from TN mirror.
+#          - other docker options: afni/afni_dev_base;  poldracklab/fmriprep? (based on ubuntu:xenial-20200114, no tidyverse)
 # 20200909 - afni uses neurodebian:nd18.04 as base
 # https://github.com/afni/afni/blob/master/.docker/afni_dev_base.dockerfile
 # https://github.com/neurodebian/neurodebian/ -> bionic
@@ -11,7 +11,7 @@ run \
     && curl http://neuro.debian.net/lists/buster.us-tn.full  > /etc/apt/sources.list.d/neurodebian.sources.list \
     && apt-get update -qq \
     && DEBIAN_FRONTEND=noninteractive apt-get install -qy --no-install-recommends \
-       afni python3-numpy python3-nibabel python3-pydicom bats octave dc r-cran-tidyverse \
+       afni python3-numpy python3-nibabel python3-pydicom bats octave dc r-cran-tidyverse dcm2niix \
     && apt-get install -qy make cpanminus \
     && rm -rf /var/lib/apt/lists/* && \
     cpanm Perl::RunEND --force
