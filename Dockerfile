@@ -1,4 +1,4 @@
-from neurodebian/sid-non-free
+from neurodebian:nd-non-free
 # 20201017 - use neurodebian sid. pull in afni
 #          - afni/afni_dev_base. consider use poldracklab/fmriprep. but based on ubuntu:xenial-20200114
 # 20200909 - afni uses neurodebian:nd18.04 as base
