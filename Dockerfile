@@ -11,10 +11,10 @@ run \
     && curl http://neuro.debian.net/lists/buster.us-tn.full  > /etc/apt/sources.list.d/neurodebian.sources.list \
     && apt-get update -qq \
     && DEBIAN_FRONTEND=noninteractive apt-get install -qy --no-install-recommends \
-       afni python3-numpy python3-nibabel python3-pydicom bats octave dc r-cran-tidyverse dcm2niix \
+       afni python3-numpy python3-nibabel python3-pydicom bats octave dc r-cran-tidyverse dcm2niix pigz \
     && apt-get install -qy make cpanminus \
     && rm -rf /var/lib/apt/lists/* && \
-    cpanm Perl::RunEND --force
+    cpanm Perl::RunEND Test2::V0 --force
 workdir /opt/lncd
 ENV PATH="/opt/lncd:/usr/lib/afni/bin/:${PATH}"
 add . /opt/lncd
