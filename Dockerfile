@@ -1,12 +1,12 @@
-from afni/afni
+from neurodebian/sid-non-free
+# 20201017 - use neurodebian sid. pull in afni
+#          - afni/afni_dev_base. consider use poldracklab/fmriprep. but based on ubuntu:xenial-20200114
 # 20200909 - afni uses neurodebian:nd18.04 as base
 # https://github.com/afni/afni/blob/master/.docker/afni_dev_base.dockerfile
 # https://github.com/neurodebian/neurodebian/ -> bionic
-run echo "deb https://cloud.r-project.org/bin/linux/ubuntu bionic-cran40/" >> /etc/apt/sources.list \
-    && apt-key adv --keyserver keyserver.ubuntu.com --recv-keys E298A3A825C0D65DFD57CBB651716619E084DAB9 \
-    && apt-get update \
+run apt-get update \
     && apt-get -qy install \
-      bats octave dc r-cran-tidyverse \
+      afni python-pydicom bats octave dc r-cran-tidyverse \
     && rm -rf /var/lib/apt/lists/*
 workdir /opt/lncd
 ENV PATH="/opt/lncd:${PATH}"
