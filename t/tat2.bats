@@ -97,3 +97,10 @@ x_cmp_y(){
    # nvx is 100* less than mean
    x_cmp_y novx.nii.gz '100*<' mean.nii.gz
 }
+
+@test zscore {
+   # zscore:433.012       mean:400
+   tat2 t.nii.gz -output mean.nii.gz -mask m.nii.gz 
+   tat2 t.nii.gz  -zscore_vol -output zscore.nii.gz -mask m.nii.gz
+   x_cmp_y zscore.nii.gz '>' mean.nii.gz
+}

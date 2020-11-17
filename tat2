@@ -160,9 +160,6 @@ for input in ${glob[@]}; do
    vol_norm=$tmpd/${cnt}_volnorm.1D
    vol_sd=$tmpd/${cnt}_sd.1D
 
-
-   
-
    # censor input
    if [ -n "$censor_rel" ]; then
       censor_file=$(find_censor_file "$input" "$censor_rel")
