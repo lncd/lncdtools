@@ -26,6 +26,17 @@ teardown(){
  rm -r $BATS_TMPDIR/tat2-test
 }
 
+x_cmp_y(){
+   local x="$1"; shift
+   local cmp="$1"; shift
+   local y="$1"; shift 
+   local xv=$(3dBrickStat $x)
+   local yv=$(3dBrickStat $y)
+   echo "$(basename $x .nii.gz):$xv $(basename $y .nii.gz):$yv" >&2
+   nvxltmn=$(echo "[1p]sr $yv $xv ${cmp}r"|dc)
+   [ "x$nvxltmn" == "x1" ]
+}
+
 @test sametwice {
    tat2 t.nii.gz -median_vol -output med1.nii.gz -mask m.nii.gz
    tat2 t.nii.gz -median_vol -output med2.nii.gz -mask m.nii.gz
@@ -34,11 +45,10 @@ teardown(){
 
 @test vox_med_gt_mean {
    # large outlier drives mean (denominator) way up. mean should be smaller than med
+   # mean=701.587 median=8416.67
    tat2 t.nii.gz -mean_vol -output mean.nii.gz -mask m.nii.gz
    tat2 t.nii.gz -median_vol -output med.nii.gz -mask m.nii.gz
-   # mean=701.587 median=8416.67
-   mdgtmn=$(echo "[1p]sr $(3dBrickStat mean.nii.gz) $(3dBrickStat med.nii.gz) >r"|dc)
-   [ "x$mdgtmn" == "x1" ]
+   x_cmp_y mean.nii.gz '<' med.nii.gz 
 }
 
 @test cen_mean_time {
@@ -47,9 +57,7 @@ teardown(){
    tat2 t.nii.gz -output mean.nii.gz -mask m.nii.gz -mean_time 
    tat2 t.nii.gz -output cen.nii.gz  -mask m.nii.gz -mean_time  -censor_rel c.1D
    3dNotes cen.nii.gz |grep -q keep2
-   3dNotes cen.nii.gz >&2
-   cnltmn=$(echo "[1p]sr $(3dBrickStat mean.nii.gz) $(3dBrickStat cen.nii.gz) <r"|dc)
-   [ "x$cnltmn" == "x1" ]
+   x_cmp_y cen.nii.gz '<' mean.nii.gz 
 }
 @test cen_median_time {
    # censor does not include large (100) value
@@ -58,7 +66,34 @@ teardown(){
    tat2 t.nii.gz -output mean.nii.gz -mask m.nii.gz -median_time 
    tat2 t.nii.gz -output cen.nii.gz  -mask m.nii.gz -median_time  -censor_rel c.1D
    3dNotes cen.nii.gz |grep -q keep2
-   3dNotes cen.nii.gz >&2
-   cnltmn=$(echo "[1p]sr $(3dBrickStat mean.nii.gz) $(3dBrickStat cen.nii.gz) =r"|dc)
-   [ "x$cnltmn" == "x1" ]
+   x_cmp_y mean.nii.gz = cen.nii.gz
+}
+
+
+@test inv {
+   # censor does not include large (100) value
+   #  inverse < mean
+   tat2 t.nii.gz -output mean.nii.gz -mask m.nii.gz -mean_time
+   tat2 t.nii.gz -output inv.nii.gz  -mask m.nii.gz -mean_time -inverse
+   x_cmp_y inv.nii.gz '<' mean.nii.gz
+}
+
+@test inv_cen_mean_time {
+   # same as cen_mean_time, but values are different
+   #  mean: 356.314       cen: 285.714
+   tat2 t.nii.gz -output mean.nii.gz -mask m.nii.gz -mean_time -inverse
+   tat2 t.nii.gz -output cen.nii.gz  -mask m.nii.gz -mean_time -censor_rel c.1D -inverse
+   3dNotes cen.nii.gz |grep -q keep2
+
+   x_cmp_y cen.nii.gz '<' mean.nii.gz
+}
+
+@test no_voxscale {
+   # same as cen_mean_time, but values are different
+   #  mean:450.794       novx:1.80317
+   tat2 t.nii.gz -output mean.nii.gz -mask m.nii.gz -mean_time
+   tat2 t.nii.gz -output novx.nii.gz  -mask m.nii.gz -mean_time  -no_voxscale
+
+   # nvx is 100* less than mean
+   x_cmp_y novx.nii.gz '100*<' mean.nii.gz
 }

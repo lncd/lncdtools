@@ -116,7 +116,7 @@ while [ $# -gt 0 ]; do
   -mean_time)  tnorm="-nzmean"; shift;;
   -median_time)tnorm="-nzmedian"; shift;;
   -inverse)    t2_inv=1; shift;;
-  -no_voxscale)vox_scale=0;;
+  -no_voxscale)vox_scale=0; shift;;
   -noclean)    CLEAN=0; shift;;
   -verbose)    set -x; shift;;
   -h*)         usage;;
@@ -160,6 +160,9 @@ for input in ${glob[@]}; do
    vol_norm=$tmpd/${cnt}_volnorm.1D
    vol_sd=$tmpd/${cnt}_sd.1D
 
+
+   
+
    # censor input
    if [ -n "$censor_rel" ]; then
       censor_file=$(find_censor_file "$input" "$censor_rel")
@@ -173,11 +176,11 @@ for input in ${glob[@]}; do
       # must match *_tat2.nii.gz to be picked up by 3dTstat at the end
       runoutput="$tmpd/${cnt}_keep${nkeep}_tat2.nii.gz"
    fi
-   
+
    # if we want 1/t2*, switch up input to that
    if [ $t2_inv -eq 1 ]; then
-       inv_out="$tmpd/${cnt}_inv_tat2.nii.gz"
-       3dcalc -x $input -expr 1/x -prefix $inv_out
+       inv_out="$tmpd/${cnt}_inv.nii.gz"
+       3dcalc -datum float -x $input -expr 1/x -prefix $inv_out
        input="$inv_out"
    fi
 
@@ -200,7 +203,7 @@ for input in ${glob[@]}; do
     sd_input="-s $vol_sd"
     calc_expr="(x-m)/s" 
    fi
-   [ $vox_scale -eq 0 ] && scale="1" 
+   [ $vox_scale -eq 0 ] && calc_scale="1" 
    
 
    # normalize each voxel by the volume average or median
