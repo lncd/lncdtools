@@ -32,7 +32,7 @@ teardown(){
    [ $(3dBrickStat med1.nii.gz) == $(3dBrickStat med2.nii.gz) ]
 }
 
-@test med_gt_mean {
+@test vox_med_gt_mean {
    # large outlier drives mean (denominator) way up. mean should be smaller than med
    tat2 t.nii.gz -mean_vol -output mean.nii.gz -mask m.nii.gz
    tat2 t.nii.gz -median_vol -output med.nii.gz -mask m.nii.gz
@@ -41,12 +41,24 @@ teardown(){
    [ "x$mdgtmn" == "x1" ]
 }
 
-@test cen {
-   # censor does not have large include large (100) value
+@test cen_mean_time {
+   # censor does not include large (100) value
    #  censor < mean
-   tat2 t.nii.gz -output mean.nii.gz -mask m.nii.gz 
-   tat2 t.nii.gz -output cen.nii.gz -mask m.nii.gz -censor_rel c.1D
+   tat2 t.nii.gz -output mean.nii.gz -mask m.nii.gz -mean_time 
+   tat2 t.nii.gz -output cen.nii.gz  -mask m.nii.gz -mean_time  -censor_rel c.1D
    3dNotes cen.nii.gz |grep -q keep2
+   3dNotes cen.nii.gz >&2
    cnltmn=$(echo "[1p]sr $(3dBrickStat mean.nii.gz) $(3dBrickStat cen.nii.gz) <r"|dc)
+   [ "x$cnltmn" == "x1" ]
+}
+@test cen_median_time {
+   # censor does not include large (100) value
+   #  unlike above (censor < mean), median stays the same.
+   #  censor == mean
+   tat2 t.nii.gz -output mean.nii.gz -mask m.nii.gz -median_time 
+   tat2 t.nii.gz -output cen.nii.gz  -mask m.nii.gz -median_time  -censor_rel c.1D
+   3dNotes cen.nii.gz |grep -q keep2
+   3dNotes cen.nii.gz >&2
+   cnltmn=$(echo "[1p]sr $(3dBrickStat mean.nii.gz) $(3dBrickStat cen.nii.gz) =r"|dc)
    [ "x$cnltmn" == "x1" ]
 }

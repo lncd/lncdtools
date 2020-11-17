@@ -12,6 +12,12 @@ MASK=""
 MKMASK=0
 OUTPUT=tat2star.nii.gz
 CLEAN=1
+volnorm="-nzmean"
+tnorm="-nzmedian"
+censor_rel=""
+vox_scale=1
+t2_inv=0
+use_zscore=0
 
 # 20201116 
 #  back to mean default
@@ -35,7 +41,7 @@ CLEAN=1
 usage(){
   cat <<-HEREDOC
   USAGE:
-    tat2 '/paths/to/*/t2.nii.gz' [-mask /the/only/mask.nii.gz] [-mask_rel $MASK_REL]  [-output $OUTPUT] [-scale $SCALE] [-mkmask] [-censor_rel relative/censor.1D] [-median_time|-mean_time]  [-median_vol|-mean_vol] [-inverse] [-no_voxscale] [-noclean] [-zscore] [-verbose]
+    tat2 '/paths/to/*/t2.nii.gz' [ -mask_rel $MASK_REL | -mask /the/only/mask.nii.gz | -mkmask]  [-output $OUTPUT] [-scale $SCALE]  [-censor_rel relative/censor.1D | -censor_rel s/epi/mask/] [-median_time|-mean_time]  [-median_vol|-mean_vol|-zscore_vol] [-no_voxscale] [-inverse] [-noclean] [-verbose]
 
   * calculates time averaged T2* like:
      1) 3dcalc -x input1  -m vol_norm.1D -expr "(x/m)*SCALE/numvox #rep. f.ea. input
@@ -46,29 +52,52 @@ usage(){
        as a filename in input nifti directory (resolves to \$(dirname \$input)/\$censor_rel)  OR
        as a perl regexp run on \$input. like 's/(rest-\\d)_bold.nii.gz/\\1_cesnor.1d/'
   * use -median_time or -mean_time to set how voxels are collapsed across time
+    * median_time is default (20201117)
   * use -median_vol or -mean_vol to set value used to scale across volume (each TR)
     * mean_vol is default (20201116[mean] reverses 20201016[median] rev orig mean)
     * probably do not adjust this. use median_time
-  * -zscore changes expression to '(x-m)/s' instead of 'x/m'
+  * -zscore_vol changes expression to '(x-m)/s' instead of 'x/m'
   * use -noclean to debug
-  * -mkmask ensures the number of voxels used to normalize is the same across runs
+  * -mkmask ensures the number of voxels used to normalize is the same across runs by create a coverage mask from all inputs
     * nzmedian/nzmean and '-count -non-zero'. could maybe get away with no mask. but option is not provided
+  * -no_voxscale disables scaleing. (SCALE=1, not normalized by number of nzvoxels)
+  * -inverse create 1/t2* and use as initial input
 HEREDOC
   exit 1
 }
 err() { echo -e "$@" >&2; exit 1; }
 msg() { echo -e "# [$(date)] $@"; }
 
+find_censor_file(){
+  local input="$1"; shift
+  local censor_file="$1"; shift
+  local censor_file="$(dirname "$input")/$censor_rel"
+
+  # try regexp pattern replace if censor_rel looks like s/
+  [ ! -r "$censor_file" -a ${censor_rel:0:2} == "s/" ] &&
+     censor_file="$(echo "$input" | perl -pe "$censor_rel")"
+  # make sure we didn't just find the input file
+  if [ "$censor_file" == "$input" ]; then
+     rm -r $tmpd 
+     err "ERR: censor file subsitition failed '$censor_file' matches inputfile! rel '$censor_rel' for '$input'"
+  fi
+
+  # and make sure we actually found a file
+  if [ ! -r "$censor_file" ]; then 
+     rm -r $tmpd 
+     err "ERR: censor file '$censor_file' DNE!"
+  fi
+
+  echo $censor_file
+}
+
+# pull out good index (censor=1 means keep). zero based
+where1csv(){ perl -lne 'push @i, $.-1 if /^1/; END{print join ",", @i;}' "$@"; }
+
 # keep args around for 3dNotes history
 allargs="$@"
 
 [ $# -eq 0 ] && usage
-volnorm="-nzmean"
-tnorm="-nzmedian"
-censor_rel=""
-vox_scale=1
-t2_inv=0
-use_zscore=0
 
 # variable to store all the inputs we want to work on
 declare -a glob
@@ -83,11 +112,11 @@ while [ $# -gt 0 ]; do
   -mkmask)     MKMASK=1; MASK_REL=""; shift;;
   -median_vol) volnorm="-nzmedian"; shift;;
   -mean_vol)   volnorm="-nzmean"; shift;;
+  -zscore_vol) use_zscore=1; shift;;
   -mean_time)  tnorm="-nzmean"; shift;;
-  -median_time) tnorm="-nzmedian"; shift;;
+  -median_time)tnorm="-nzmedian"; shift;;
   -inverse)    t2_inv=1; shift;;
-  -no_voxscale) vox_scale=0;;
-  -zscore)     use_zscore=1;;
+  -no_voxscale)vox_scale=0;;
   -noclean)    CLEAN=0; shift;;
   -verbose)    set -x; shift;;
   -h*)         usage;;
@@ -111,13 +140,15 @@ nfiles=$(find -L ${glob[@]} -maxdepth 0 | wc -l)
 tmpd=$(mktemp -d /tmp/tat2star_XXXX)
 cnt=0
 all_numvox="" # will be populated with each subjectmask
+
+if [ $MKMASK -eq 1 ]; then
+      MASK="$tmpd/subj_mask.nii.gz" 
+      coverage_mask $MASK "${glob[@]}"
+fi
+
 for input in ${glob[@]}; do
    [ -n "$MASK" ] && mask="$MASK" || mask="$(dirname "$input")/$MASK_REL"
-   if [ ! -f $mask ]; then
-      [ $MKMASK -eq 0 ] && err "mask '$mask' DNE; add -mkmask to create"
-      mask="$tmpd/subj_mask.nii.gz" 
-      coverage_mask $mask "${glob[@]}"
-   fi
+   [ ! -f $mask ] && err "mask '$mask' DNE; add -mkmask to create"
    # add _tat2.nii.gz to the end
    runoutput="$tmpd/${cnt}_tat2.nii.gz"
 
@@ -131,26 +162,15 @@ for input in ${glob[@]}; do
 
    # censor input
    if [ -n "$censor_rel" ]; then
-      censor_file="$(dirname "$input")/$censor_rel"
-      # try regexp pattern replace if censor_rel looks like s/
-      [ ! -r "$censor_file" -a ${censor_rel:0:2} == "s/" ] &&
-         censor_file="$(echo "$input" | perl -pe "$censor_rel")"
-      if [ "$censor_file" == "$input" ]; then
-         rm -r $tmpd 
-         err "ERR: censor file subsitition failed '$censor_file' matches inputfile! rel '$censor_rel' for '$input'"
-      fi
-      if [ ! -r "$censor_file" ]; then 
-         rm -r $tmpd 
-         err "ERR: censor file '$censor_file' DNE!"
-      fi
-      # pull out good index (censor=1 means keep). zero based
-      idxs=$(perl -lne 'push @i, $.-1 if /^1/; END{print join ",", @i;}' $censor_file)
+      censor_file=$(find_censor_file "$input" "$censor_rel")
+      idxs=$(where1csv $censor_file)
       nkeep=$(echo $idxs| tr ',' '\n' |wc -l)
-      msg "censor: using $nkeep/$(3dinfo -nt $input) timepoints"
+      msg "censor: using $nkeep/$(3dinfo -nt $input) timepoints [$censor_file]"
       # truncate input
       newinput="$tmpd/${cnt}_inputcensor_$nkeep.nii.gz"
       3dTcat -prefix $newinput "$input[$idxs]"
       input="$newinput"
+      # must match *_tat2.nii.gz to be picked up by 3dTstat at the end
       runoutput="$tmpd/${cnt}_keep${nkeep}_tat2.nii.gz"
    fi
    
@@ -163,6 +183,9 @@ for input in ${glob[@]}; do
 
    # calc sum of each volume. output is normalize value per TR
    3dROIstats -nomeanout $volnorm -mask $mask -1Dformat $input > $vol_norm 
+   # do the same for stddev (sigma) if zscoring
+   [ $use_zscore -eq 1 ] &&
+     3dROIstats -nomeanout -nzsigma -mask $mask -1Dformat $input > $vol_sd
    
    ## what does 3dcalc's expression look like
    # default is x/m*$SCALE/$numvox
@@ -171,12 +194,12 @@ for input in ${glob[@]}; do
    #  zscore   vs  not   *   vox_scale       vs  not
    sd_input=""
    calc_expr="(x/m)" 
+   calc_scale="$SCALE/$numvox" 
+
    if [ $use_zscore -eq 1 ]; then
-    3dROIstats -nomeanout -nzsigma -mask $mask -1Dformat $input > $vol_sd
     sd_input="-s $vol_sd"
     calc_expr="(x-m)/s" 
    fi
-   calc_scale="$SCALE/$numvox" 
    [ $vox_scale -eq 0 ] && scale="1" 
    
 
@@ -184,6 +207,7 @@ for input in ${glob[@]}; do
    # scale by SCALE and number of good (within mask) voxels in the run
    # sd_input is only non-empty when '-zscore'
    # '$calc_expr*$calc_scale' defaults to (x/m)*$SCALE/$numvox
+   #     s.t. sum(all_voxels) = $SCALE
    3dcalc \
      -x $input \
      -m $vol_norm \
