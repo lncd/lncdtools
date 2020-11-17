@@ -27,15 +27,15 @@ teardown(){
 }
 
 @test sametwice {
-   tat2 t.nii.gz -median -output med1.nii.gz -mask m.nii.gz
-   tat2 t.nii.gz -median -output med2.nii.gz -mask m.nii.gz
+   tat2 t.nii.gz -median_vol -output med1.nii.gz -mask m.nii.gz
+   tat2 t.nii.gz -median_vol -output med2.nii.gz -mask m.nii.gz
    [ $(3dBrickStat med1.nii.gz) == $(3dBrickStat med2.nii.gz) ]
 }
 
 @test med_gt_mean {
    # large outlier drives mean (denominator) way up. mean should be smaller than med
-   tat2 t.nii.gz -mean -output mean.nii.gz -mask m.nii.gz
-   tat2 t.nii.gz -median -output med.nii.gz -mask m.nii.gz
+   tat2 t.nii.gz -mean_vol -output mean.nii.gz -mask m.nii.gz
+   tat2 t.nii.gz -median_vol -output med.nii.gz -mask m.nii.gz
    # mean=701.587 median=8416.67
    mdgtmn=$(echo "[1p]sr $(3dBrickStat mean.nii.gz) $(3dBrickStat med.nii.gz) >r"|dc)
    [ "x$mdgtmn" == "x1" ]
