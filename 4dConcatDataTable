@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -euo pipefail
+trap 'e=$?; [ $e -ne 0 ] && echo "$0 exited in error"' EXIT
+
+# wrap around 3dbucket and 3drefit
+# extract a subbrick from a list of nifti 
+# label with luna ids
+# 20200430 - like 4dConcatSubBriks but for a datatable file
+#
+# Useful for quality checking many structurals, subject masks,  or individual contrasts
+
+# input:
+#   1) prefix
+#   2) datatable txt file
+# env
+
+[ $# -lt 2 -o $# -gt 3 ] && 
+  echo -e "look at files referenced in a datatable\nUSAGE: $0 output.nii.gz datatable [extra_id_col]" >&2 &&
+  exit 1
+
+prefix="$1"; shift
+datatable="$1"; shift
+
+! [[ $prefix =~ .nii$|.nii.gz$|.HEAD$ ]] && echo "prefix '$prefix' must end in .nii, .nii.gz, or .HEAD" && exit 1
+[ ! -r "$datatable" ] && echo "$datatable file doesn't exist!" && exit 1
+#read ididx fileidx <<< $(sed 1q $datatable | sed 's/[ \t]\+/\n/g' | perl -lne 'print $. if m/(Subj|InputFile)/i')
+
+# if we want to use an extra id
+extraid=""; extraidpatt=""; awkextra="" 
+[ $# -eq 1 ] && extraid="$1" && extraidpatt="|$extraid" 
+
+idxs=($(sed 1q $datatable | sed 's/[ \t]\+/\n/g' | perl -lne "print $. if m/(Subj$extraidpatt|InputFile)/i"))
+# index of the file index is last item
+# but 0-based. so minus 1
+fii=${#idxs[@]}
+let fii--
+
+# TODO: test only 2 if not $3, 3 otherwise?
+
+ididx=${idxs[0]}
+fileidx=${idxs[$fii]}
+[ ${#idxs[@]} -eq 3 ] && awkextra=' "_"'"\$${idxs[1]}"
+
+[ -z "$fileidx" ] && echo "no InputFile in '$datatable' header?! (idxs '$ididx' '$fileidx')" && exit 1
+ids=($(awk "(NR>1) { print \$$ididx$awkextra}" $datatable))
+files=($(awk "(NR>1){ print \$$fileidx}" $datatable))
+[ ${#ids[@]} -ne ${#files[@]} ] && echo "error parsing '$datatable'. have different number of ids and files!" && exit 1
+
+
+[ -r "$prefix" ] && echo "rm $prefix # to regenerate; skipping 3dbucket and 3drefit" && exit 0
+
+echo "3dbucket: combine"
+3dbucket -prefix "$prefix" ${files[@]}
+echo "3drefit: relabel"
+3drefit -relabel_all_str "${ids[*]}" "$prefix"

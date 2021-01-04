@@ -13,8 +13,28 @@ cmd=$(basename $0)
 export AFNI_NO_OBLIQUE_WARNING="YES" # 3dNotes likes to complain. silence it
 
 output="$1"; shift
-eval "$@" || exit $?
-[ ! -r $output ] && exit 1
-arg="$@"
-3dNotes -h "'${arg//\'/\"}'" $output || exit $?
+# ext used if there are spaces in output name
+! [[ "$output" =~ nii(.gz)$ ]] && echo "unknown extention. need nii or nii.gz!" >&2 && exit 1
+ext=$BASH_REMATCH
+
+#eval "$@" || exit $?
+arg="$(printf "%q " "$@")"
+# arg="$(printf "%q " "$*")"  # all a giant quote
+eval "$arg" || exit $?
+arg="$*"
+[ ! -r "$output" ] &&
+   echo "# ERROR: no expected output '$output'! but successfully ran cmd $arg" >&2 &&
+   exit 1
+
+# 3dNotes does not like writting to a prefix with spaces
+MOVEBACK=""
+if [[ "$(basename "$output")"  =~ " " ]]; then
+   echo "# WARNING! '$output' has a space! WHY? moving to and from temp for 3dNotes" >&2
+   MOVEBACK="$output"
+   output=$(mktemp /tmp/XXXXX.$ext)
+   mv "$MOVEBACK" "$output"
+fi
+
+3dNotes -h "'${arg//\'/\"}'" "$output" || exit $?
+[ -n "$MOVEBACK" ] && mv "$output" "$MOVEBACK"
 exit 0

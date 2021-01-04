@@ -1,23 +1,36 @@
 #!/usr/bin/env bash
 set -euo pipefail
-set -x
-[ $# -ne 2 ] && echo "USAGE: $0 NMinput T1DIR" && exit 1
+
+# @param NMinput - xxxx_NM.nii.gz file
+# @param T1DIR - dir containing: 'mprage_warpcoef.nii.gz', 'mprage_bet_fast_wmseg.nii.gz'
+# @output - neuromelanin aligned atlases (in CWD) 
+#
+# depends on preprocessMprage, assumes 2mm template used (atlases match 2mm mni2009c)
+
+# 20200909WF - update with VTASNLC, fix SN 2mm, fix NN->NM typo, add doc, add log
+
+[ $# -ne 2 ] && echo "USAGE: $0 NM.nii.gz T1ProcDir" && exit 1
 orgiargs="$@"
 input="$1"; shift
 T1DIR="$1"; shift
-[ ! -r $T1DIR/mprage_bet.nii.gz ] && echo "bad T1DIR '$T1DIR'!" && exit 1
+test ! -r $T1DIR/mprage_bet.nii.gz && echo "bad t1 preproc dir, bet file DNE: '$_'!" && exit 1
+test ! -r $T1DIR/mprage_warpcoef.nii.gz && echo "bad t1 preproc dir, warp file DNE: '$_'!" && exit 1
 [ ! -r $input ] && echo "bad input '$input' (pwd: $PWD)!" && exit 1
 ! [[ $input =~ .nii.gz$ ]] && echo "neuromelanin input must end with nii.gz ('$input')" && exit 1
 in=$(basename $input .nii.gz)
 
+[[ $in =~ NN$ ]] && echo "ERROR: expect input '$input' to end in NN.nii.gz" && exit 1
+
+set -x
 # link in mprage
 ! test -r t1-bet.nii.gz &&
   ln -s $T1DIR/mprage_bet.nii.gz $_
 
-# reorient to match t1-bet, probably "RPI"
-[ ! -r $in.nii.gz -o $(3dinfo -orient $in.nii.gz ) != $(3dinfo -orient t1-bet.nii.gz) ] &&
-  niinote $input \
-    fslreorient2std $input $in.nii.gz
+# 20200909 - this always runs. never changes `-orient` value (always "RPI")
+# # reorient to match t1-bet, probably "RPI"
+# [ ! -r $in.nii.gz -o $(3dinfo -orient $in.nii.gz ) != $(3dinfo -orient t1-bet.nii.gz) ] &&
+#   niinote $input \
+#     fslreorient2std $input $in.nii.gz
 
 ! test -r $in-bet.nii.gz &&
   niinote $_ \
@@ -35,9 +48,14 @@ fi
 # warp others to nn
 name=${in%%-NM}
 
-! test -r ${name}-fastwm_NN.nii.gz &&
+! test -r ${name}-fastwm_NM.nii.gz &&
   niinote $_ \
     flirt -interp nearestneighbour -in $T1DIR/mprage_bet_fast_wmseg.nii.gz -ref $in.nii.gz -applyxfm -init T12NM.mat -out $_
+
+# 20200909 - to inspect warp put t1 in NM space
+! test -r t1-bet_NM.nii.gz &&
+  niinote $_ \
+    flirt -in t1-bet.nii.gz -out $_ -ref $in -applyxfm -init T12NM.mat
 
 ! test -r mni2t1.nii.gz &&
   niinote $_ \
@@ -72,6 +90,16 @@ name=${in%%-NM}
       -r $in.nii.gz \
       -o $_
 
+! test -r $name-VTASNLC_NM.nii.gz &&
+  niinote $_ \
+    applywarp \
+      --interp=nn \
+      -i /opt/ni_tools/atlas/CC/VTASNLC_up2mm.nii.gz \
+      -w mni2t1.nii.gz \
+      --postmat=T12NM.mat \
+      -r $in.nii.gz \
+      -o $_
+
 ! test -r ${in}_mni.nii.gz && 
   niinote $_ \
    applywarp \
@@ -81,3 +109,7 @@ name=${in%%-NM}
     -r /opt/ni_tools/standard_templates/mni_icbm152_nlin_asym_09c/mni_icbm152_t1_tal_nlin_asym_09c_2mm.nii \
     -o $_ &&
   3dNotes -h "$0 $orgiargs" $_
+
+# log if we made any new files
+[ $(find . -type f -mtime -1 |sed 1q | wc -l) -gt 0 ] &&
+   echo "$0 $orgiargs # ver $(gitver $0) @ $(date)" >> nm_log.txt || :

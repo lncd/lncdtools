@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+set -euo pipefail
+trap 'e=$?; [ $e -ne 0 ] && echo "$0 exited in error"' EXIT
+env | grep ^DRYRUN= && DRYRUN=echo || DRYRUN=""
+#
+#run dcm2niix with 3dNotes wrapper. check for existing file
+#
+usage() {
+cat <<HEREDOC
+$(basename "$0") output.nii.gz path/to/dcm/
+
+   first argument must be a folder or single dicom
+   escape spaces in input.
+
+   second argument is the output nifti. must end in .nii.gz
+
+   will
+     * recursively make directories. be careful.
+     * skip if already exists
+     * add annotation with source directory to nifti. careful not to spill participant information
+     * try to deal with gre fieldmap naming weirdness (if output matches magnitude[12] or phase)
+   use DRYRUN=1 $(basename $0) ...  to test
+HEREDOC
+   exit 1
+}
+
+#  20201016WF  init
+
+[ $# -ne 2 ] && usage
+nii_out="$1"; shift
+dcm_folder="$@"; shift
+[ -r "$nii_out" ] && echo "# have '$nii_out'" && exit 0
+[ -r "${nii_out/magnitude.nii.gz/magnitude1.nii.gz}" ] && echo "# have magnitude1.nii.gz, considering that the same as '$nii_out'" && exit 0
+[ ${nii_out:(-7)} != ".nii.gz" ] && echo "output must have .nii.gz extention!" && exit 1
+
+# should let dcm2niix just fail instead of doing the work here?
+[ $(ls "$dcm_folder" -type f,l -print -quit|wc -l) -gt 0  ] && echo "# '$dcm_folder' DNE or is empty?" && exit 1
+
+outname="$(basename "$nii_out" .nii.gz)"
+outdir="$(dirname "$nii_out")"
+[ ! -d "$outdir" ] && $DRYRUN mkdir -p "$outdir"
+
+
+#pretimestamp=$(mktemp /tmp/dcmnii_XXXXXX) # -newercm $pretimestamp 
+# TODO: add trap to cleanup file?
+$DRYRUN dcm2niix -z y -b y -f "$outname" -o "$outdir" "$dcm_folder" 
+[ -n "$DRYRUN" ] && exit 0
+# if above failed, script would bail (set -e)
+# so if we don't have the file it's probably has multiple echos
+if [ ! -r "$nii_out"  ]; then
+   case  $outname in 
+      *magnitude|magnitude[12]) 
+         find $outdir -iname "$outname*" \( -iname '*nii.gz' -or -iname '*json' \) -type f -mtime -1|
+            xargs -r rename 's/[12]?_e(\d.(nii.gz|json))$/$1/'
+         # update output for 3dNotes and final check
+         [[ $outname =~ magnitude$ ]] && nii_out="$outdir/${outname}1.nii.gz"
+      ;;
+      *phase) 
+         find $outdir -iname "$outname*" \( -iname '*nii.gz' -or -iname '*json' \) -type f -mtime -1 |
+            xargs -r rename 's/_e2_ph(.nii.gz|.json)$/$1/'
+      ;;
+   esac
+fi
+
+if [ ! -r "$nii_out" ]; then
+   echo -e "ERROR: did not create '$nii_out'.\n\t'$dcm_folder' has a multi echo sequence??!"
+   echo "NOTE: $0 can deal with this if the output name ends with 'magnitude1.nii.gz' or 'phase.nii.gz'"
+   exit 1
+fi
+
+# 3dNotes likes to complain. silence it
+export AFNI_NIFTI_TYPE_WARN=NO
+export AFNI_NO_OBLIQUE_WARNING="YES"
+$DRYRUN 3dNotes -h "$0 $dcm_folder $nii_out" "$nii_out" 

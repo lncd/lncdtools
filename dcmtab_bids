@@ -1,0 +1,325 @@
+#!/usr/bin/env perl
+package BIDS;
+use strict;
+use feature 'signatures';
+no warnings 'experimental::signatures';
+use Carp;
+
+my %mode_folder = (dwi=>'dwi',
+   T1w=>'anat', T2w=>'anat',
+   bold=>'func', sbref=>'func',
+   'magnitude'=>'fmap', 'magnitude1'=>'fmap', 'magnitude2'=>'fmap',
+   'phase'=>'fmap', 'phase1'=>'fmap', 'phase2'=>'fmap', 'phasediff'=>'fmap');
+my @attributes_ordered = qw/task acq ce dir rec run echo mode/;
+
+sub combine_attr($attr, $val){
+   # mode (T1w, bold, dwi, ...) is by itself at the end of the file name
+   # all others are e.g. run-1, acq-label
+   return $attr eq "mode" ? $val : "$attr-$val" if $val;
+   return "";
+}
+
+sub new($class, %opts){
+   # to build out a bids, the very minimum info is subject and mode
+   # and if mode == "task" we also need a task name
+   my @req = qw/mode subj/;
+   push @req, "task" if $opts{mode} eq "bold";
+
+   for my $req (@req){
+      croak "BIDS: must have '$req'" if not $opts{$req};
+   }
+   croak "BIDS: bad mode '$opts{mode}'! not in @{[keys(%mode_folder)]}"
+     if not $mode_folder{$opts{mode}};
+
+   for my $attr (keys(%opts)){
+      next if $attr =~ /^(mode|ses|subj)$/;
+      croak "BIDS: bad attribute '$attr' not in @attributes_ordered"
+        if not grep(/^$attr$/, @attributes_ordered);
+   }
+   my $self = \%opts;
+   bless $self, $class;
+   return $self;
+}
+
+sub path($self, $ext=".nii.gz") {
+   # use BIDS object's subj and ses if they are provided
+   my $subj=$self->{subj};
+   my $ses =$self->{ses};
+   my $prefix="sub-$subj/$mode_folder{$self->{mode}}/sub-${subj}_";
+   $prefix = "sub-$subj/ses-$ses/$mode_folder{$self->{mode}}/sub-${subj}_ses-${ses}_" if $ses;
+   
+   my $file = join "_",
+      grep {!/^-?$/}
+      map {combine_attr($_, $self->{$_})} @attributes_ordered; 
+   return "${prefix}$file$ext";
+}
+
+package criteria;
+use strict;
+use feature 'signatures';
+use Carp;
+no warnings 'experimental::signatures';
+
+sub new($class, %opts){
+#      (n_expect => 1,
+#       bids => {mode=>"T1w"},
+#       matches => { pname => qr/mprage/, ndcm => 176,}),
+   $opts{n_expect} ||= 1;
+   for my $req (qw/bids matches/){
+       croak ("criteria: must have '$req' given ". join(", ", keys(%opts))) unless $opts{$req};
+   }
+   my %subset = %opts{qw/n_expect bids matches/};
+   my $self = \%subset;
+   bless $self, $class;
+}
+
+sub dsl($class, $cfgstring) {
+   # mode;pattern;runs
+   # bold=mytask;pname=rest,ndcm=180;3
+   # bold=rest;pname=rest,ndcm=180
+   # T1w;pname=mprage,ndcm=176
+   $cfgstring =~ m/(?<mode>\w+)=?(?<task>\w+)?;(?<matches>[^;]+);?(?<n_expect>\d+)?$/ or
+     croak "criteria: failed to parse '$cfgstring'. want eg. bold=mytask;pname=MyTask,ndcm=180;3";
+   my %bids = %+{qw/mode task/};
+   my $n_expect = $+{n_expect};
+   my %matches = map {split /=/} (split /,/, $+{matches});
+   return new($class,
+              bids=>\%bids, 
+              matches=>\%matches,
+              n_expect=>$n_expect);
+   
+}
+
+sub match_seq($self, $seq) {
+   my $tests = $self->{matches};
+   my $does_match = 0;
+   #print "test: ", Dumper($tests), "\n";
+   #print "seq ", Dumper($seq), "\n";
+   for my $col (keys(%$tests)){
+      # TODO: ref($tests->{$col}) eq CODE, Regexp, etc
+      #print "# comparing $col: $seq->{$col} ?=? $tests->{$col}\n";
+      if($seq->{$col} =~ /$tests->{$col}/){
+         $does_match = 1;
+      } else {
+         return 0;
+      }
+   }
+   return $does_match;
+}
+
+package heuristic;
+use strict;
+use feature 'signatures';
+no warnings 'experimental::signatures';
+
+use File::Basename;
+use Data::Dumper;
+
+sub bids_out($sequences, @criteria){
+   # filter sequences to those with properties matching heuristic criteria
+   # check criteria for every session so we can enumerate matches (into run#s)
+
+   #print "ses: ", Dumper($sequences), "\n";
+   my %matches = ();
+   for my $crt (@criteria) {
+      my $prevsesid="";
+      my $run;
+      for my $seq (@$sequences) {
+        my $sesid = join "_", map {$_||""} @{$seq}{qw/subj ses/};
+        $run = 0 if $prevsesid ne $sesid;
+        $prevsesid = $sesid;
+
+        #print "seq: ", Dumper($seq), "\n";
+        if (not $crt->match_seq($seq)){
+           print "NO MATCH: ".Dumper($seq).Dumper($crt->{matches}) if $ENV{DEBUG}=~/MISS/;
+           next;
+        }
+
+        ++$run if $crt->{n_expect} != 1;
+
+        my $nii_out;
+        if(ref($crt->{bids}) eq "CODE") {
+          $nii_out = $crt->{bids}->($seq, $run);
+        } else {
+          # will pass run=>$run along with seq info
+          # ses will only be passed if it exists
+          my @runs=$run?("run" => $run):();
+          $nii_out = BIDS->new(%{$crt->{bids}}, @runs, %{$seq}{qw/subj ses/})->path();
+        }
+
+
+        print "# MATCH: $seq->{fullpath} => $nii_out\n" if $ENV{DEBUG}=~/HIT/;
+
+        # using hash so we only write out a file once. later we use values(%results)
+        # this then always takes the last sequence if n_expected == 1
+        #
+        # maybe we want to keep a list of what we are replacing?
+        # push @{$matches{$nii_out}}, $cmd;
+        $matches{$nii_out}=$seq->{fullpath};
+      }
+   }
+
+   return %matches;
+}
+
+sub parse($sequences, $criteria){
+   my %bids = bids_out($sequences, @$criteria);
+   #print "cmds: ",Dumper(%cmds), "\n";
+   return map {[$_, $bids{$_}]} keys(%bids);
+}
+
+package main;
+use v5.28;
+use strict; use warnings; use autodie; 
+use feature qw/signatures/; no warnings qw(experimental::signatures);
+use File::Slurp; # read_file
+use Pod::Usage;
+
+sub get_criteria(){
+   # help for anything that looks like -h --help
+   # or nothing at all
+   pod2usage(2) if $#ARGV==-1;
+   pod2usage(1) if "@ARGV" =~ /-h\>|--help/;
+
+   # everything else should be a criteria
+   return map {criteria->dsl($_)} @ARGV;
+}
+
+sub read_tsv(){
+   my @header;
+   my @all;
+   while(<STDIN>){
+      chomp;
+      my @line = split /\t/, $_;
+      if(not @header) {
+         @header=@line;
+         # TODO: check for subj and fullpath
+         # TODO: check for comp
+         next;
+      }
+      my %l;
+      @l{@header} = @line;
+      push @all, \%l;
+   }
+
+   return sort {
+      $a->{subj} <=> $b->{subj} ||
+      ($a->{ses}||0)   <=> ($b->{ses}||0) ||
+      ($b->{seqno}||0) <=> ($b->{seqno}||0) } @all
+}
+
+# if we aren't testing/using as a module,
+# run as command line tool
+if(not caller){
+   my @criteria = get_criteria;
+   my @sequences = read_tsv;
+   my @in_out = heuristic::parse(\@sequences, \@criteria);
+
+   print join "\n", map {join "\t", @{$_}} @in_out;
+   print "\n";
+}
+
+1;
+
+__END__
+=head1 NAME
+
+dcmtab_bids
+
+=head1 SYNOPSIS
+
+   dcmdirtab -s 'E\d+' -d 'E07/scans/*/' |
+    dcmtab_bids 'bold=rest;ndcm=574;pname=EYESFIXED' 'T1w;pname=mprage,ndcm=176'
+
+
+Generate commands from dicom info tsv and bids criteria.
+output ready for C<dcmnii>
+
+Input likely from C<dcmdirtab>. See C<--help> for more.
+
+=head1 OPTIONS
+
+=over 4
+
+=item 'mode;pattern,pattern;runs'
+
+specification for data to BIDS. quote and provide as many as needed.
+
+Example criteria specifications
+
+=over 4 
+
+   bold=mytask;pname=rest,ndcm=180;3
+   bold=rest;pname=rest,ndcm=180
+   T1w;pname=mprage,ndcm=176
+
+=back
+
+=item -h --help:
+
+this message
+
+=item ENV
+use DEBUG=HIT, DEBUG=MISS, DEBUG=HITMISS to see criteria comparisons
+   dcmdirtab -s 'E\d+' -d 'E07/scans/*/' |
+    DEBUG=HIT dcmtab_bids 'bold=rest;ndcm=574;pname=EYESFIXED' 'T1w;pname=mprage,ndcm=176'
+
+=back
+
+=head1 Testing
+
+pathalogical commitment to a single file
+use Perl::RunEND's C<perl-run-end>
+
+=cut
+
+require 'dcmtab_bids';
+# in iperl, reply, or pdl2: Module::Refresh->refresh
+use Data::Dumper;
+use Test2::V0;
+is(BIDS::combine_attr("anything",""), "", "combine_attr empty");
+is(BIDS::combine_attr("run","1"), "run-1", "combine_attr normal");
+is(BIDS::combine_attr("mode","bold"), "bold", "combine_attr mode");
+my $sequences = [{subj=>1, pname=>"rest",  ndcm=>180,fullpath=>'xxx/yyyy'  },
+                {subj=>2, pname=>"rest",ndcm=>76, fullpath=>'short1'},
+                {subj=>2, pname=>"rest",ndcm=>76, fullpath=>'short2'},
+                {subj=>3,ses=>1,pname=>"rest",ndcm=>76, fullpath=>'short3'},
+                {subj=>3,ses=>2,pname=>"rest",ndcm=>76, fullpath=>'short4'},
+                {subj=>3, pname=>"mprage",ndcm=>176,fullpath=>'y/x'       }];
+
+my %c=(n_expect=>1, matches=>{pname => qr/rest/, ndcm=>180}, bids=>{mode=>"bold",task=>"rest"});
+my $crt = criteria->new(%c);
+ok criteria->new(%c), "make criteria";
+ok criteria->dsl('bold=mytask;pname=rest,ndcm=180;3'), "criteria from string";
+
+my $cdsl = criteria->dsl('bold=mytask;pname=rest,ndcm=180;3');
+is $cdsl->{n_expect}, 3, "criteria dsl nexpect";
+is $cdsl->{bids}->{task}, "mytask", "criteria dsl bids:task";
+is $cdsl->{matches}->{ndcm}, 180, "criteria dsl matches:ndcm";
+$cdsl = criteria->dsl('T1w;pname=mprage');
+is $cdsl->{matches}->{pname}, "mprage", "criteria dsl minimal matches:pname";
+is $cdsl->{bids}->{mode}, "T1w", "criteria dsl minimal bids:mode";
+
+is $crt->match_seq($sequences->[0]), 1, "heuristic match (rest)";
+is $crt->match_seq($sequences->[1]), 0, "heuristic no match (bad rest)";
+is $crt->match_seq($sequences->[2]), 0, "heuristic no match (mprage)";
+ok heuristic::bids_out($sequences, $crt), "generic sequences cmds";
+ok heuristic::parse($sequences,[$crt]), "generic parse";
+my @res = heuristic::parse($sequences,[$crt]);
+is @res, 1, "parse returns only one";
+ok $res[0][0] =~ m:sub-1/.*func:, "output is sub-1 rest xxx/yyyy";
+ok $res[0][1] =~ m:xxx/yyyy:, "input is xxx/yyyy";
+
+# criteral->{bids} function instead of {mode=>xxx, ...}
+$c{bids} = sub {return "./nonsense.nii.gz"};
+my $crtf = criteria->new(%c);
+@res = heuristic::parse($sequences,[$crtf]);
+is $res[0][0], "./nonsense.nii.gz", "use criteria->{bids} is function instead of template";
+
+# run numbers were previously off
+@res = heuristic::parse($sequences,[criteria->dsl('bold=rest;pname=rest,ndcm=76;2')]);
+is @res, 4, "found all short rests ";
+is scalar(grep {$_->[0] =~ /run-2/} @res), 1, "only 1 run2";
+is scalar(grep {$_->[0] =~ /run-1/} @res), 3, "2 run 1s";
+
+done_testing;

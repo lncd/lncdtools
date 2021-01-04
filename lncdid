@@ -1,0 +1,28 @@
+#!/usr/bin/env Rscript
+
+suppressMessages(library(magrittr))
+
+d <- data.frame(id=commandArgs(trailingOnly=T))
+
+# input into sql approprate string. eg " '11523','10931' "
+l_in <-
+   d$id %>%
+   gsub("[^0-9A-Za-z]", "", .) %>% # sanatize
+   gsub("^", "'", .) %>%           # add begin quote
+   gsub("$", "'", .) %>%           # add ending quote
+   unique %>%
+   paste(collapse=",")             # put commas between
+
+query <- sprintf("
+          select i.id as id, e.id as other, e.etype as etype
+          from enroll e
+          join enroll i on e.pid = i.pid
+          where i.id in (%s)", l_in)
+
+r <- LNCDR::db_query(query) 
+if(nrow(r) == 0L) stop(paste(collapse=",", d$id) %>% sprintf('#no ids found! %s', .))
+
+f <- merge(r, d, by='id', all=T)
+
+# spit out results
+write.table(f, file=stdout(), row.names=F, sep="\t", quote=F)

@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# get current git sha of a provided script (full path or in $PATH)  or directory
+# EXAMPLE: (by (1) app in path, (2) file, (3) directory)
+#  gitver gitver                          # e45891c
+#  gitver /opt/ni_tools/lncdtools/gitver  # e45891c
+#  gitver /opt/ni_tools/lncdtools         # e45891c
+# 20200909WF - init
+
+# what to spit out when error/no git repo
+nover=NA
+
+if [ $# -eq 1 ]; then 
+   repo="$1"
+   # try script if not file
+   [ ! -r "$repo" ] && repo="$(which "$repo")"
+   # if given a file, use directory
+   [ -r "$repo" -a ! -d "$repo" ] && repo="$(dirname "$repo")"
+   if [ ! -d "$repo" ]; then
+      echo "# ERROR: bad dir $repo" >&2
+      echo $nover
+      exit 1
+   fi
+   cd "$repo"
+fi
+git rev-parse --short HEAD || echo $nover

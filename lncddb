@@ -1,3 +1,4 @@
 #!/usr/bin/env bash
 # see ~/.pgpass for credentials
-psql -h arnold.wpic.upmc.edu lncddb lncd -AF$'\t' -qtc "$@"
+dbcmd='psql -h arnold.wpic.upmc.edu lncddb lncd'
+[ $# -ne 0 ] && $dbcmd -AF$'\t' -qtc "$@" || $dbcmd

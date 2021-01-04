@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# make .18_09c.nii.gz from input file
+# optionally, if given second argument "mask", will use NN interp instead of sinc
+fixto1809c() { 
+  [ $# -lt 1 ] && echo "usage: $FUNCNAME to_correct.nii.gz [-mask] [-mkbad] [-out newfile.nii.gz]" && return 1
+
+  local reffolder="/opt/ni_tools/standard/mni_icbm152_nlin_asym_09c"
+  local newname="18_09c"
+  local mask=""
+  local output="";
+
+  local input=$1; shift
+  while [ $# -ne 0 ]; do
+     case $1 in
+        -mask) mask=1; shift;;
+        -out) shift; output=$1; shift;;
+        -mkbad) 
+           reffolder="/opt/ni_tools/standard_old/mni_icbm152_nlin_asym_09c"
+           newname="bad_09c"
+           shift;;
+         *) echo "unkown argument $1! no args for help"; return 1;;
+    esac
+  done
+
+  [ $# -eq 2 ] && [ "$2" != "ismask" ] && echo "only valid second argument is 'ismask', you gave $2" && return 1
+
+  # output name cannot be changed, requires input be .nii.gz
+  [ -z "$output" ] && output="${input/.nii.gz/.$newname.nii.gz}"
+  #output="$(dirname $input)/$(basename "$input" .nii.gz).18_09c.nii.gz"
+
+  # checks
+  [ -z "$input" -o ! -r "$input" ] && echo "$FUNCNAME needs nifti to warp. given '$input'" >&2 && return 1
+  ! 3dinfo -space $input | grep -iq mni && echo "$input is not in mni space!" >&2 && return 1
+
+  dim=$(3dinfo -adj $input|sed 's/0\+$//;s/\.$//')
+  [ $dim != "1" ] && dim=_${dim}mm
+
+  local ref=$reffolder/mni_icbm152_t1_tal_nlin_asym_09c${dim}.nii 
+  # /opt/ni_tools/standard/09cFix/gen_mats.bash
+  local mat=/opt/ni_tools/standard_old/09cFix/2mm_luna_to_fixed.mat 
+  # file is identity:
+  # 1  0  0  0  
+  # 0  1  0  0  
+  # 0  0  1  0  
+  # 0  0  0  1  
+
+  [ ! -r $ref -o ! -r $mat ] && echo "$FUNCNAME cannot find ref or mat ($ref $mat)" >&2 && return 1
+  [ -z "$REDOWARP" -a -r "$output" ] && echo "have $output" >&2 && return 0
+  echo "createing $output ($dim)"
+  cmd="applyxfm4D '$input'  $ref '$output'  $mat -singlematrix" # default to sinc
+  [ -n "$mask" ] && cmd="flirt -ref '$ref' -in '$input' -applyxfm -init '$mat' -out '$output' -interp nearestneighbour"
+  if command -v rel >/dev/null; then
+     rel "$cmd # $(pwd)" c
+  else
+     echo "$cmd # $(pwd)"
+  fi
+  eval "$cmd" && 3dNotes -h "[$FUNCNAME] $cmd" "$output"
+}
+
+if [ "$(basename $0)" == fixto1809c ]; then
+   fixto1809c $@
+fi
+# vim: set tabstop=7:
