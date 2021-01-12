@@ -35,7 +35,7 @@ sub get_config(){
    $conf{columns}={
       subj   => $conf{subpat},
       ses    => $conf{sespat},
-      ndcm   => sub($p) {my @D=split /\n/, `find -L "$p" -maxdepth 2 -regextype sed -iregex '$conf{dcmpat}' -type f,l`;return($#D +1);},
+      ndcm   => sub($p) {my @D=split /\n/, `find -L "$p" -maxdepth 2 -regextype sed -iregex '$conf{dcmpat}' \\( -type f -or -type l \\)`;return($#D +1);},
       dname  => sub($p) {return basename($p);},
       fullpath  => sub($p) {return $p},
       # use afni's dicom_hdr. need tag ids.
@@ -93,7 +93,7 @@ sub first_dcm_info($dir, $patt, @tags){
     # N.B. globals '$sep' and '$cmd_tags'
    my $cmd_tags = join " ", map {"-tag $_"} @tags;
     my $first_dcm_cmd = qq/
-      find -L "$dir" -maxdepth 2 -type f,l -regextype sed -iregex '$patt' -print0 -quit |
+      find -L "$dir" -maxdepth 2 \\( -type f -or -type l \\) -regextype sed -iregex '$patt' -print0 -quit |
       xargs -0rI{} dicom_hinfo -full_entry -no_name -sepstr '$sep' $cmd_tags "{}"/;
     print "$first_dcm_cmd\n" if $DEBUG>=2;
     chomp(my $out = qx/$first_dcm_cmd/);
