@@ -4,6 +4,7 @@ use strict;
 use feature 'signatures';
 no warnings 'experimental::signatures';
 use Carp;
+use Data::Dumper;
 
 my %mode_folder = (dwi=>'dwi',
    T1w=>'anat', T2w=>'anat',
@@ -28,7 +29,9 @@ sub new($class, %opts){
    for my $req (@req){
       croak "BIDS: must have '$req'" if not $opts{$req};
    }
-   croak "BIDS: bad mode '$opts{mode}'! not in @{[keys(%mode_folder)]}"
+   croak "BIDS: bad mode in parsed criteria: ",
+          Dumper(\%opts),
+	  "\nmode='$opts{mode}'! not in @{[keys(%mode_folder)]}"
      if not $mode_folder{$opts{mode}};
 
    for my $attr (keys(%opts)){
@@ -58,6 +61,7 @@ package criteria;
 use strict;
 use feature 'signatures';
 use Carp;
+use Data::Dumper;
 no warnings 'experimental::signatures';
 
 sub new($class, %opts){
@@ -78,8 +82,10 @@ sub dsl($class, $cfgstring) {
    # bold=mytask;pname=rest,ndcm=180;3
    # bold=rest;pname=rest,ndcm=180
    # T1w;pname=mprage,ndcm=176
-   $cfgstring =~ m/(?<mode>\w+)=?(?<task>\w+)?;(?<matches>[^;]+);?(?<n_expect>\d+)?$/ or
-     croak "criteria: failed to parse '$cfgstring'. want eg. bold=mytask;pname=MyTask,ndcm=180;3";
+   my $help_msg="Want eg. bold=mytask;pname=MyTask,ndcm=180;3";
+   croak "bad separator: too many ';' in '$cfgstring'. $help_msg" if scalar(()=$cfgstring =~ m/;/g) > 2;
+   $cfgstring =~ m/^(?<mode>[^;=]+)=?(?<task>[^;]+)?;(?<matches>[^;]+);?(?<n_expect>\d+)?$/ or
+     croak "criteria: failed to parse '$cfgstring'. $help_msg";
    my %bids = %+{qw/mode task/};
    my $n_expect = $+{n_expect};
    my %matches = map {split /=/} (split /,/, $+{matches});
@@ -114,6 +120,7 @@ no warnings 'experimental::signatures';
 
 use File::Basename;
 use Data::Dumper;
+$ENV{DEBUG}="NONE" unless $ENV{DEGUB};
 
 sub bids_out($sequences, @criteria){
    # filter sequences to those with properties matching heuristic criteria
@@ -174,6 +181,7 @@ use strict; use warnings; use autodie;
 use feature qw/signatures/; no warnings qw(experimental::signatures);
 use File::Slurp; # read_file
 use Pod::Usage;
+use Data::Dumper;
 
 sub get_criteria(){
    # help for anything that looks like -h --help
@@ -193,8 +201,8 @@ sub read_tsv(){
       my @line = split /\t/, $_;
       if(not @header) {
          @header=@line;
-         # TODO: check for subj and fullpath
-         # TODO: check for comp
+	 die "missing subj and/or fullpath in first line (header): '$_'"
+	   unless(/subj/ and /fullpath/);
          next;
       }
       my %l;
@@ -203,7 +211,8 @@ sub read_tsv(){
    }
 
    return sort {
-      $a->{subj} <=> $b->{subj} ||
+      #($a->{subj} cmp $b->{sub} || $a->{subj} <=> $b->{subj}) ||
+      $a->{subj} cmp $b->{subj} ||
       ($a->{ses}||0)   <=> ($b->{ses}||0) ||
       ($b->{seqno}||0) <=> ($b->{seqno}||0) } @all
 }
@@ -277,6 +286,7 @@ require 'dcmtab_bids';
 # in iperl, reply, or pdl2: Module::Refresh->refresh
 use Data::Dumper;
 use Test2::V0;
+use Test::Exception;
 is(BIDS::combine_attr("anything",""), "", "combine_attr empty");
 is(BIDS::combine_attr("run","1"), "run-1", "combine_attr normal");
 is(BIDS::combine_attr("mode","bold"), "bold", "combine_attr mode");
@@ -291,6 +301,7 @@ my %c=(n_expect=>1, matches=>{pname => qr/rest/, ndcm=>180}, bids=>{mode=>"bold"
 my $crt = criteria->new(%c);
 ok criteria->new(%c), "make criteria";
 ok criteria->dsl('bold=mytask;pname=rest,ndcm=180;3'), "criteria from string";
+dies_ok criteria->dsl('bold=mytask;pname=rest;ndcm=180;3'), "bad separator";
 
 my $cdsl = criteria->dsl('bold=mytask;pname=rest,ndcm=180;3');
 is $cdsl->{n_expect}, 3, "criteria dsl nexpect";
