@@ -14,29 +14,29 @@ teardown() {
    return 0
 }
 
-@test mknii samedir {
+@test mknii-samedir {
   mkdcm.py "test.dcm" 
   mknii test.nii.gz test.dcm 
   [ -r test.nii.gz ]
 }
-@test mknii mkdir {
+@test mknii-mkdir {
   mkdcm.py "test.dcm" 
   mknii sub-1/ses-1/junk/test.nii.gz test.dcm 
   [ -r sub-1/ses-1/junk/test.nii.gz ]
 }
-@test mknii dcm_quotespaces {
+@test mknii-dcm_quotespaces {
   mkdir "spa ce"
   mkdcm.py "spa ce/test.dcm" 
   mknii sub-1/ses-1/junk/test.nii.gz "spa ce/test.dcm"
   [ -r sub-1/ses-1/junk/test.nii.gz ]
 }
-@test mknii dcm_escapespace {
+@test mknii-dcm_escapespace {
   mkdir "spa ce"
   mkdcm.py "spa ce/test.dcm" 
   mknii sub-1/ses-1/junk/test.nii.gz sp*\ ce/test.dcm
   [ -r sub-1/ses-1/junk/test.nii.gz ]
 }
-@test mknii nii_space {
+@test mknii-nii_space {
   mkdcm.py test.dcm
   mknii sub-1/ses\ 1/junk/test.nii.gz test.dcm
   [ -r sub-1/ses\ 1/junk/test.nii.gz ]
