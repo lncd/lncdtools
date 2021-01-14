@@ -9,10 +9,10 @@ usage() {
 cat <<HEREDOC
 $(basename "$0") output.nii.gz path/to/dcm/
 
-   first argument must be a folder or single dicom
-   escape spaces in input.
+   output.nii.gz - 1st argument is the output nifti. must end in .nii.gz
+   path/to/dcm   - 2nd arg must be a folder or single dicom
+                   escape spaces in input
 
-   second argument is the output nifti. must end in .nii.gz
 
    will
      * recursively make directories. be careful.
@@ -34,7 +34,7 @@ dcm_folder="$@"; shift
 [ ${nii_out:(-7)} != ".nii.gz" ] && echo "output must have .nii.gz extention!" && exit 1
 
 # should let dcm2niix just fail instead of doing the work here?
-[ $(ls "$dcm_folder" -type f,l -print -quit|wc -l) -gt 0  ] && echo "# '$dcm_folder' DNE or is empty?" && exit 1
+[ $(find "$dcm_folder" -type f,l -print -quit|wc -l) -le 0  ] && echo "# '$dcm_folder' DNE or is empty?" && exit 1
 
 outname="$(basename "$nii_out" .nii.gz)"
 outdir="$(dirname "$nii_out")"
