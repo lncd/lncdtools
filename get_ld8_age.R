@@ -13,8 +13,13 @@
 #
 
 suppressMessages(library(dplyr))
-
-d <- data.frame(ld8=commandArgs(trailingOnly=T)) %>%
+input_args <- commandArgs(trailingOnly=T)
+want_ses <- FALSE
+if(first(input_args) == "-ses") {
+   input_args <- input_args[-1]
+   want_ses <- TRUE
+}
+d <- data.frame(ld8=input_args) %>%
  tidyr::separate(sep="_", ld8, c("id", "ymd"), remove=F) %>%
  mutate(vdate=lubridate::ymd(ymd))
 
@@ -37,6 +42,16 @@ f <-
    merge(r, d, by="id", all=T) %>%
    mutate(age=round(as.numeric(vdate-dob)/365.25, 2)) %>%
    select(ld8, age, sex, dob)
+
+if(want_ses) {
+ session <- LNCDR::db_query(
+"select
+   id || '_' || to_char(vtimestamp, 'YYYYMMDD') as ld8,
+   visitno as session 
+ from visit v
+ join enroll e on e.pid=v.pid and e.etype = 'LunaID'")
+ f <- merge(f, session, by="ld8", all.x=T)
+}
 
 # spit out results
 write.table(f, file=stdout(), row.names=F, sep="\t", quote=F)
