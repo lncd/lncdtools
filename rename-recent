@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+set -euo pipefail
+trap 'e=$?; [ $e -ne 0 ] && echo "$0 exited in error"' EXIT
+env | grep ^DRYRUN= && DRYRUN=echo || DRYRUN=""
+usage(){
+ cat <<H
+ USAGE:
+  $(basename $0) rename_regexp outdir file_pattern  [rename options]
+
+ EXAMPLE:
+  rename-recent 's/_e\d+(_ph?)(.nii.gz|.json)$/\$2/' ../subjs/sub-11_2489_20201217/fmap/ '*phase*'
+
+ SYNOPSIS:
+  only works on .nii.gz, .json, and .nii files!
+
+  use regular express "rename_regexp" (see 'rename --man')
+  to rename files in "outdir"
+  matching "file_pattern" (-iname "\$file_pattern")
+  there were created in the last day (find -mtime -1)
+
+  optionally give e.g. -n at the end for dryrun
+  (options passed on to 'rename')
+
+ ALT USAGE:
+  $(basename $0) have?
+
+  check that we have the right 'rename' command. print it if we do. error to STDERR otherwise
+
+ NOTE:
+  * some work is done to make sure perl-rename is being used instead of another rename utility
+  * created for 'mknii'
+H
+  exit 1
+}
+
+find_rename(){
+ # don't have admin access to make perl's rename the defacto
+ #
+ # if rename exists it could be as perl-rename or normal utils rename
+ if command -v perl-rename >/dev/null; then 
+   cmd="perl-rename"
+ else
+   cmd="$(which rename)"
+ fi
+ # perl's rename has "perl" in the man output
+ # system name just prints "call: rename from to files..."
+ # cannot use grep -q. $cmd --man might return failing status code
+ [ -n "$($cmd --man 2>&1 | grep perl)" ] && echo $cmd && return 0
+ echo "wrong/no 'rename' command ('$cmd') in \$PATH! try 'cpanm File::Rename' or rearrange PATH" >&2
+ return 1
+}
+
+my_rename(){
+ local cmd=$(find_rename)
+ [ -z "$cmd" ] && exit 1
+ # use it
+ $cmd "$@";
+}
+
+main(){
+  # just run "find_rename" -- for debugging and checking
+  if [ $# -gt 0 ] && [ "$1" == "have?" ]; then
+    find_rename
+    exit $?
+  fi
+
+  [ $# -lt 3 ] && usage
+
+  # rename using: replace pattern, outdir, file pattern
+  # prev. used find|xargs rename. but working around old systems w/o admin access
+  # using "my_rename"
+  #   xargs -r rename 's/[12]?_e(\d.(nii.gz|json))$/$1/'
+  #   xargs -r rename 's/_e\d+(_ph?)(.nii.gz|.json)$/$2/'
+  local rename_regexp="$1"; shift
+  local outdir="$1"; shift
+  local pattern="$1"; shift
+  [ $# -gt 0 ] && ARGS="$*" || ARGS=""  # allow -n to sneak in for dry run tests
+  [ -n "$DRYRUN" ] && echo "# $rename_regexp in $outdir/$pattern"
+  find $outdir -type f -mtime -1 -iname "$pattern" \
+	  \( -iname '*nii.gz' -or -iname '*json' -or -iname '*.nii' \)  |
+   while read file; do
+    $DRYRUN my_rename $ARGS "$rename_regexp" $file
+  done
+}
+
+[[ "$(caller)" != "0 "* ]] || main "$@" 

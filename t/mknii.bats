@@ -14,33 +14,61 @@ teardown() {
    return 0
 }
 
-@test mknii samedir {
+@test mknii-samedir {
   mkdcm.py "test.dcm" 
   mknii test.nii.gz test.dcm 
   [ -r test.nii.gz ]
 }
-@test mknii mkdir {
+@test mknii-mkdir {
   mkdcm.py "test.dcm" 
   mknii sub-1/ses-1/junk/test.nii.gz test.dcm 
   [ -r sub-1/ses-1/junk/test.nii.gz ]
 }
-@test mknii dcm_quotespaces {
+@test mknii-dcm_quotespaces {
   mkdir "spa ce"
   mkdcm.py "spa ce/test.dcm" 
   mknii sub-1/ses-1/junk/test.nii.gz "spa ce/test.dcm"
   [ -r sub-1/ses-1/junk/test.nii.gz ]
 }
-@test mknii dcm_escapespace {
+@test mknii-dcm_escapespace {
   mkdir "spa ce"
   mkdcm.py "spa ce/test.dcm" 
   mknii sub-1/ses-1/junk/test.nii.gz sp*\ ce/test.dcm
   [ -r sub-1/ses-1/junk/test.nii.gz ]
 }
-@test mknii nii_space {
+@test mknii-nii_space {
   mkdcm.py test.dcm
   mknii sub-1/ses\ 1/junk/test.nii.gz test.dcm
   [ -r sub-1/ses\ 1/junk/test.nii.gz ]
 
   mknii "sub-1/ses 1/junk/test.nii.gz" test.dcm
   [ -r sub-1/ses\ 1/junk/test.nii.gz ]
+}
+
+@test "mknii: mag_e2only (ginger:prisma)" {
+  source $BATS_TEST_DIRNAME/../mknii 
+  touch sub-1_magnitude{,_e2}.{json,nii.gz}
+  ls
+  rename-mag ./ "*magnitude*"
+  ls
+  [ ! -r sub-1_magnitude.nii.gz ]
+  [ ! -r sub-1_magnitude.json ]
+  [ -r sub-1_magnitude1.nii.gz ]
+  [ -r sub-1_magnitude2.nii.gz ]
+}
+@test "mknii: mag_e1+2 (rhea:PEBS)" {
+  source $BATS_TEST_DIRNAME/../mknii
+  touch sub-1_magnitude_e{1,2}.{nii.gz,json}
+  rename-mag ./ "*magnitude*"
+  ls
+  [ ! -r sub-1_magnitude.nii.gz ]
+  [ ! -r sub-1_magnitude.json ]
+  [ -r sub-1_magnitude1.nii.gz ]
+  [ -r sub-1_magnitude2.nii.gz ]
+  [ -r sub-1_magnitude1.json ]
+  [ -r sub-1_magnitude2.json ]
+}
+@test "mknii: skip for mag if mag1" {
+  source $BATS_TEST_DIRNAME/../mknii
+
 }
