@@ -41,27 +41,31 @@ main(){
   outdir="$(dirname "$nii_out")"
   [ ! -d "$outdir" ] && $DRYRUN mkdir -p "$outdir"
   
-  
   #pretimestamp=$(mktemp /tmp/dcmnii_XXXXXX) # -newercm $pretimestamp 
   # TODO: add trap to cleanup file?
   $DRYRUN dcm2niix -z y -b y -f "$outname" -o "$outdir" "$dcm_folder" 
   [ -n "$DRYRUN" ] && exit 0
   # if above failed, script would bail (set -e)
   # so if we don't have the file it's probably has multiple echos
-  if [ ! -r "$nii_out"  ]; then
-     case  $outname in 
-        *magnitude|magnitude[12]) 
-	 rename-recent have? || exit 1 # dont convert if we have the wrong rename
-  	 rename-recent 's/[12]?_e(\d.(nii.gz|json))$/$1/' $outdir "$outname*"
-           # update output for 3dNotes and final check
-           [[ $outname =~ magnitude$ ]] && nii_out="$outdir/${outname}1.nii.gz"
-        ;;
-        *phase) 
-	 rename-recent have? || exit 1 # dont convert if we have the wrong rename
-  	 rename-recent 's/_e\d+(_ph)?(.nii.gz|.json)$/$2/' $outdir "$outname*"
-        ;;
-     esac
-  fi
+  case  $outname in 
+     *magnitude|*magnitude[12]) 
+
+       rename-recent have? || exit 1 # dont convert if we have the wrong rename
+       # 20210113
+       # dcm2nii  v1.0.2018 (ginger) only puts _e2 on the second echo
+       # if we have _e2 and no _e1, the no _e* version is magnitude1
+       [ -r $outdir/*magnitude.nii.gz -a -r $outdir/*magnitude_e2.nii.gz ] && 
+	 rename-recent 's/magnitude\.(nii.gz|json)$/_e1.$1/' $outdir "*magnitude\.*" -v
+       rename-recent 's/[12]?_e(\d.(nii.gz|json))$/$1/' $outdir "$outname*" -v
+
+       # update output for 3dNotes and final check
+       [[ $outname =~ magnitude$ ]] && nii_out="$outdir/${outname}1.nii.gz"
+     ;;
+     *phase) 
+       rename-recent have? || exit 1 # dont convert if we have the wrong rename
+       rename-recent 's/_e\d+(_ph)?(.nii.gz|.json)$/$2/' $outdir "$outname*"
+     ;;
+  esac
   
   if [ ! -r "$nii_out" ]; then
      echo -e "ERROR: did not create '$nii_out'.\n\t'$dcm_folder' has a multi echo sequence??!"
