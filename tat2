@@ -6,6 +6,7 @@ set -eou pipefail
 #  to compute time average T2
 
 # default values
+TMPLOCATION=/tmp
 SCALE=1000
 MASK_REL="subject_mask.nii.gz"
 MASK=""
@@ -41,7 +42,7 @@ use_zscore=0
 usage(){
   cat <<-HEREDOC
   USAGE:
-    tat2 '/paths/to/*/t2.nii.gz' [ -mask_rel $MASK_REL | -mask /the/only/mask.nii.gz | -mkmask]  [-output $OUTPUT] [-scale $SCALE]  [-censor_rel relative/censor.1D | -censor_rel s/epi/mask/] [-median_time|-mean_time]  [-median_vol|-mean_vol|-zscore_vol] [-no_voxscale] [-inverse] [-noclean] [-verbose]
+    tat2 '/paths/to/*/t2.nii.gz' [ -mask_rel $MASK_REL | -mask /the/only/mask.nii.gz | -mkmask]  [-output $OUTPUT] [-scale $SCALE]  [-censor_rel relative/censor.1D | -censor_rel s/epi/mask/] [-median_time|-mean_time]  [-median_vol|-mean_vol|-zscore_vol] [-no_voxscale] [-inverse] [-noclean] [-verbose] [-tmp $TMPLOCATION]
 
   * calculates time averaged T2* like:
      1) 3dcalc -x input1  -m vol_norm.1D -expr "(x/m)*SCALE/numvox #rep. f.ea. input
@@ -62,6 +63,7 @@ usage(){
     * nzmedian/nzmean and '-count -non-zero'. could maybe get away with no mask. but option is not provided
   * -no_voxscale disables scaleing. (SCALE=1, not normalized by number of nzvoxels)
   * -inverse create 1/t2* and use as initial input
+  * -tmp sets the directory to use for temporary calculations. useful if forking enough jobs to overwhelm /tmp or using with -noclean
 HEREDOC
   exit 1
 }
@@ -109,6 +111,7 @@ while [ $# -gt 0 ]; do
   -output)     OUTPUT="$2"; shift 2;;
   -scale)      SCALE="$2"; shift 2;;
   -censor_rel) censor_rel="$2"; shift 2;;
+  -tmp)        TMPLOCATION="$2"; shift 2;;
   -mkmask)     MKMASK=1; MASK_REL=""; shift;;
   -median_vol) volnorm="-nzmedian"; shift;;
   -mean_vol)   volnorm="-nzmean"; shift;;
@@ -137,7 +140,7 @@ nfiles=$(find -L ${glob[@]} -maxdepth 0 | wc -l)
 [ -r "$OUTPUT" ] && echo "# have $OUTPUT; rm $OUTPUT # to redo" && exit 0
 
 
-tmpd=$(mktemp -d /tmp/tat2star_XXXX)
+tmpd=$(mktemp -d $TMPLOCATION/tat2star_XXXX)
 cnt=0
 all_numvox="" # will be populated with each subjectmask
 
@@ -207,7 +210,9 @@ for input in ${glob[@]}; do
    # scale by SCALE and number of good (within mask) voxels in the run
    # sd_input is only non-empty when '-zscore'
    # '$calc_expr*$calc_scale' defaults to (x/m)*$SCALE/$numvox
-   #     s.t. sum(all_voxels) = $SCALE
+   #     s.t.
+   #          v=(x/mean(x))*(1000/length(x))
+   #          sum(v) = 1000
    3dcalc \
      -x $input \
      -m $vol_norm \

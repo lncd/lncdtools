@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
-trap 'e=$?; [ $e -ne 0 ] && echo "$0 exited in error"' EXIT
 env | grep ^DRYRUN= && DRYRUN=echo || DRYRUN=""
+
 #
 #run dcm2niix with 3dNotes wrapper. check for existing file
 #
@@ -11,10 +11,10 @@ usage() {
 cat <<HEREDOC
 $(basename "$0") output.nii.gz path/to/dcm/
 
-   first argument must be a folder or single dicom
-   escape spaces in input.
+   output.nii.gz - 1st argument is the output nifti. must end in .nii.gz
+   path/to/dcm   - 2nd arg must be a folder or single dicom
+                   escape spaces in input
 
-   second argument is the output nifti. must end in .nii.gz
 
    will
      * recursively make directories. be careful.
@@ -24,6 +24,30 @@ $(basename "$0") output.nii.gz path/to/dcm/
    use DRYRUN=1 $(basename $0) ...  to test
 HEREDOC
    exit 1
+}
+
+# rename mag and phase
+# dcm2niix adds e.g. _e2 or _ph
+# extracted here for testing (t/mknii.bats)
+# also need to check we have a working 'rename' command
+# only needed for mag and phase. so only check when we need one of those
+_rename-recent(){
+  rename-recent have? >/dev/null || exit 1 # dont convert if we have the wrong rename
+  rename-recent "$@"
+}
+rename-mag(){
+  local pattern='s/[12]?_e(\d.(nii.gz|json))$/$1/'
+  local outdir="$1";shift
+  # if input is magnitude.nii.gz and maginguted_e2.nii.gz
+  # make first look like magnitude_e1 for later rename
+  find $outdir -maxdepth 1 -mtime -1 -name '*magnitude*e2*.nii.gz' |grep -q magnitude &&
+     _rename-recent 's/magnitude(.nii.gz|.json)$/magnitude_e1$1/' $outdir "*magnitude.*"
+
+  _rename-recent "$pattern" "$outdir" "$@"
+}
+rename-phase(){
+  local pattern='s/_e\d+(_ph)?(.nii.gz|.json)$/$2/'
+  _rename-recent "$pattern" "$@"
 }
 
 main(){
@@ -78,4 +102,4 @@ main(){
   export AFNI_NO_OBLIQUE_WARNING="YES"
   $DRYRUN 3dNotes -h "$0 $dcm_folder $nii_out" "$nii_out" 
 }
-[[ "$(caller)" != "0 "* ]] || main "$@"
+[[ "$(caller)" != "0 "* ]] && set +u || main "$@"
