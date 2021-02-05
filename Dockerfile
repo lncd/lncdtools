@@ -14,7 +14,7 @@ run \
        afni python3-numpy python3-nibabel python3-pydicom bats octave dc r-cran-tidyverse dcm2niix pigz \
     && apt-get install -qy make cpanminus \
     && rm -rf /var/lib/apt/lists/* && \
-    cpanm Perl::RunEND Test2::V0 --force
+    cpanm Perl::RunEND Test2::V0  File::Rename --force
 workdir /opt/lncd
 ENV PATH="/opt/lncd:/usr/lib/afni/bin/:${PATH}"
 add . /opt/lncd
