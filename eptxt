@@ -35,7 +35,7 @@ id from file matches this pattern
 =item C<-k> key1,key2,...
 in wide form, only show provided keys. comman separate.
 C<id> is an automatically created key (using pattern optionally specified by C<-p>)
-
+C<file> is also avaiable
 =back
 =cut
 
@@ -49,7 +49,7 @@ my @a;
 for my $f (@ARGV) {
     open my $fid, "<:encoding(UTF-16LE):crlf", $f;
     my $id = $f=~/$re/?$&:"NA";
-    my $h={id=>$id};
+    my $h={id=>$id, file=>$f};
     my %n_logframe = (1=>0);
     while($_=<$fid>){
         chomp;
@@ -61,7 +61,7 @@ for my $f (@ARGV) {
             # add hash to array
             #say "UPDATE pushed ", Dumper($h);
             push @a, $h;
-            $h={id=>$id};
+            $h={id=>$id, file=>$f};
             next;
         }
         next unless $_=~m/(\S+): (\S+)$/;
