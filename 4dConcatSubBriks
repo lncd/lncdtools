@@ -2,37 +2,45 @@
 set -euo pipefail
 trap 'e=$?; [ $e -ne 0 ] && echo "$0 exited in error"' EXIT
 env | grep -q ^DRYRUN=. && DRYRUN=echo || DRYRUN=""
+env | grep -q ^NOAFNI= || NOAFNI=1
 
 usage(){
-cat << HEREDOC
- look at a single brick accross subjects
- USAGE:
-     $0 [-idregex '\d{5}(_\d{8})?'] output.nii.gz 'gl*ob' [subbrik]" >&2 &&
- EXAMPLE:
-     $0 allmprage.nii.gz '/Volumes/Phillips/mMR_PETDA/subjs/1*_2*/struct/*/*_G2_256x240*/mprage_warp_linear.nii.gz'
+  cat >&2 <<HEREDOC
+USAGE:
+  $(basename $0) [options] output.nii.gz 'gl*ob' [subbrik]"
 
- DESC:
+EXAMPLE:
+  $(basename $0) allmprage.nii.gz '1*_2*/struct/*/*_G2_256x240*/mprage_warp_linear.nii.gz'
+
+SYNOPSIS:
  wrap around 3dbucket and 3drefit
  extract a subbrick from a list of nifti 
  label with luna ids
 
  Useful for quality checking many structurals, subject masks,  or individual contrasts
 
- input:
-   1) prefix
-   2) a glob. eg /Volumes/Zeus/preproc/pet_frog/MHTask_pet/*/contrasts/Frogger/hashContrasts_FM_GAM_stats2+tlrc.HEAD
-   3) [optional] sub brick (0 if not provided)
-   4) [optional] -idregex 'perl regular expression' must be provided before prefix. describes how to extract id for labeling subjbricks
- env
-  NOAFNI=1 4dConcatSubBricks prefix 'glob' # NOAFNI=1 will skip opening anfi and generating outliers
-  DRYRUN=1 4dConcatSubBricks prefix 'glob' # look at what will happen, but don't do it. less verbose 'set -x'
+OPTIONS: (are optional)
+ -a                # show afni afteward
+ -p '\d{5}_\d{8}'  # change id pattern
+ -h                # this help
+
+ARGUMENTS:
+ output.nii.gz - final file to create
+ 'gl*ob' - file glob matching all images to concat. MUST BE QUOTED
+ subbrik (optional) specify with volume of each globbed file to use
 HEREDOC
-exit 1
+  exit 1
 }
 
 [ $# -lt 2 ] && usage
-
-[ "$1" == "-idregex" ] && subjpatt="$2" && shift 2
+PATTERN='\d{5}_\d{8}'
+case $1 in
+  -p) PATTERN="$2"; shift 2;;
+  -a) NOAFNI=""; shift;;
+  -h) usage;;
+   *) ;; # nothing to do. will use stuff later
+esac
+[ $# -eq 0 ] && echo "need output and glob arguments. see -h" && exit 1
 [ $# -gt 3 ] && echo "too many input argumetns ($#)! did you put single quotes around the 'gl*ob'?" >&2 && exit 1
 
 prefix="$1"; shift
@@ -42,8 +50,8 @@ glob="$1"; shift
 ! [[ $prefix =~ nii$|nii.gz$|.HEAD$ ]] && echo "prefix '$prefix' must end in .nii, .nii.gz, or .HEAD" && exit 1
 [ -z "$(ls $glob)" ] && echo "bad glob provided ($glob). consider .HEAD?" >&2 && exit 1
 
-ids="$(ls $glob | perl -lne "print \$& if m/$subjpatt/")"
-[ -z "$ids" ] && echo "could not find lunaid(_date) in provided glob" >&2 && exit 1
+ids="$(ls $glob | grep -Po "$PATTERN")"
+[ -z "$ids" ] && echo "could not find ID using pattern '$PATTERN' in provided glob '$glob'" >&2 && exit 1
 
 
 if [ ! -r "$prefix" ]; then
@@ -56,7 +64,7 @@ else
 fi
 
 [ -n "$DRYRUN" ] && exit 0
-env | grep NOAFNI && exit 0
+[ -n "$NOAFNI" ] && exit 0
 
 afni -com 'OPEN_WINDOW axialgraph' "$prefix"  >/dev/null 2>&1
 

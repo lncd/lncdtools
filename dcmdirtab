@@ -1,0 +1,292 @@
+#!/usr/bin/env perl
+package dcmdirtab;
+use v5.28;
+use strict; use warnings; use autodie; 
+use feature qw/signatures/; no warnings qw(experimental::signatures);
+use File::Slurp; # read_file
+use Getopt::Long;
+use Pod::Usage;
+use Data::Dumper;
+use File::Basename;
+use File::Glob ":bsd_glob"; # glob is now using bsd_glob which handles spaces
+use Carp;
+
+my $sep="\t";
+my $DEBUG=0;
+
+# TODO: if more than just 'accel' use this, the stucture will be a bottle neck
+#  -- run find and strings every time!? better to cache?
+#  maybe time for a dcm package?
+#   http://dicomperl.sourceforge.net/
+#   https://metacpan.org/pod/DicomPack::DB::DicomTagDict
+#
+sub dcmstring($dcm, $varpatt) {
+   # patt like 'sPat.lAccelFactPE.*'
+   chomp(my $x=qx/strings "$dcm" | grep -Po "$varpatt=\\s+\\K.*"/);
+   return($x)
+}
+# TODO: this should be used by first_dcm_info
+sub firstdcm($p, $dcmpat){
+ chomp(my $x=qx/find -L "$p" -maxdepth 2 -type f,l -regextype sed -iregex '$dcmpat' -print -quit/);
+ return($x)
+}
+
+sub get_config(){
+   my %opts=(subpat=>'\d+', sespat=>'', help=>0, list=>0);
+   GetOptions(\%opts,
+      'dirs|d=s@',
+      'subpat|s=s', 'sespat|b=s',
+      'cols=s','add_cols|a=s',
+      'config|c=s', 'eval|e=s',
+      'no-header|H','short|x',
+      'list|l', 'help|?') or pod2usage(2);
+
+   pod2usage(1) if $opts{help};
+
+   my %conf=();
+   $conf{subpat} = qr/$opts{subpat}/;
+   $conf{sespat} = qr/$opts{sespat}/;
+   $conf{dcmpat} = '.*MR.*\|.*dcm$';
+   # default file info things to grab
+
+   $conf{columns}={
+      subj   => $conf{subpat},
+      ses    => $conf{sespat},
+      ndcm   => sub($p) {my @D=split /\n/, `find -L "$p" -maxdepth 2 -regextype sed -iregex '$conf{dcmpat}' \\( -type f -or -type l \\)`;return($#D +1);},
+      dname  => sub($p) {return basename($p);},
+      fullpath  => sub($p) {return $p},
+      # use afni's dicom_hdr. need tag ids.
+      "seqno" => "0020,0011",
+      "tr"    => "0018,0080",
+      "matrix"=> "0018,1310",
+      "acqdir"=> "0018,1312",
+      "acqdir_alt"=> "0051,100e",
+      "pname" => "0018,1030", 
+      "patname"=>"0010,0010",
+      "echotime"=>"0018,0081",
+      "bandwidth"=>"0018,0095", # echospacing = 1/(bandwith*matrixsize[0]) 
+      "accel"=>sub($p){return dcmstring(firstdcm($p, $conf{dcmpat}),'sPat.lAccelFactPE.*')},
+   };
+
+   if($opts{list}){
+      my @cols = (keys %{$conf{columns}});
+      my @list = map {"$_ => ".$conf{columns}->{$_}} @cols;
+      print "Built in columns:\n\t", join("\n\t", @list), "\n";
+      exit(0);
+   }
+
+
+   $conf{col_order} ||= [qw/subj ses seqno ndcm pname tr matrix acqdir dname fullpath/];
+   # output columns change if 1) we have a specification. 2) we dont have ses 3) we dont want to run dcm2niix
+   if($opts{cols}){
+      $conf{col_order} = [split ',', $opts{cols}] 
+   } else {
+     my @rm = ();
+     push @rm, "ses" if not $opts{sespat};
+     push @rm, "fullpath", "acqdir", "matrix" if $opts{short};
+     my $rm=join "|", @rm;
+     @{$conf{col_order}} = grep {!/^($rm)$/} @{$conf{col_order}};
+   }
+   push @{$conf{col_order}}, split /,/, $opts{add_cols} if $opts{add_cols};
+   # TODO: warn about col_order not in keys(%{$conf{columns}})
+
+   # if falsey, dont convert
+   # $conf{convert} = sub convert { return("") };
+
+   # overload with other things
+   # TODO: test isfile, test exists convert
+   #      while at it, test each tag_order  in tags
+   if(exists $opts{config}){
+      eval read_file($opts{config}) or croak "config eval failed $@ $!";
+   }
+   if($opts{eval}){
+      eval "$opts{eval}" or croak "custom eval code failed! $@ $!";
+   }
+   pod2usage(1) if $#{$opts{dirs}} <0;
+
+   $conf{opts} = \%opts;
+   return %conf;
+}
+
+sub first_dcm_info($dir, $patt, @tags){
+    # use dicom_hinfo to get tag_order (via cmd_tags)
+    # N.B. globals '$sep' and '$cmd_tags'
+   my $cmd_tags = join " ", map {"-tag $_"} @tags;
+    my $first_dcm_cmd = qq/
+      find -L "$dir" -maxdepth 2 \\( -type f -or -type l \\) -regextype sed -iregex '$patt' -print0 -quit |
+      xargs -0rI{} dicom_hinfo -full_entry -no_name -sepstr '$sep' $cmd_tags "{}"/;
+    print "$first_dcm_cmd\n" if $DEBUG>=2;
+    chomp(my $out = qx/$first_dcm_cmd/);
+    return(split /$sep/, $out);
+}
+
+sub dcmdir_info(%conf) {
+   # initialize before looping
+   my @all=();
+
+   # break columns into tags (strings in hash) and path functions ("CODE")
+   # CODE get passed in file name. others used as tag ids
+   my @all_cols = @{$conf{'col_order'}};
+   # convert regrexps to functions
+   my @regex_cols = grep {ref($conf{'columns'}->{$_}) eq 'Regexp'} @all_cols;
+   for my $regcol (@regex_cols) {
+      my $regexp = $conf{'columns'}->{$regcol};
+      $conf{'columns'}->{$regcol} = sub($p) { return(($p=~m/$regexp/)?$&:"NONE")};
+   }
+   my @path_cols= grep {ref($conf{'columns'}->{$_}) eq 'CODE'} @all_cols;
+   my @tag_cols = grep {ref($conf{'columns'}->{$_}) eq ''    } @all_cols;
+   my @dcm_tags = map {$conf{columns}->{$_} ." "} @tag_cols;
+
+
+   # header: double negative to make providing options easy + default to header
+   say join $sep, @all_cols if not $conf{opts}->{'no-header'};
+
+   # could give many globs. expand all
+   foreach my $optd (@{$conf{opts}->{dirs}}) {
+    foreach my $d (glob("$optd"))  {
+       print("d: $d; @path_cols};\n") if $DEBUG>2;
+
+       my %acq = ();
+
+       @acq{@path_cols} = map {$conf{columns}->{$_}->($d)} @path_cols;
+       @acq{@tag_cols}  = first_dcm_info($d, $conf{dcmpat}, @dcm_tags);
+
+       #my $ses = $d=~m/$sespat/?$&:"NOSES";
+       print join($sep, map {$_=$_?$_:""} @acq{@all_cols}), "\n";
+
+       # presumably run dcm2niix given info from this dcm
+       # would be set in -e or -c file.pm (untested!)
+       $conf{run}->(%acq) if($conf{run});
+
+       push @all, \%acq;
+       print Dumper(\%acq),"\n" if $DEBUG>2;
+    }
+   }
+   return @all;
+}
+
+# if we aren't testing/using as a module,
+# run as command line tool
+if(not caller){
+   my @all = dcmdir_info(get_config());
+   print Dumper(@all),"\n" if $DEBUG>2;
+}
+1;
+
+__END__
+=head1 NAME
+
+dcmdirtab - get tab delm. dicom directory info 
+
+=head1 SYNOPSIS
+
+   dcmdirtab -h   # more info
+   dcmdirtab -l   # list built in column options (enable with -a
+   dcmdirtab -s 'E\d+' -d 'E07_MR3/scans/*/'
+   dcmdirtab -s 'E\d+' -d 'E07_MR3/scans/*/' --cols pname,ndcm,fullpath
+   dcmdirtab -s 'E\d+' -d 'E07_MR3/scans/*/' -x -a acqdir_alt # Short (no fullpath column), add acqdir_alt column
+   dcmdirtab -s 'E\d+' -d 'E07_MR3/scans/*/' -a acqdir_alt,sex -e '$conf{columns}->{sex}="0010,0040"' # add and use a sex column from dcm header
+
+extract tsv of dicom info using AFNI's C<dicom_hinfo>. extract subj and session. Use as input to C<dcmtab_bids>.
+
+=head1 OPTIONS
+
+=over 4
+
+=item -s --subpat:
+regexp describes how to find subjects
+
+=item -b --sespat:
+regexp describes how to find session info
+
+=item -d --dirs:
+dir glob pattern to dicom folders. e.g. C</path/1*_2*/*/*/>
+mulitple C<-d '/path/*/'> accepted.
+IMPORTANT: quote the glob in shell
+
+=item -c --config:
+path to config script. e.g. C<config.pl>.
+
+see L<CONFIG> in C<perldoc $(which dcmdirtab)>
+
+=item -e --eval:
+inline perl code. useful for quick modifications.
+
+Quick debugging
+
+   -e 'say Dumper(\%conf); exit'
+
+add a column to the output (but use C<-a acqdir_alt> instead!):
+
+   -e 'push @{$conf{col_order}}, "acqdir_alt"'
+
+add a new function and use it (but use C<-b PATTERN> if you can)
+
+   -e '$conf{columns}->{ses} = sub($p){return  $p=~/Time (\d|Rescan)/i?$1:0}' -a ses
+same as
+
+   -b '(?<=Time )(\d|Rescan)'
+
+see output of afni's C<dicom_hdr> for header tags (like sex="0010,0040")
+
+=item -l --list
+list built in columns
+
+=item --cols
+display (only) columns listed
+
+  --cols pname,ndcm
+
+=item -a --add_cols
+add a column to the list
+
+  -a patname,acqdir_alt
+
+=item -x --short
+dont include longer columns (for quick looks). excludes C<acqdir,matrix,fullpath>
+
+=item -h --help
+this message
+
+=back
+
+Example:
+
+   # find subjects like E07 with config
+   dcmtabdir -s 'E\d+' -d 'E07_MR3/scans/*/'
+
+
+
+=head1 CONFIG
+
+conf is a hash with keys
+
+=over 4
+
+
+=item subpat    - same as -s. config wins if both provided
+
+=item col_order - order of output columns (array ref)
+
+=item columns - hash ref of afni dcminfo colname=>'xxxx,yyyy' or colname=>sub($path){} path function
+
+=back
+
+=head2 Default
+
+see C<dcmdirtab -l> for list.
+
+    $conf{columns}={
+       "seqno" =>"0020,0011",
+       "tr"    =>"0018,0080",
+       # ...
+       "subj" => sub($p){return($p=~m/$conf{subpat}/?$&:"NOSUBJ");},
+       "ndcm" => sub($p){return(split /\n/, `find -L "$p" -maxdepth 2 -type f,l` +1);}
+    };
+       
+
+=head1 NOTES
+
+ use look ahead in patterns. to match 3 digits that start a directory name
+    -s '(?<=/)\d{3}' 
+

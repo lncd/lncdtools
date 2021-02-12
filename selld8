@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
+SHOW_SESSION="" # will add ,visitno if non-zero
 _selld8_query(){
+   [ -n $SHOW_SESSION ] && session=", visit.visitno" || session=""
    lncddb "
-    select l.id || '_' || to_char(vtimestamp, 'YYYYMMDD') as ld8,
+    select
+       l.id || '_' || to_char(vtimestamp, 'YYYYMMDD') as ld8,
        round(age::numeric,1) as age,
        sex,
        vtype,
        string_agg(study, ' ') as studies,
        string_agg(distinct vee.id,' ') as veid
+       $session
     from enroll l
     natural join visit
     natural join visit_study
@@ -14,7 +18,7 @@ _selld8_query(){
     left join visit_enroll ve on ve.vid = visit.vid
     left join enroll vee on ve.eid = vee.eid
     where l.etype like 'LunaID'
-    group by l.id,sex,visit.vid
+    group by l.id,sex,visit.vid $session
     order by vtimestamp desc"
 }
 _selld8(){
@@ -60,6 +64,8 @@ exit 1
 }
 _selld8_main() {
    [ $# -eq 0 ] && _selld8_usage
+   # show session
+   [ "$1" == "-ses" ] && SHOW_SESSION=1 && shift;
    case $1 in
       -h*|help) _selld8_usage;;
       i*) echo "source $0; _selld8_bind";;

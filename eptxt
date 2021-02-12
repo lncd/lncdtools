@@ -14,8 +14,16 @@ eptxt - parse eprime txt output log
 
 =head1 SYNOPSIS
 
+    # default many columns
     eptxt /Volumes/L/bea_res/Tasks/Digit-Symbol/DigitSymbol-20150813-10173-1.txt
-    eptxt -l -p '\d{5}' DigitSymbol-20150813-10173-1.txt
+
+    # long = line per key/value pair
+    eptxt -l DigitSymbol-20150813-10173-1.txt
+
+    # use long format to count all the keys
+    eptxt -l DigitSymbol-20150813-10173-1.txt|cut -f 4|sort |uniq -c|sort -n
+
+    # specify keys and id pattern
     eptxt -k id,symbol,speed.RT,speed.ACC,TrialType,digit -p '\d{8}-\d{5}' DigitSymbol-20150813-10173-1.txt
 
 =head1 DESCRIPTION
@@ -57,7 +65,7 @@ for my $f (@ARGV) {
         if(m/LogFrame End/){
             # count number of tabs.
             $h->{level}=$level;
-            $n_logframe{$level}++;
+            $h->{level_cnt}=++$n_logframe{$level};
             # add hash to array
             #say "UPDATE pushed ", Dumper($h);
             push @a, $h;
