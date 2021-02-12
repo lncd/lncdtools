@@ -1,24 +1,39 @@
 #!/usr/bin/env bash
 set -euo pipefail
 trap 'e=$?; [ $e -ne 0 ] && echo "$0 exited in error"' EXIT
+env | grep -q ^DRYRUN=. && DRYRUN=echo || DRYRUN=""
 
-# wrap around 3dbucket and 3drefit
-# extract a subbrick from a list of nifti 
-# label with luna ids
-#
-# Useful for quality checking many structurals, subject masks,  or individual contrasts
+usage(){
+cat << HEREDOC
+ look at a single brick accross subjects
+ USAGE:
+     $0 [-idregex '\d{5}(_\d{8})?'] output.nii.gz 'gl*ob' [subbrik]" >&2 &&
+ EXAMPLE:
+     $0 allmprage.nii.gz '/Volumes/Phillips/mMR_PETDA/subjs/1*_2*/struct/*/*_G2_256x240*/mprage_warp_linear.nii.gz'
 
-# input:
-#   1) prefix
-#   2) a glob. eg /Volumes/Zeus/preproc/pet_frog/MHTask_pet/*/contrasts/Frogger/hashContrasts_FM_GAM_stats2+tlrc.HEAD
-#   3) [optional] sub brick (0 if not provided)
-# env
-#  NOAFNI=1 4dConcatSubBricks prefix 'glob' # NOAFNI=1 will skip opening anfi and generating outliers
+ DESC:
+ wrap around 3dbucket and 3drefit
+ extract a subbrick from a list of nifti 
+ label with luna ids
 
-[ $# -lt 2 ] && 
-  echo -e "look at a single brick accross subjects\nUSAGE: $0 output.nii.gz 'gl*ob' [subbrik]" >&2 &&
-  exit 1
-  [ $# -gt 3 ] && echo "too many input argumetns ($#)! did you put single quotes around the 'gl*ob'?" >&2 && exit 1
+ Useful for quality checking many structurals, subject masks,  or individual contrasts
+
+ input:
+   1) prefix
+   2) a glob. eg /Volumes/Zeus/preproc/pet_frog/MHTask_pet/*/contrasts/Frogger/hashContrasts_FM_GAM_stats2+tlrc.HEAD
+   3) [optional] sub brick (0 if not provided)
+   4) [optional] -idregex 'perl regular expression' must be provided before prefix. describes how to extract id for labeling subjbricks
+ env
+  NOAFNI=1 4dConcatSubBricks prefix 'glob' # NOAFNI=1 will skip opening anfi and generating outliers
+  DRYRUN=1 4dConcatSubBricks prefix 'glob' # look at what will happen, but don't do it. less verbose 'set -x'
+HEREDOC
+exit 1
+}
+
+[ $# -lt 2 ] && usage
+
+[ "$1" == "-idregex" ] && subjpatt="$2" && shift 2
+[ $# -gt 3 ] && echo "too many input argumetns ($#)! did you put single quotes around the 'gl*ob'?" >&2 && exit 1
 
 prefix="$1"; shift
 glob="$1"; shift
@@ -27,19 +42,20 @@ glob="$1"; shift
 ! [[ $prefix =~ nii$|nii.gz$|.HEAD$ ]] && echo "prefix '$prefix' must end in .nii, .nii.gz, or .HEAD" && exit 1
 [ -z "$(ls $glob)" ] && echo "bad glob provided ($glob). consider .HEAD?" >&2 && exit 1
 
-ids="$(ls $glob | perl -lne 'print $& if m/\d{5}(_\d{8})?/')"
+ids="$(ls $glob | perl -lne "print \$& if m/$subjpatt/")"
 [ -z "$ids" ] && echo "could not find lunaid(_date) in provided glob" >&2 && exit 1
 
 
 if [ ! -r "$prefix" ]; then
    echo "3dbucket: combine"
-   3dbucket -prefix "$prefix" $(ls $glob | sed "s/$/[$subbrik]/")
+   $DRYRUN 3dbucket -prefix "$prefix" $(ls $glob | sed "s/$/[$subbrik]/")
    echo "3drefit: relabel"
-   3drefit -relabel_all_str "$ids" "$prefix"
+   $DRYRUN 3drefit -relabel_all_str "$ids" "$prefix"
 else 
    echo "rm $prefix # to regenerate; skipping 3dbucket and 3drefit"
 fi
 
+[ -n "$DRYRUN" ] && exit 0
 env | grep NOAFNI && exit 0
 
 afni -com 'OPEN_WINDOW axialgraph' "$prefix"  >/dev/null 2>&1
