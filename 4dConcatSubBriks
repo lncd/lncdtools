@@ -51,8 +51,7 @@ glob="$1"; shift
 
 ! [[ $prefix =~ nii$|nii.gz$|.HEAD$ ]] && echo "prefix '$prefix' must end in .nii, .nii.gz, or .HEAD" && exit 1
 [ -z "$(ls $glob)" ] && echo "bad glob provided ($glob). consider .HEAD?" >&2 && exit 1
-
-ids="$(ls $glob | grep -Po "$PATTERN")"
+ids="$(ls $glob | grep -Po "$PATTERN" || :)"
 [ -z "$ids" ] && echo "could not find ID using pattern '$PATTERN' in provided glob '$glob'" >&2 && exit 1
 
 
