@@ -25,34 +25,38 @@ comp_to(){
   [  "$o" == "$2 " ]
 }
 
-@test dryrun {
+@test censor1d-dryrun-env {
   DRYRUN=1 censor_1d 2/fd.txt
   [ ! -r 2/fd_cen_0.5.1d ]
 }
+@test censor1d-dryrun-arg {
+  censor_1d -n 2/fd.txt
+  [ ! -r 2/fd_cen_0.5.1d ]
+}
 
-@test single {
+@test censor1d-single {
   censor_1d 2/fd.txt
   ls 2/
   comp_to 2/fd_cen_0.5.1d "$SECOND_thres5"
 }
 
-@test single_prefix {
+@test censor1d-single_prefix {
   censor_1d -prefix cen 2/fd.txt
   comp_to 2/cen_0.5.1d "$SECOND_thres5"
 }
 
-@test single_thres {
+@test censor1d-single_thres {
   censor_1d -thres 0 2/fd.txt
   [ -r 2/fd_cen_0.1d ]
   [ "$(cat 2/fd_cen_0.1d)" == "$(sed s/.*/0/ 2/fd.txt)" ]
 }
-@test single_colidx {
+@test censor1d-single_colidx {
   echo -e "1 .2\n2 .3" > 1/fd.txt
   censor_1d -colidx 1 1/fd.txt
   comp_to 1/fd_cen_0.5.1d "1 1"
 }
 
-@test run_glob {
+@test censor1d-run_glob {
   censor_1d */fd.txt
   comp_to 1/fd_cen_0.5.1d "$FIRST_thres5"
   comp_to 2/fd_cen_0.5.1d "$SECOND_thres5"
