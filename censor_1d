@@ -11,14 +11,18 @@ USAGE:
  $(basename $0) [-prefix fd_cen] [-colidx 0] [-thres 0.5] /path/to/*/motion_info/fd.txt
 
 SYNOPSIS:
- create 1d files 1=below thres, 0>=above thres in the same directory as \$prefix_\$thres.1d
+ - create 1d files with one value per line:
+    1 when below thres         (\$x <  \$thres)
+    0 when at or above thres   (\$x >= \$thres)
+ - mnemonic: "censor*data will have 0 where censored"
+ - "\$prefix_\$thres.1d" is output, saved in the same directory as input
 
 OPTIONS:
  -prefix - what to name the file [fd_cen]
  -thres  - threshold to use      [0.5]
  -colidx - column idx (0-based)  [0] (first column)
  -help   - this help
- -n      - set DRYRUN=1: dont write files, but echo what would happen
+ -n      - set DRYRUN=1; dont write files, but echo what would happen
 
 ENV.:
     DRYRUN=1  show dont touch, same as -n
