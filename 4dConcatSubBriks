@@ -1,25 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 trap 'e=$?; [ $e -ne 0 ] && echo "$0 exited in error"' EXIT
+env | grep -q ^DRYRUN=. && DRYRUN=echo || DRYRUN=""
 env | grep -q ^NOAFNI= || NOAFNI=1
 
-# wrap around 3dbucket and 3drefit
-# extract a subbrick from a list of nifti 
-# label with luna ids
-#
-# Useful for quality checking many structurals, subject masks,  or individual contrasts
-
-# input:
-#   1) prefix
-#   2) a glob. eg /Volumes/Zeus/preproc/pet_frog/MHTask_pet/*/contrasts/Frogger/hashContrasts_FM_GAM_stats2+tlrc.HEAD
-#   3) [optional] sub brick (0 if not provided)
-# env
-#  NOAFNI=1 4dConcatSubBricks prefix 'glob' # NOAFNI=1 will skip opening anfi and generating outliers
 usage(){
   cat >&2 <<HEREDOC
-look at a single brick accross subjects
 USAGE:
   $(basename $0) [options] output.nii.gz 'gl*ob' [subbrik]"
+
+EXAMPLE:
+  $(basename $0) allmprage.nii.gz '1*_2*/struct/*/*_G2_256x240*/mprage_warp_linear.nii.gz'
+
+SYNOPSIS:
+ wrap around 3dbucket and 3drefit
+ extract a subbrick from a list of nifti 
+ label with luna ids
+
+ Useful for quality checking many structurals, subject masks,  or individual contrasts
 
 OPTIONS: (are optional)
  -a                # show afni afteward
@@ -42,7 +40,7 @@ case $1 in
   -h) usage;;
    *) ;; # nothing to do. will use stuff later
 esac
-
+[ $# -eq 0 ] && echo "need output and glob arguments. see -h" && exit 1
 [ $# -gt 3 ] && echo "too many input argumetns ($#)! did you put single quotes around the 'gl*ob'?" >&2 && exit 1
 
 prefix="$1"; shift
@@ -57,13 +55,14 @@ ids="$(ls $glob | grep -Po "$PATTERN" || :)"
 
 if [ ! -r "$prefix" ]; then
    echo "3dbucket: combine"
-   3dbucket -prefix "$prefix" $(ls $glob | sed "s/$/[$subbrik]/")
+   $DRYRUN 3dbucket -prefix "$prefix" $(ls $glob | sed "s/$/[$subbrik]/")
    echo "3drefit: relabel"
-   3drefit -relabel_all_str "$ids" "$prefix"
+   $DRYRUN 3drefit -relabel_all_str "$ids" "$prefix"
 else 
    echo "rm $prefix # to regenerate; skipping 3dbucket and 3drefit"
 fi
 
+[ -n "$DRYRUN" ] && exit 0
 [ -n "$NOAFNI" ] && exit 0
 
 afni -com 'OPEN_WINDOW axialgraph' "$prefix"  >/dev/null 2>&1

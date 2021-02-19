@@ -54,10 +54,12 @@ my_rename(){
  local cmd=$(find_rename)
  [ -z "$cmd" ] && exit 1
  # use it
- $cmd "$@";
+ [ -n "$DRYRUN" ] && dr="-n" || dr=""
+ $cmd $dr "$@";
 }
 
 main(){
+  env|grep -q ^VERBOSE=. && set -x
   # just run "find_rename" -- for debugging and checking
   if [ $# -gt 0 ] && [ "$1" == "have?" ]; then
     find_rename
@@ -75,11 +77,13 @@ main(){
   local outdir="$1"; shift
   local pattern="$1"; shift
   [ $# -gt 0 ] && ARGS="$*" || ARGS=""  # allow -n to sneak in for dry run tests
-  [ -n "$DRYRUN" ] && echo "# $rename_regexp in $outdir/$pattern"
-  find $outdir -type f -mtime -1 -iname "$pattern" \
-	  \( -iname '*nii.gz' -or -iname '*json' -or -iname '*.nii' \)  |
-   while read file; do
-    $DRYRUN my_rename $ARGS "$rename_regexp" $file
+  torename=( $(find $outdir -type f -mtime -1 -iname "$pattern" \
+     \( -iname '*nii.gz' -or -iname '*json' -or -iname '*.nii' \))  )
+  [ -n "$DRYRUN" ] && echo "# rename-recent top level: '$rename_regexp' for '$outdir/$pattern'" &&
+                      echo "# have '${#torename[@]}' matches"
+
+  for f in "${torename[@]}"; do
+    my_rename $ARGS "$rename_regexp" "$f"
   done
 }
 
