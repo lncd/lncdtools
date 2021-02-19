@@ -20,6 +20,10 @@ vox_scale=1
 t2_inv=0
 use_zscore=0
 
+# 20210218WF - hygenic file usage -- tmp files after crash clog fileystem 
+tmpd=""
+trap '[ -n "$tmpd" -a -d "$tmpd" ] && [[ "$tmpd" =~ $TMPLOCATION ]] && rm -r "$tmpd"' EXIT
+
 # 20201116 
 #  back to mean default
 # add
