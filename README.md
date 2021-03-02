@@ -21,6 +21,14 @@ echo "export PATH=\$PATH:$HOME/lncdtools" >> $( [ "$(uname)" == Darwin ] && echo
   * `r` - read dataframe from stdin and run R code with shortcuts and magic a la DataScienceToolkit's Rio
   * `tat2`, `melanin_align`  - modality specific wrappers
 
+### tat2
+
+permutation of `tat2` calls were compared against R2 acquisitions:
+`-vol_median` is likely the approprate normalization. <br>
+[<img src="imgs/tat2_matrix.png"     width=400 />](imgs/tat2_matrix.png)
+[<img src="imgs/tat2_vs_r2prime.png" height=400 />](imgs/tat2_vs_r2prime.png) <br>
+(`/Volumes/Phillips/mMR_PETDA/scripts/tat2/multiverse`)
+
 ## Notes
 
   * `get_ld8_age.R` requires R and the `LNCDR` package + access with the firewall (for db at `arnold.wpic.upmc.edu`)

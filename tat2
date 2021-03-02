@@ -238,6 +238,6 @@ else
 fi
 
 all_nts="$(3dinfo -nt $tmpd/*_tat2.nii.gz|tr '\n' ',')"
-3dNotes -h "$0 $allargs # $(pwd); SCALE=$SCALE, nvoxes=$all_numvox; nt=$all_nts" $OUTPUT
+3dNotes -h "$0 $allargs # $(pwd); SCALE=$SCALE, nvoxes=$all_numvox; nt=$all_nts; vol:$volnorm_opt, time:$tnorm_opt" $OUTPUT
 
 [ $CLEAN -eq 1 ] && rm -r $tmpd || echo "find temporary files in '$tmpd'; remove '-noclean' if not testing"

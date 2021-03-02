@@ -100,7 +100,7 @@ x_cmp_y(){
 
 @test zscore {
    # zscore:433.012       mean:400
-   tat2 t.nii.gz -output mean.nii.gz -mask m.nii.gz 
+   tat2 t.nii.gz -median_time -mean_vol -output mean.nii.gz -mask m.nii.gz
    tat2 t.nii.gz  -zscore_vol -output zscore.nii.gz -mask m.nii.gz
    x_cmp_y zscore.nii.gz '>' mean.nii.gz
 }
