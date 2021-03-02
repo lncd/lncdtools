@@ -13,8 +13,8 @@ MASK=""
 MKMASK=0
 OUTPUT=tat2star.nii.gz
 CLEAN=1
-volnorm="-nzmean"
-tnorm="-nzmedian"
+volnorm_opt="-nzmedian"
+tnorm_opt="-nzmean"
 censor_rel=""
 vox_scale=1
 t2_inv=0
@@ -22,7 +22,7 @@ use_zscore=0
 
 # 20210218WF - hygenic file usage -- tmp files after crash clog fileystem 
 tmpd=""
-trap '[ -n "$tmpd" -a -d "$tmpd" ] && [[ "$tmpd" =~ $TMPLOCATION ]] && rm -r "$tmpd"' EXIT
+trap '[ -n "$tmpd" -a -d "$tmpd" -a $CLEAN -eq 1 ] && [[ "$tmpd" =~ $TMPLOCATION ]] && rm -r "$tmpd"' EXIT
 
 # 20201116 
 #  back to mean default
@@ -56,11 +56,10 @@ usage(){
     either a filename or regexp
        as a filename in input nifti directory (resolves to \$(dirname \$input)/\$censor_rel)  OR
        as a perl regexp run on \$input. like 's/(rest-\\d)_bold.nii.gz/\\1_cesnor.1d/'
-  * use -median_time or -mean_time to set how voxels are collapsed across time
-    * median_time is default (20201117)
-  * use -median_vol or -mean_vol to set value used to scale across volume (each TR)
-    * mean_vol is default (20201116[mean] reverses 20201016[median] rev orig mean)
-    * probably do not adjust this. use median_time
+  * use -median_time or -mean_time to set how voxels are collapsed across time (3dTstat)
+    * $tnorm_opt is default (mean 20201117)
+  * use -median_vol or -mean_vol to set value used to scale across volume (each TR, 3dROIstats)
+    * $volnorm_opt is default (20210302[median] rev 20201116[mean] reverses 20201016[median] rev orig mean)
   * -zscore_vol changes expression to '(x-m)/s' instead of 'x/m'
   * use -noclean to debug
   * -mkmask ensures the number of voxels used to normalize is the same across runs by create a coverage mask from all inputs
@@ -117,11 +116,11 @@ while [ $# -gt 0 ]; do
   -censor_rel) censor_rel="$2"; shift 2;;
   -tmp)        TMPLOCATION="$2"; shift 2;;
   -mkmask)     MKMASK=1; MASK_REL=""; shift;;
-  -median_vol) volnorm="-nzmedian"; shift;;
-  -mean_vol)   volnorm="-nzmean"; shift;;
+  -median_vol) volnorm_opt="-nzmedian"; shift;;
+  -mean_vol)   volnorm_opt="-nzmean"; shift;;
   -zscore_vol) use_zscore=1; shift;;
-  -mean_time)  tnorm="-nzmean"; shift;;
-  -median_time)tnorm="-nzmedian"; shift;;
+  -mean_time)  tnorm_opt="-nzmean"; shift;;
+  -median_time)tnorm_opt="-nzmedian"; shift;;
   -inverse)    t2_inv=1; shift;;
   -no_voxscale)vox_scale=0; shift;;
   -noclean)    CLEAN=0; shift;;
@@ -164,7 +163,7 @@ for input in ${glob[@]}; do
 
    # verbose
    msg "tat2: $input -> $runoutput"
-   vol_norm=$tmpd/${cnt}_volnorm.1D
+   volnorm_1D=$tmpd/${cnt}_volnorm.1D
    vol_sd=$tmpd/${cnt}_sd.1D
 
    # censor input
@@ -189,7 +188,7 @@ for input in ${glob[@]}; do
    fi
 
    # calc sum of each volume. output is normalize value per TR
-   3dROIstats -nomeanout $volnorm -mask $mask -1Dformat $input > $vol_norm 
+   3dROIstats -nomeanout $volnorm_opt -mask $mask -1Dformat $input > $volnorm_1D
    # do the same for stddev (sigma) if zscoring
    [ $use_zscore -eq 1 ] &&
      3dROIstats -nomeanout -nzsigma -mask $mask -1Dformat $input > $vol_sd
@@ -219,7 +218,7 @@ for input in ${glob[@]}; do
    #          sum(v) = 1000
    3dcalc \
      -x $input \
-     -m $vol_norm \
+     -m $volnorm_1D \
      $sd_input \
      -datum float -overwrite \
      -expr "$calc_expr*$calc_scale"\
@@ -233,9 +232,9 @@ done
 msg "tat2star $OUTPUT"
 if [ $nfiles -gt 1 ]; then
    3dTcat -overwrite -prefix $tmpd/tat2_all.nii.gz $tmpd/*_tat2.nii.gz
-   3dTstat -prefix $OUTPUT -overwrite $tnorm $tmpd/tat2_all.nii.gz
+   3dTstat -prefix $OUTPUT -overwrite $tnorm_opt $tmpd/tat2_all.nii.gz
 else
-   3dTstat -prefix $OUTPUT -overwrite $tnorm $tmpd/*_tat2.nii.gz
+   3dTstat -prefix $OUTPUT -overwrite $tnorm_opt $tmpd/*_tat2.nii.gz
 fi
 
 all_nts="$(3dinfo -nt $tmpd/*_tat2.nii.gz|tr '\n' ',')"
