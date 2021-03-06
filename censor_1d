@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+set -euo pipefail
+trap 'e=$?; [ $e -ne 0 ] && echo "$0 exited in error"' EXIT
+
+#  20210219WF  init
+# make fd censor file
+
+usage(){
+   cat <<HEREDOC
+USAGE:
+ $(basename $0) [-prefix fd_cen] [-colidx 0] [-thres 0.5] /path/to/*/motion_info/fd.txt
+
+SYNOPSIS:
+ - create 1d files with one value per line:
+    1 when below thres         (\$x <  \$thres)
+    0 when at or above thres   (\$x >= \$thres)
+ - mnemonic: "censor*data will have 0 where censored"
+ - "\$prefix_\$thres.1d" is output, saved in the same directory as input
+
+OPTIONS:
+ -prefix - what to name the file [fd_cen]
+ -thres  - threshold to use      [0.5]
+ -colidx - column idx (0-based)  [0] (first column)
+ -help   - this help
+ -n      - set DRYRUN=1; dont write files, but echo what would happen
+
+ENV.:
+    DRYRUN=1  show dont touch, same as -n
+
+NOTES:
+  see "fd_calc" and afni's "1deval" for generating input to censor_1d
+HEREDOC
+}
+env|grep -q ^DRYRUN=. && DRYRUN=echo || DRYRUN=
+writeto(){ [ -z "$DRYRUN" ] && cat > "$1" && return; cat; echo "# would write to $1"; }
+
+[ $# -eq 0 ] && usage && exit 1
+
+THRES=0.5
+prefix=fd_cen
+colidx=0
+while [ $# -gt 0 ]; do
+   case "$1" in
+      -n|-dryrun)  DRYRUN="echo"; shift 1;;
+      -prefix) prefix="$2"; shift 2;;
+      -colidx) colidx="$2"; shift 2;;
+      -thres)  THRES="$2"; shift 2;;
+      -h*)  usage; exit;;
+      -*)  echo "UNKNOWN '$1'"; usage; exit 1;;
+      *) [ ! -r "$1" ] && echo "'$1' is not a file!" && exit 1; break;;
+   esac
+done
+
+for fd in "$@"; do
+   [ ! -r "$1" ] && echo "'$1' is not a file!" && continue
+   dn="$(dirname "$fd")"
+   out="$dn/${prefix}_$THRES.1d"
+   [ "$out" == "$fd" ] && echo "ERROR: input and output are the same! ('$fd')" && exit 1
+   [ -r "$out" ] && continue
+   echo "# writing $out"
+   $DRYRUN perl -slane 'print $F[$colidx]>=$thres?0:1' -- -thres=$THRES -colidx=$colidx < "$fd" |writeto "$out"
+done

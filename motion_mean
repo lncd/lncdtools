@@ -1,0 +1,25 @@
+#!/usr/bin/env Rscript
+
+# 20210204WF - init
+# get mean motion (or any single column) and collapse across ids   
+suppressPackageStartupMessages({require(dplyr);require(docopt)})
+opts <- docopt("mean_motion
+Usage:
+  mean_motion <id_pattern> <file_glob> [<file_glob>...] [--header]
+Example:
+ ./motion_mean_rms.R '\\d{4}_\\d{8}' preproc/2*/UCI_ECHO_fMRI_rest_*/motion_info/motion_absrms_mm
+")
+
+mot_files <- Sys.glob(opts$file_glob)
+#cat(glue::glue("# have {length(mot_files)} files\n"))
+all_mots <- lapply(mot_files, function(f){
+        id<-stringr::str_extract(f,opts$id_pattern)
+        x<-read.table(f)$V1
+        data.frame(m=mean(x),
+                   n=length(x),
+                   id=id)}) %>%
+   bind_rows %>%
+   group_by(id) %>%
+   summarise(mot_mean=sum(m*n)/sum(n))
+
+write.table(all_mots, row.names=F, quote=F, sep="\t", col.names=opts$`--header`)
