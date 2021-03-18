@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+
+# 20210317WF - add user
+#
+# setup default groups and put ni config in .bashrc
+#
+env|grep -q ^DRYRUN=.&&DRYRUN=echo||DRYRUN=
+
+# important groups on server
+_USER_GROUPS=lncd,luna_wallace,kvm,docker,users
+
+# run as root
+if [ $(id -u ) -ne 0 ]; then
+  sudo $0 "$@" 
+  exit $?
+fi
+
+mkpass(){
+   # concat nwords
+   local n_words=3
+   local min_word_len=5
+   LC_ALL=C grep -P "[a-z]{$min_word_len}" /usr/share/dict/words |
+      shuf -n $n_words|
+      sed 's/.*/\u&/'|
+      tr -dC '[A-Za-z]'
+}
+user_dne(){
+  local user="$1"
+  grep -q "$user" /etc/passwd && echo "have $user in $_" && return 1
+  return 0
+}
+add_rhea_user(){
+   local user="$1"; shift
+   local fullname="$*"
+   $DRYRUN useradd -g lncd -m -G "$_USER_GROUPS" -s "$(which bash)" -c "$fullname" $user
+}
+set_passwd(){
+   local user="$1"; shift
+   local pass
+   [ $# -gt 0 ] && pass="$1" || pass=$(mkpass)
+   echo -e "$pass\n$pass" | $DRYRUN passwd $user
+   echo "# using '$pass'"
+}
+add_rc(){
+   # add default ni settings
+   local user="$1"
+   echo "source /opt/ni_tools/dotfiles/bash/.bashrc" |
+      sudo -u $user tee -a /home/$user/.bashrc >/dev/null
+}
+
+# if running (not sourcing)
+if [[ "$(caller)" == "0 "* ]]; then 
+   # parse args
+   [ $# -lt 2 ] && echo "USAGE: $0 user full name" && exit 1
+   user="$1"; shift
+   fullname="$*";
+
+   # already have user
+   user_dne $user || exit
+
+   add_rhea_user "$user" "$fullname"
+   set_passwd "$user"
+   add_rc "$user"
+fi
