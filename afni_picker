@@ -10,6 +10,7 @@ proc bnames {list} {
 
 # basename of all inputs
 listbox .lb
+scrollbar .sb
 .lb insert 0 {*}[bnames $::argv]
 
 # block offset by number of afni's currently open
@@ -28,4 +29,7 @@ bind .lb <ButtonPress-1> { afni SET_UNDERLAY @%x,%y}
 bind .lb <ButtonPress-3> { afni SET_OVERLAY  @%x,%y}
 
 # display
-pack .lb
+pack .lb -side left -fill y
+pack .sb -side right -fill y
+.lb config -yscrollcommand {.sb set}
+.sb config -command {.lb yview} -orient vertical
