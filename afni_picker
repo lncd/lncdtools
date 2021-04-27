@@ -1,0 +1,31 @@
+#!/usr/bin/wish
+# plugouts wrapper (set overlay/underlay)
+# afni_select.tcl path/to/*nii.gz
+# also launches
+#  afni -YESplugouts path/to/*nii.gz
+package require Tk
+proc bnames {list} {
+   set res {}; foreach e $list {lappend res [file tail $e]}; set res
+}
+
+# basename of all inputs
+listbox .lb
+.lb insert 0 {*}[bnames $::argv]
+
+# block offset by number of afni's currently open
+set port_block  [exec sh -c {pgrep afni |wc -l}]
+puts "# offset blocks by $port_block"
+
+# launch afni
+exec afni -npb $port_block -YESplugouts {*}$::argv &
+
+proc afni {how coord} {
+   variable port_block
+   set img [.lb get [.lb index $coord]]
+   exec plugout_drive -npb $port_block -com "$how $img" -quit &
+}
+bind .lb <ButtonPress-1> { afni SET_UNDERLAY @%x,%y}
+bind .lb <ButtonPress-3> { afni SET_OVERLAY  @%x,%y}
+
+# display
+pack .lb
