@@ -4,29 +4,81 @@
 # also launches
 #  afni -YESplugouts path/to/*nii.gz
 package require Tk
+proc linkorname {f} { if { {link} eq [file type $f] } { file readlink $f} else { return $f } }
 proc bnames {list} {
-   set res {}; foreach e $list {lappend res [file tail $e]}; set res
+   set res {}; foreach e $list {lappend res [file tail [linkorname $e]]}; set res
 }
+proc noop {args} {}
+set DRY exec
+set DRY noop
 
 # basename of all inputs
 listbox .lb
 scrollbar .sb
 .lb insert 0 {*}[bnames $::argv]
 
+array set COLORED_IDX { 
+  SET_UNDERLAY -1 
+  SET_OVERLAY -1
+}
+array set COLORS { 
+  SET_UNDERLAY blue
+  SET_OVERLAY  green
+  BOTH         orange
+  VISITED      lightgray
+}
+
 # block offset by number of afni's currently open
 set port_block  [exec sh -c {pgrep afni |wc -l}]
 puts "# offset blocks by $port_block"
 
 # launch afni
-exec afni -npb $port_block -YESplugouts {*}$::argv &
-
-proc afni {how coord} {
-   variable port_block
-   set img [.lb get [.lb index $coord]]
-   exec plugout_drive -npb $port_block -com "$how $img" -quit &
+proc launch_afni {} {
+    $DRY afni -npb $port_block -YESplugouts {*}$::argv &
 }
-bind .lb <ButtonPress-1> { afni SET_UNDERLAY @%x,%y}
-bind .lb <ButtonPress-3> { afni SET_OVERLAY  @%x,%y}
+
+proc set_color {idx color} {
+ .lb itemconfigure $idx -background $color
+ .lb itemconfigure $idx -selectbackground $color
+}
+
+proc update_color {how idx} {
+ # change the color based on selected choice
+ # track state to change color back when new is selected
+ # if selection is same for both overlay and underlay 
+ # use special color, and handling going back to only one 
+ variable COLORED_IDX
+ variable COLORS
+ set other [expr {$how eq "SET_UNDERLAY" ? "SET_OVERLAY" : "SET_UNDERLAY"}]
+ if { $idx == $COLORED_IDX($other) } {
+   set_color $idx $COLORS(BOTH)
+ } else {
+   set_color $idx $COLORS($how)
+ }
+ if {$COLORED_IDX($how) > -1 && $idx != $COLORED_IDX($how)} {
+
+     # change color to visited unless the other is also set
+     # then set the color back to the other's (instead of both)
+     set restore_color $COLORS(VISITED)
+     if { $COLORED_IDX($how) == $COLORED_IDX($other) } {
+	 set restore_color $COLORS($other)
+     }
+     set_color $COLORED_IDX($how) $restore_color
+ }
+ # update state
+ set COLORED_IDX($how) $idx
+}
+
+proc select_img {how coord} {
+   variable port_block
+   variable DRY
+   set idx [.lb index $coord]
+   set img [.lb get $idx]
+   update_color $how $idx 
+   $DRY plugout_drive -npb $port_block -com "$how $img" -quit &
+}
+bind .lb <ButtonPress-1> { select_img SET_UNDERLAY @%x,%y}
+bind .lb <ButtonPress-3> { select_img SET_OVERLAY  @%x,%y}
 
 # display
 pack .lb -side left -fill y
