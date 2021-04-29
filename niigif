@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -euo pipefail
+tmpdir=""
+trap '[ -n "$tmpdir" -a -d "$tmpdir" ] && rm -r $tmpdir' EXIT SIGINT
+[ -v "SCALE" ] || SCALE=200%
+
+usage(){
+  local exit=0
+  [ $# -gt 0 ] && echo "ERROR: $@" && exit=1
+  cat<<HD
+  $0 file1 file2 ...
+  $0 -help = this help
+
+combine slicer outputs of various images to make a animated image (gif)
+useful to quickly visualize warp quality or image changes
+a la overlay/underlay toggle in afni
+
+use env var e.g SCALE=200% niigif myimg1.nii.gz myimg2.nii.gz 
+HD
+  exit $exit
+}
+
+[ $# -eq 0 ] && usage "need at least one nifti image"
+[[ "$1" =~ -h*|-useage ]] && usage
+
+tmpdir="$(mktemp -d /tmp/niigif-XXXX)"
+cnt=1
+for nii in "$@"; do
+  echo -n "$nii ... "
+  sliceout=$tmpdir/$(printf "%02d.png" $cnt); let ++cnt;
+  slicer -a $sliceout "$nii"
+  convert -scale $SCALE $sliceout -background white "label:$nii" -gravity center -append $sliceout
+done
+echo
+convert -delay 20 $tmpdir/*.png $tmpdir/all.gif
+echo $tmpdir/all.gif
+gifview -a $tmpdir/all.gif
+# ffplay  $tmpdir/all.gif
