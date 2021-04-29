@@ -1,19 +1,14 @@
 #!/usr/bin/env bash
 
+env|grep -q ^DRYRUN=.&&DRYRUN=echo||DRYRUN=
+
 # 20210317WF - add user
 #
 # setup default groups and put ni config in .bashrc
 #
-env|grep -q ^DRYRUN=.&&DRYRUN=echo||DRYRUN=
 
 # important groups on server
 _USER_GROUPS=lncd,luna_wallace,kvm,docker,users
-
-# run as root
-if [ $(id -u ) -ne 0 ]; then
-  sudo $0 "$@" 
-  exit $?
-fi
 
 mkpass(){
    # concat nwords
@@ -50,10 +45,17 @@ add_rc(){
 
 # if running (not sourcing)
 if [[ "$(caller)" == "0 "* ]]; then 
+   # run as root
+   if [ $(id -u ) -ne 0 ]; then
+     sudo $0 "$@" 
+     exit $?
+   fi
+
    # parse args
    [ $# -lt 2 ] && echo "USAGE: $0 user full name" && exit 1
    user="$1"; shift
    fullname="$*";
+
 
    # already have user
    user_dne $user || exit
