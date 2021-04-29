@@ -3,38 +3,58 @@
 # afni_select.tcl path/to/*nii.gz
 # also launches
 #  afni -YESplugouts path/to/*nii.gz
+set SELECTOR {rofi -dmenu}
 package require Tk
 proc linkorname {f} { if { {link} eq [file type $f] } { file readlink $f} else { return $f } }
 proc bnames {list} {
    set res {}; foreach e $list {lappend res [file tail [linkorname $e]]}; set res
 }
+
+# for testing we can use noop instead of exec
 proc noop {args} {}
 set DRY exec
-set DRY noop
+#set DRY noop
 
-# basename of all inputs
+## globals
+# widgets
 listbox .lb
 scrollbar .sb
-.lb insert 0 {*}[bnames $::argv]
+label .note
 
 array set COLORED_IDX { 
   SET_UNDERLAY -1 
   SET_OVERLAY -1
 }
 array set COLORS { 
-  SET_UNDERLAY blue
-  SET_OVERLAY  green
+  SET_UNDERLAY lightblue
+  SET_OVERLAY  lightyellow
   BOTH         orange
   VISITED      lightgray
 }
+set PORT_BLOCK 0
 
-# block offset by number of afni's currently open
-set port_block  [exec sh -c {pgrep afni |wc -l}]
-puts "# offset blocks by $port_block"
 
+## Funcs
+
+proc list_files {argv} {
+    # try to mimic afni's file listing procedure
+    # launched without args, use cwd
+    # with directory (as singline input), list all inside directory
+    # otherwise explicit files
+    set narg [llength $argv]
+    if {$narg == 0} {
+	return [glob "*.nii" "*HEAD" "*.nii.gz"]
+    } elseif {$narg == 1 && [file isdirectory $argv]} {
+        return [glob "$argv/*nii.gz" "$argv/*nii" "$argv/*HEAD"] 
+    } else {
+	return $argv
+    }
+}
 # launch afni
 proc launch_afni {} {
-    $DRY afni -npb $port_block -YESplugouts {*}$::argv &
+    variable DRY
+    variable PORT_BLOCK
+    $DRY afni -npb $PORT_BLOCK -YESplugouts {*}$::argv &
 }
 
 proc set_color {idx color} {
@@ -69,19 +89,82 @@ proc update_color {how idx} {
  set COLORED_IDX($how) $idx
 }
 
-proc select_img {how coord} {
-   variable port_block
+proc afni_plug {cmd} {
+   # send command(s) to afni
+   # use PORT_BLOCK to make sure we're driving the correct afni
+   variable PORT_BLOCK
    variable DRY
+   #exec plugout_drive -npb $PORT_BLOCK -com [join $cmd "-com"] -quit &
+   exec plugout_drive -npb $PORT_BLOCK -com  $cmd -quit &
+}
+proc select_img {how coord} {
+   # send e.g. 'SET_UNDERLAY mprage.nii.gz'
    set idx [.lb index $coord]
    set img [.lb get $idx]
    update_color $how $idx 
-   $DRY plugout_drive -npb $port_block -com "$how $img" -quit &
+   afni_plug "$how $img"
 }
+proc swap_over_under {} {
+    variable COLORED_IDX
+    set new_u $COLORED_IDX(SET_OVERLAY)
+    set new_o $COLORED_IDX(SET_UNDERLAY)
+    if {$new_u < 0 || $new_o < 0 } {return}
+    select_img SET_UNDERLAY $new_u
+    exec sleep 1
+    select_img SET_OVERLAY $new_o
+}
+
+proc fuzzy {how} {
+    # use e.g. rofi as a popup fuzzy selector
+    variable SELECTOR
+    set sel ""
+    set opts [.lb get 0 end]
+    catch {set sel [exec echo [join $opts \n] | {*}$SELECTOR]}
+    if {$sel ne ""} {
+	select_img $how [lsearch -exact $opts $sel]
+    }
+}
+
+
+## run
+# basename of all inputs.
+.lb insert 0 {*}[bnames [list_files $::argv]]
+
+# block offset by number of afni's currently open
+set PORT_BLOCK  [exec sh -c {pgrep afni |wc -l}]
+puts "# offset blocks by $PORT_BLOCK"
+launch_afni
+
+## bindings
+# clicks
 bind .lb <ButtonPress-1> { select_img SET_UNDERLAY @%x,%y}
 bind .lb <ButtonPress-3> { select_img SET_OVERLAY  @%x,%y}
+# keys
+bind .lb <slash> { fuzzy SET_UNDERLAY }
+bind .lb <space> { fuzzy SET_UNDERLAY }
+bind .lb <question> { fuzzy SET_UNDERLAY }
+bind .lb <Return> { select_img SET_UNDERLAY [.lb curselection] }
+bind .lb <Control-Return> { select_img SET_OVERLAY [.lb curselection] }
 
-# display
-pack .lb -side left -fill y
-pack .sb -side right -fill y
+bind .lb <o> { afni_plug "SET_FUNC_VISIBLE +" }
+bind .lb <O> { afni_plug "SET_FUNC_VISIBLE -" }
+bind .lb <U> { swap_over_under }
+
+wm protocol . WM_DELETE_WINDOW { afni_plug QUIT; destroy .}
+## widget config
 .lb config -yscrollcommand {.sb set}
 .sb config -command {.lb yview} -orient vertical
+
+.note configure -text [join {
+  "/ ?: fuzzy search underlay/overlay"
+  "left, right click: set under/overlay" 
+  "enter,C-enter: set under/overlay"
+  "O: overlay off"
+  "o: overlay on"
+  "U: swap over/under"} \n ] 
+
+# display
+# pack forget .lb .sb .note
+pack .note -side top -fill x
+pack .lb -side left -fill both -expand true
+pack .sb -side right -fill y
