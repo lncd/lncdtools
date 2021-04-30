@@ -27,7 +27,7 @@ sub dcmstring($dcm, $varpatt) {
 }
 # TODO: this should be used by first_dcm_info
 sub firstdcm($p, $dcmpat){
- chomp(my $x=qx/find -L "$p" -maxdepth 2 -type f,l -regextype sed -iregex '$dcmpat' -print -quit/);
+ chomp(my $x=qx/find -L "$p" -maxdepth 2 \\( -type f -or -type l \\) -regextype sed -iregex '$dcmpat' -print -quit/);
  return($x)
 }
 
