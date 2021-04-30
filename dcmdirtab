@@ -65,6 +65,8 @@ sub get_config(){
       "pname" => "0018,1030", 
       "patname"=>"0010,0010",
       "echotime"=>"0018,0081",
+      "flipangle"=>"0018,1314",
+      "inverttime"=>"0018,0082",
       "bandwidth"=>"0018,0095", # echospacing = 1/(bandwith*matrixsize[0]) 
       "imagetime"=>"0008,0033",
       "example"=>sub($p){firstdcm($p, $conf{dcmpat})},
