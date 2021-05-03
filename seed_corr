@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -eou pipefail
+trap 'e=$?; [ $e -ne 0 ] && echo "$0 exited in error"' EXIT
+SCRIPTDIR="$(cd $(dirname $0); pwd)"
+[ -v DRYRUN ] && DRYRUN=echo || DRYRUN=
+
+usage(){
+ exitstat=0
+ [ $# -gt 0 ] && echo "ERROR: $@" && exitstat=1
+ cat <<H
+ seed_corr.bash -mask XXX -o prefix -inputs a.nii.gz b.nii.gz
+
+ save \$prefix{.1d,_missing.txt,_corrmap_r.nii.gz,_corrmat_z.nii.gz}
+H
+
+ exit $exitstat
+}
+
+while [ $# -ne 0 ]; do
+ case $1 in
+   -mask|-m) mask="$2"; shift 2;;
+   -input|-i) input="$2"; shift 2;;
+   -prefix|-o) prefix="$2"; shift 2;;
+   *) usage "dont know what to do with '$1'";
+ esac
+done
+
+oneD=${prefix}.1d
+missingTS=${prefix}_missing_ts.txt
+corrmap=${prefix}_corrmap_r.nii.gz
+corrmapz=${prefix}_corrmap_z.nii.gz
+# dont need to rerun if we have final output
+[ -r $corrmapz ] && echo "# have '$corrmapz'; skipping (rm to redo)" && exit
+[ ! -r "$mask" ] && ! 3dinfo "$mask" 2>&1 >/dev/null && echo "# mask '$mask' does not exit" && exit 1
+[ ! -r $input ] && echo "# 4d input '$input' does not exist" && exit 1
+
+# make folder if it doesn't exist
+outdir="$(dirname $prefix)"
+[ -n "$outdir" -a ! -d "$outdir" ] && $DRYRUN mkdir -p "$outdir"
+[ -n "$DRYRUN" ] && echo "# would make '$corrmapz'" && exit
+
+## actually do things!
+# extract voxel mean timeseries of roi
+3dmaskave -q -mask $mask $input > $oneD
+# correlation (3d) - every voxel to extracted timeseries
+! 3dTcorr1D -prefix $corrmap $input $oneD && echo "$mask $inputs" > $missingTS 
+# z transform of r
+3dcalc -a $corrmap -expr 'log((1+a)/(1-a))/2' -prefix $corrmapz
