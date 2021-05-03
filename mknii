@@ -55,7 +55,7 @@ main(){
   nii_out="$1"; shift
   dcm_folder="$@"; shift
   [ -r "$nii_out" ] && echo "# have '$nii_out'" && exit 0
-  [ -r "${nii_out/magnitude.nii.gz/magnitude1.nii.gz}" ] && echo "# have magnitude1.nii.gz, considering that the same as '$nii_out'" && exit 0
+  test -r "${nii_out/magnitude.nii.gz/magnitude1.nii.gz}" && echo "# have '$_', considering that the same as '$nii_out'" && exit 0
   [ ${nii_out:(-7)} != ".nii.gz" ] && echo "output must have .nii.gz extention!" && exit 1
   
   # should let dcm2niix just fail instead of doing the work here?
