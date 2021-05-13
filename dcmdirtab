@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 package dcmdirtab;
-use v5.28;
+use v5.26;
 use strict; use warnings; use autodie; 
 use feature qw/signatures/; no warnings qw(experimental::signatures);
 use File::Slurp; # read_file
@@ -27,7 +27,7 @@ sub dcmstring($dcm, $varpatt) {
 }
 # TODO: this should be used by first_dcm_info
 sub firstdcm($p, $dcmpat){
- chomp(my $x=qx/find -L "$p" -maxdepth 2 -type f,l -regextype sed -iregex '$dcmpat' -print -quit/);
+ chomp(my $x=qx/find -L "$p" -maxdepth 2 \\( -type f -or -type l \\) -regextype sed -iregex '$dcmpat' -print -quit/);
  return($x)
 }
 

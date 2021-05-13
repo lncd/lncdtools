@@ -176,7 +176,7 @@ sub parse($sequences, $criteria){
 }
 
 package main;
-use v5.28;
+use v5.26;
 use strict; use warnings; use autodie; 
 use feature qw/signatures/; no warnings qw(experimental::signatures);
 use File::Slurp; # read_file
