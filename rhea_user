@@ -37,10 +37,13 @@ set_passwd(){
    echo "# using '$pass'"
 }
 add_rc(){
-   # add default ni settings
+   # add default ni settings: env (path, python, fsl, afni, ...) and bash prompt, aliases, etc
    local user="$1"
    echo "source /opt/ni_tools/dotfiles/bash/.bashrc" |
       sudo -u $user tee -a /home/$user/.bashrc >/dev/null
+
+   # R config file: make sure we look to ni_tools for packages
+   sudo -u $user ln -s /opt/ni_tools/dotfiles/Rprofile/.Rprofile /home/$user/
 }
 
 # if running (not sourcing)
