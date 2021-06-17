@@ -6,25 +6,26 @@ set -eou pipefail
 #  to compute time average T2
 
 # default values
-TMPLOCATION=/tmp
-SCALE=1000
-MASK_REL="subject_mask.nii.gz"
-MASK=""
-MKMASK=0
-OUTPUT=tat2star.nii.gz
-CLEAN=1
-volnorm_opt="-nzmedian"
-tnorm_opt="-nzmean"
-censor_rel=""
-vox_scale=1
-t2_inv=0
-use_zscore=0
+t2_inv=0                       # before volnorm (3dcalc, 3dTstat)
+MASK_REL="subject_mask.nii.gz" # 3dROIstats: use to calculate volnorm.1D
+MASK=""                        #  "
+MKMASK=0                       #  "
+volnorm_opt="-nzmedian"        # 3dcalc: run_tat2.nii.gz (vol normalized)
+SCALE=1000                     #  "
+vox_scale=1                    #  "
+use_zscore=0                   #  "
+censor_rel=""                  # 3dTcat: truncate input
+tnorm_opt="-nzmean"            # 3dTstat: final output  (time normalized)
 
-# 20210218WF - hygenic file usage -- tmp files after crash clog fileystem 
+OUTPUT=tat2star.nii.gz
+TMPLOCATION=/tmp
+CLEAN=1
+
+# 20210218WF - hygenic file usage -- tmp files after crash clog fileystem
 tmpd=""
 trap '[ -n "$tmpd" -a -d "$tmpd" -a $CLEAN -eq 1 ] && [[ "$tmpd" =~ $TMPLOCATION ]] && rm -r "$tmpd"' EXIT
 
-# 20201116 
+# 20201116
 #  back to mean default
 # add
 #  across-TR median (instead of mean)
@@ -32,7 +33,7 @@ trap '[ -n "$tmpd" -a -d "$tmpd" -a $CLEAN -eq 1 ] && [[ "$tmpd" =~ $TMPLOCATION
 #  and whole brain z-score normalization instead
 
 ##
-# intially from 
+# intially from
 # https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0016093
 # author correspondence
 # > The normalization is within the brain for each time point.
@@ -45,28 +46,50 @@ trap '[ -n "$tmpd" -a -d "$tmpd" -a $CLEAN -eq 1 ] && [[ "$tmpd" =~ $TMPLOCATION
 
 usage(){
   cat <<-HEREDOC
-  USAGE:
+USAGE
     tat2 '/paths/to/*/t2.nii.gz' [ -mask_rel $MASK_REL | -mask /the/only/mask.nii.gz | -mkmask]  [-output $OUTPUT] [-scale $SCALE]  [-censor_rel relative/censor.1D | -censor_rel s/epi/mask/] [-median_time|-mean_time]  [-median_vol|-mean_vol|-zscore_vol] [-no_voxscale] [-inverse] [-noclean] [-verbose] [-tmp $TMPLOCATION]
 
-  * calculates time averaged T2* like:
+SYNOPSIS
+  calculates time averaged T2* like:
      1) 3dcalc -x input1  -m vol_norm.1D -expr "(x/m)*SCALE/numvox #rep. f.ea. input
      2) 3dTstat -nzmean 'allnormed_concated'
-  * final 'tat2start.nii.gz' will be in the cwd
-  * use censor_rel to specify the motion censor file. single column no header file. nLines = nVols. 0=exclude, 1=keep.
+  final 'tat2start.nii.gz' will be in the cwd
+
+OPTIONS
+  -censor_rel FILE
+    specify the motion censor file. single column no header file. nLines = nVols. 0=exclude, 1=keep.
     either a filename or regexp
        as a filename in input nifti directory (resolves to \$(dirname \$input)/\$censor_rel)  OR
        as a perl regexp run on \$input. like 's/(rest-\\d)_bold.nii.gz/\\1_cesnor.1d/'
-  * use -median_time or -mean_time to set how voxels are collapsed across time (3dTstat)
-    * time norm default $tnorm_opt (mean until 20201117)
-  * use -median_vol or -mean_vol to set value used to scale across volume (each TR, 3dROIstats)
-    * vol norm default $volnorm_opt ( was median [20210302] rev mean [20201116] reverses median [20201016] rev orig mean)
-  * -zscore_vol changes expression to '(x-m)/s' instead of 'x/m'
-  * use -noclean to debug
-  * -mkmask ensures the number of voxels used to normalize is the same across runs by create a coverage mask from all inputs
-    * nzmedian/nzmean and '-count -non-zero'. could maybe get away with no mask. but option is not provided
-  * -no_voxscale disables scaleing. (SCALE=1, not normalized by number of nzvoxels)
-  * -inverse create 1/t2* and use as initial input
-  * -tmp sets the directory to use for temporary calculations. useful if forking enough jobs to overwhelm /tmp or using with -noclean
+
+  -median_time or -mean_time
+        set how voxels are collapsed across time (3dTstat)
+        time norm default $tnorm_opt (mean until 20201117)
+
+  -median_vol or -mean_vol
+        set value used to scale across volume (each TR, 3dROIstats)
+        vol norm default $volnorm_opt
+        (def history: median [20210302],  mean [20201116], median [20201016])
+
+  -inverse     create 1/t2* and use as initial input
+  -zscore_vol  changes expression to '(x-m)/s' instead of 'x/m' for 3dcalc vol norm
+  -no_voxscale disables scaleing. (SCALE=1, not normalized by number of nzvoxels)
+
+
+  -mask        use mask to create volnorm.1D (-median_vol or -mean_vol)
+               default none, defer to mask_rel
+  -mask_rel    volnorm mask is relative to the input nifit (default: subject_mask.nii.gz)
+  -mkmask      ensures the number of voxels used to normalize is the same
+               across runs by create a coverage mask from all inputs
+               -nzmedian/nzmean and '-count -non-zero' could maybe get away with no mask,
+               but option is not provided
+
+  -noclean     keeps tmp folder around, useful for debugging
+  -tmp DIR     sets the directory to use for temporary calculations to DIR.
+               useful if forking enough jobs to overwhelm /tmp or using with -noclean
+REFS
+  https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0016093
+  https://www.biorxiv.org/content/biorxiv/early/2019/03/16/579763.full.pdf
 HEREDOC
   exit 1
 }
@@ -83,13 +106,13 @@ find_censor_file(){
      censor_file="$(echo "$input" | perl -pe "$censor_rel")"
   # make sure we didn't just find the input file
   if [ "$censor_file" == "$input" ]; then
-     rm -r $tmpd 
+     rm -r $tmpd
      err "ERR: censor file subsitition failed '$censor_file' matches inputfile! rel '$censor_rel' for '$input'"
   fi
 
   # and make sure we actually found a file
-  if [ ! -r "$censor_file" ]; then 
-     rm -r $tmpd 
+  if [ ! -r "$censor_file" ]; then
+     rm -r $tmpd
      err "ERR: censor file '$censor_file' DNE!"
   fi
 
@@ -110,7 +133,7 @@ declare -a glob
 while [ $# -gt 0 ]; do
  case $1 in
   -mask)       MASK="$2"; shift 2;;
-  -mask_rel)   MASK_REL="$2"; shift 2;;  
+  -mask_rel)   MASK_REL="$2"; shift 2;;
   -output)     OUTPUT="$2"; shift 2;;
   -scale)      SCALE="$2"; shift 2;;
   -censor_rel) censor_rel="$2"; shift 2;;
@@ -137,8 +160,8 @@ done
 # how many files do we have
 nfiles=$(find -L ${glob[@]} -maxdepth 0 | wc -l)
 [ $nfiles -eq 0 ] && err "no files match input globs: ${glob[@]}"
-[ $nfiles -eq 1 ] && echo "WARNING: only one file matches '${glob[@]}'. expected all (>1) runs" 
-[ $nfiles -gt 10 ] && echo "WARNING: running on $nfiles epi files! Are you sure you don't want to run one visit at a time?" 
+[ $nfiles -eq 1 ] && echo "WARNING: only one file matches '${glob[@]}'. expected all (>1) runs"
+[ $nfiles -gt 10 ] && echo "WARNING: running on $nfiles epi files! Are you sure you don't want to run one visit at a time?"
 
 [ -r "$OUTPUT" ] && echo "# have $OUTPUT; rm $OUTPUT # to redo" && exit 0
 
@@ -148,7 +171,7 @@ cnt=0
 all_numvox="" # will be populated with each subjectmask
 
 if [ $MKMASK -eq 1 ]; then
-      MASK="$tmpd/subj_mask.nii.gz" 
+      MASK="$tmpd/subj_mask.nii.gz"
       coverage_mask $MASK "${glob[@]}"
 fi
 
@@ -192,22 +215,22 @@ for input in ${glob[@]}; do
    # do the same for stddev (sigma) if zscoring
    [ $use_zscore -eq 1 ] &&
      3dROIstats -nomeanout -nzsigma -mask $mask -1Dformat $input > $vol_sd
-   
+
    ## what does 3dcalc's expression look like
    # default is x/m*$SCALE/$numvox
-   # 4 possibilities. product of 
+   # 4 possibilities. product of
    # '(x-m)/s' vs 'x/m' AND '$SCALE/$numvox' vs '1'
    #  zscore   vs  not   *   vox_scale       vs  not
    sd_input=""
-   calc_expr="(x/m)" 
-   calc_scale="$SCALE/$numvox" 
+   calc_expr="(x/m)"
+   calc_scale="$SCALE/$numvox"
 
    if [ $use_zscore -eq 1 ]; then
     sd_input="-s $vol_sd"
-    calc_expr="(x-m)/s" 
+    calc_expr="(x-m)/s"
    fi
-   [ $vox_scale -eq 0 ] && calc_scale="1" 
-   
+   [ $vox_scale -eq 0 ] && calc_scale="1"
+
 
    # normalize each voxel by the volume average or median
    # scale by SCALE and number of good (within mask) voxels in the run
