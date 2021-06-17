@@ -51,8 +51,12 @@ USAGE
 
 SYNOPSIS
   calculates time averaged T2* like:
-     1) 3dcalc -x input1  -m vol_norm.1D -expr "(x/m)*SCALE/numvox #rep. f.ea. input
-     2) 3dTstat -nzmean 'allnormed_concated'
+     1) 3dROIstats > volnorm.1D
+        # tune with -{median,mean,zscor}_vol, and -mask, -mkmask, or -mask_rel
+     2) 3dcalc -x input_1  -m volnorm_1.1D -expr "(x/m)*SCALE/numvox #rep. f.ea. input
+        # tune with -no_voxscale, -scale
+     3) 3dTstat allnormed_concated.nii.gz
+        # tune with -{median,mean}_time
   final 'tat2start.nii.gz' will be in the cwd
 
 OPTIONS
