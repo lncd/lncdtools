@@ -69,6 +69,7 @@ sub get_config(){
       "inverttime"=>"0018,0082",
       "bandwidth"=>"0018,0095", # echospacing = 1/(bandwith*matrixsize[0]) 
       "imagetime"=>"0008,0033",
+      "seriesdesc"=>"0008,103e",
       "example"=>sub($p){firstdcm($p, $conf{dcmpat})},
       "accel"=>sub($p){return dcmstring(firstdcm($p, $conf{dcmpat}),'sPat.lAccelFactPE.*')},
    };
