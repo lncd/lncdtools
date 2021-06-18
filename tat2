@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-set -eou pipefail
-
 # tat2: time-averaged T2*
 #  glue for 3dcalc 3dTcat and 3dTstat (+ 3dNotes)
 #  to compute time average T2
@@ -14,12 +12,16 @@ volnorm_opt="-nzmedian"        # 3dcalc: run_tat2.nii.gz (vol normalized)
 SCALE=1000                     #  "
 vox_scale=1                    #  "
 use_zscore=0                   #  "
+MAXVOLS=-1                     #  "      truncate how many volumes are in run_tat2.nii.gz
 censor_rel=""                  # 3dTcat: truncate input
 tnorm_opt="-nzmean"            # 3dTstat: final output  (time normalized)
 
 OUTPUT=tat2star.nii.gz
 TMPLOCATION=/tmp
 CLEAN=1
+
+# all the inputs (possibly globs) we want to work on
+declare -a GLOBFILES
 
 # 20210218WF - hygenic file usage -- tmp files after crash clog fileystem
 tmpd=""
@@ -65,6 +67,10 @@ OPTIONS
     either a filename or regexp
        as a filename in input nifti directory (resolves to \$(dirname \$input)/\$censor_rel)  OR
        as a perl regexp run on \$input. like 's/(rest-\\d)_bold.nii.gz/\\1_cesnor.1d/'
+
+  -maxvols NVOL
+     limit each run to NVOL volumes. run after and only after censor_rel.
+     useful when groups (e.g. young, old) have disproportonate censored volumes
 
   -median_time or -mean_time
         set how voxels are collapsed across time (3dTstat)
@@ -125,61 +131,68 @@ find_censor_file(){
 
 # pull out good index (censor=1 means keep). zero based
 where1csv(){ perl -lne 'push @i, $.-1 if /^1/; END{print join ",", @i;}' "$@"; }
+firstn_csv() { perl -F, -slane 'print $n<=0?$_:(join ",", grep {!/^$/} @F[0..$n-1])' -- -n=$1; }
 
-# keep args around for 3dNotes history
-allargs="$@"
-
-[ $# -eq 0 ] && usage
-
-# variable to store all the inputs we want to work on
-declare -a glob
-# read in any arguments/paramaters
-while [ $# -gt 0 ]; do
- case $1 in
-  -mask)       MASK="$2"; shift 2;;
-  -mask_rel)   MASK_REL="$2"; shift 2;;
-  -output)     OUTPUT="$2"; shift 2;;
-  -scale)      SCALE="$2"; shift 2;;
-  -censor_rel) censor_rel="$2"; shift 2;;
-  -tmp)        TMPLOCATION="$2"; shift 2;;
-  -mkmask)     MKMASK=1; MASK_REL=""; shift;;
-  -median_vol) volnorm_opt="-nzmedian"; shift;;
-  -mean_vol)   volnorm_opt="-nzmean"; shift;;
-  -zscore_vol) use_zscore=1; shift;;
-  -mean_time)  tnorm_opt="-nzmean"; shift;;
-  -median_time)tnorm_opt="-nzmedian"; shift;;
-  -inverse)    t2_inv=1; shift;;
-  -no_voxscale)vox_scale=0; shift;;
-  -noclean)    CLEAN=0; shift;;
-  -verbose)    set -x; shift;;
-  -h*)         usage;;
-  -*)          echo "unknown option '$1'"; usage;;
-  *)           glob+=("$1"); shift;;
- esac
-done
-
-# need to have at least one file to average
-[ -z "${glob[*]}" ] && usage
-
-# how many files do we have
-nfiles=$(find -L ${glob[@]} -maxdepth 0 | wc -l)
-[ $nfiles -eq 0 ] && err "no files match input globs: ${glob[@]}"
-[ $nfiles -eq 1 ] && echo "WARNING: only one file matches '${glob[@]}'. expected all (>1) runs"
-[ $nfiles -gt 10 ] && echo "WARNING: running on $nfiles epi files! Are you sure you don't want to run one visit at a time?"
-
-[ -r "$OUTPUT" ] && echo "# have $OUTPUT; rm $OUTPUT # to redo" && exit 0
+parse_args(){
+   # keep args around for 3dNotes history
+   allargs="$@"
 
 
-tmpd=$(mktemp -d $TMPLOCATION/tat2star_XXXX)
-cnt=0
-all_numvox="" # will be populated with each subjectmask
+   # read in any arguments/paramaters
+   while [ $# -gt 0 ]; do
+    case $1 in
+     -mask)       MASK="$2"; shift 2;;
+     -mask_rel)   MASK_REL="$2"; shift 2;;
+     -output)     OUTPUT="$2"; shift 2;;
+     -scale)      SCALE="$2"; shift 2;;
+     -censor_rel) censor_rel="$2"; shift 2;;
+     -tmp)        TMPLOCATION="$2"; shift 2;;
+     -maxvols)    MAXVOLS="$2"; shift 2;;
+     -mkmask)     MKMASK=1; MASK_REL=""; shift;;
+     -median_vol) volnorm_opt="-nzmedian"; shift;;
+     -mean_vol)   volnorm_opt="-nzmean"; shift;;
+     -zscore_vol) use_zscore=1; shift;;
+     -mean_time)  tnorm_opt="-nzmean"; shift;;
+     -median_time)tnorm_opt="-nzmedian"; shift;;
+     -inverse)    t2_inv=1; shift;;
+     -no_voxscale)vox_scale=0; shift;;
+     -noclean)    CLEAN=0; shift;;
+     -verbose)    set -x; shift;;
+     -h*)         usage;;
+     -*)          echo "unknown option '$1'"; usage;;
+     *)           GLOBFILES+=("$1"); shift;;
+    esac
+   done
+   return 0
+}
 
-if [ $MKMASK -eq 1 ]; then
-      MASK="$tmpd/subj_mask.nii.gz"
-      coverage_mask $MASK "${glob[@]}"
-fi
+args_are_sane(){ 
+   # help if nothing given
+   [ $# -eq 0 ] && usage
+   parse_args "$@"
+   echo "#files/globs: ${#GLOBFILES[@]}"
+   # need to have at least one file to average
+   [ -z "${GLOBFILES[*]}" ] && usage
 
-for input in ${glob[@]}; do
+   # how many files do we have
+   nfiles=$(find -L ${GLOBFILES[@]} -maxdepth 0 | wc -l)
+   [ $nfiles -eq 0 ] && err "no files match input GLOBFILESs: ${GLOBFILES[@]}"
+   [ $nfiles -eq 1 ] && echo "WARNING: only one file matches '${GLOBFILES[@]}'. expected all (>1) runs"
+   [ $nfiles -gt 10 ] && echo "WARNING: running on $nfiles epi files! Are you sure you don't want to run one visit at a time?"
+
+   [ -r "$OUTPUT" ] && echo "# have $OUTPUT; rm $OUTPUT # to redo" && exit 0
+   [ "$MAXVOLS" == "1" ] && echo "-maxvols cannot be 1. 3dcalc doesn't like applying a single value 1D file to a 4D dataset" && exit 1
+   return 0
+}
+
+
+one_ta(){
+   # GLOBALS:
+   #  MASK, MASK_REL, censor_rel, MAXVOLS,
+   #  t2_inv, volnorm_opt, use_zscore, SCALE, vox_scale, all_numvox
+   local cnt="$1"; shift
+   local input="$1"; shift
+   local tmpd="$1"; shift
    [ -n "$MASK" ] && mask="$MASK" || mask="$(dirname "$input")/$MASK_REL"
    [ ! -f $mask ] && err "mask '$mask' DNE; add -mkmask to create"
    # add _tat2.nii.gz to the end
@@ -196,15 +209,23 @@ for input in ${glob[@]}; do
    # censor input
    if [ -n "$censor_rel" ]; then
       censor_file=$(find_censor_file "$input" "$censor_rel")
-      idxs=$(where1csv $censor_file)
+      # if MAXVOLS is default "-1", firstn_cvs does nothing
+      idxs=$(where1csv $censor_file| firstn_csv $MAXVOLS)
       nkeep=$(echo $idxs| tr ',' '\n' |wc -l)
+      file_volnote=keep${nkeep}
       msg "censor: using $nkeep/$(3dinfo -nt $input) timepoints [$censor_file]"
+      if [ $MAXVOLS -gt 0 ]; then
+         [ $nkeep -ne $MAXVOLS ]  &&
+            msg "WARNING:run$cnt: have $nkeep != maxvols ($MAXVOLS). censored more volumes than min required?!"
+         # nkeep next used for file names.
+         file_volnote=lastidx${idxs/*,/}
+      fi
       # truncate input
-      newinput="$tmpd/${cnt}_inputcensor_$nkeep.nii.gz"
+      newinput="$tmpd/${cnt}_inputcensor_${file_volnote}.nii.gz"
       3dTcat -prefix $newinput "$input[$idxs]"
       input="$newinput"
       # must match *_tat2.nii.gz to be picked up by 3dTstat at the end
-      runoutput="$tmpd/${cnt}_keep${nkeep}_tat2.nii.gz"
+      runoutput="$tmpd/${cnt}_${file_volnote}_tat2.nii.gz"
    fi
 
    # if we want 1/t2*, switch up input to that
@@ -250,21 +271,48 @@ for input in ${glob[@]}; do
      -datum float -overwrite \
      -expr "$calc_expr*$calc_scale"\
      -prefix $runoutput
-  let ++cnt
-  all_numvox="$all_numvox$numvox,"
-done
+   all_numvox="$all_numvox$numvox,"
+}
 
-[ $cnt -ne $nfiles ] && err "ERROR: create $cnt/$nfiles in $tmpd"
+_tat2(){
+   tmpd=$(mktemp -d $TMPLOCATION/tat2star_XXXX)
+   cnt=0
+   all_numvox="" # will be populated with each subjectmask
 
-msg "tat2star $OUTPUT"
-if [ $nfiles -gt 1 ]; then
-   3dTcat -overwrite -prefix $tmpd/tat2_all.nii.gz $tmpd/*_tat2.nii.gz
-   3dTstat -prefix $OUTPUT -overwrite $tnorm_opt $tmpd/tat2_all.nii.gz
-else
-   3dTstat -prefix $OUTPUT -overwrite $tnorm_opt $tmpd/*_tat2.nii.gz
+   if [ $MKMASK -eq 1 ]; then
+         MASK="$tmpd/subj_mask.nii.gz"
+         coverage_mask $MASK "${GLOBFILES[@]}"
+   fi
+
+   for input in ${GLOBFILES[@]}; do
+      one_ta $cnt "$input" "$tmpd"
+      let ++cnt
+   done
+   actual_nfiles=$(ls $tmpd/*_tat2.nii.gz|wc -l)
+
+   [ $actual_nfiles -ne $nfiles ] && err "ERROR: create $actual_nfiles/$nfiles ($cnt iterations) in $tmpd"
+
+   msg "tat2star $OUTPUT"
+   if [ $nfiles -gt 1 ]; then
+      3dTcat -overwrite -prefix $tmpd/tat2_all.nii.gz $tmpd/*_tat2.nii.gz
+      3dTstat -prefix $OUTPUT -overwrite $tnorm_opt $tmpd/tat2_all.nii.gz
+   else
+      3dTstat -prefix $OUTPUT -overwrite $tnorm_opt $tmpd/*_tat2.nii.gz
+   fi
+
+   all_nts="$(3dinfo -nt $tmpd/*_tat2.nii.gz|tr '\n' ',')"
+   3dNotes -h "$0 $allargs # $(pwd); SCALE=$SCALE, nvoxes=$all_numvox; nt=$all_nts; vol:$volnorm_opt, time:$tnorm_opt" $OUTPUT
+
+   [ $CLEAN -eq 1 ] && \
+      rm -r $tmpd ||\
+      echo "find temporary files in '$tmpd'; remove '-noclean' if not testing"
+
+   return 0
+}
+
+# run if not sourced
+if ! [[ "$(caller)" != "0 "* ]]; then
+   set -eou pipefail
+   args_are_sane "$@"
+   _tat2
 fi
-
-all_nts="$(3dinfo -nt $tmpd/*_tat2.nii.gz|tr '\n' ',')"
-3dNotes -h "$0 $allargs # $(pwd); SCALE=$SCALE, nvoxes=$all_numvox; nt=$all_nts; vol:$volnorm_opt, time:$tnorm_opt" $OUTPUT
-
-[ $CLEAN -eq 1 ] && rm -r $tmpd || echo "find temporary files in '$tmpd'; remove '-noclean' if not testing"

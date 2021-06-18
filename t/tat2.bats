@@ -37,6 +37,24 @@ x_cmp_y(){
    [ "x$nvxltmn" == "x1" ]
 }
 
+@test csvidx {
+ source $(which tat2)
+ goodidx=$(where1csv c.1D) 
+ [ $goodidx = "0,2" ]
+}
+
+@test csvidxtrunc {
+ source $(which tat2)
+ goodidx=$(where1csv c.1D| firstn_csv -1) 
+ [[ $goodidx == "0,2" ]]
+
+ goodidx=$(where1csv c.1D| firstn_csv 1) 
+ [[ $goodidx == "0" ]]
+
+ goodidx=$(where1csv c.1D| firstn_csv 9) 
+ [[ $goodidx == "0,2" ]]
+}
+
 @test sametwice {
    tat2 t.nii.gz -median_vol -output med1.nii.gz -mask m.nii.gz
    tat2 t.nii.gz -median_vol -output med2.nii.gz -mask m.nii.gz
@@ -67,6 +85,16 @@ x_cmp_y(){
    tat2 t.nii.gz -output cen.nii.gz  -mask m.nii.gz -median_time  -censor_rel c.1D
    3dNotes cen.nii.gz |grep -q keep2
    x_cmp_y mean.nii.gz = cen.nii.gz
+}
+
+@test cen_median_time_maxvol {
+   # censor does not include large (100) value
+   #  unlike above (censor < mean), median stays the same.
+   #  censor == mean
+   (echo 1; cat c.1D) > d.1D # add another value so we know we actually stopped at 2
+   tat2 t.nii.gz -output cen.nii.gz  -mask m.nii.gz -median_time  -censor_rel d.1D -maxvols 2
+   3dNotes cen.nii.gz >&2
+   3dNotes cen.nii.gz |grep -q lastidx1
 }
 
 
