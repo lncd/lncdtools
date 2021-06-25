@@ -14,6 +14,7 @@ vox_scale=1                    #  "
 use_zscore=0                   #  "
 MAXVOLS=-1                     #  "      truncate how many volumes are in run_tat2.nii.gz
 censor_rel=""                  # 3dTcat: truncate input
+MAXVOLSTOTAL=-1                #  "      truncate how many volumes are ultimately averaged.
 tnorm_opt="-nzmean"            # 3dTstat: final output  (time normalized)
 
 OUTPUT=tat2star.nii.gz
@@ -71,6 +72,10 @@ OPTIONS
   -maxvols NVOL
      limit each run to NVOL volumes. run after and only after censor_rel.
      useful when groups (e.g. young, old) have disproportonate censored volumes
+
+  -maxvolstotal NVOL
+     in final combined timeseries of all runs, take only the first NVOL volumes
+
 
   -median_time or -mean_time
         set how voxels are collapsed across time (3dTstat)
@@ -148,6 +153,7 @@ parse_args(){
      -censor_rel) censor_rel="$2"; shift 2;;
      -tmp)        TMPLOCATION="$2"; shift 2;;
      -maxvols)    MAXVOLS="$2"; shift 2;;
+     -maxvolstotal) MAXVOLSTOTAL="$2"; shift 2;;
      -mkmask)     MKMASK=1; MASK_REL=""; shift;;
      -median_vol) volnorm_opt="-nzmedian"; shift;;
      -mean_vol)   volnorm_opt="-nzmean"; shift;;
@@ -166,7 +172,7 @@ parse_args(){
    return 0
 }
 
-args_are_sane(){ 
+args_are_sane(){
    # help if nothing given
    [ $# -eq 0 ] && usage
    parse_args "$@"
@@ -213,7 +219,7 @@ one_ta(){
       idxs=$(where1csv $censor_file| firstn_csv $MAXVOLS)
       nkeep=$(echo $idxs| tr ',' '\n' |wc -l)
       file_volnote=keep${nkeep}
-      msg "censor: using $nkeep/$(3dinfo -nt $input) timepoints [$censor_file]"
+      msg "censor: using $nkeep/$(3dinfo -nt $input) timepoints. (last vol: ${idxs/*,}) [$censor_file]"
       if [ $MAXVOLS -gt 0 ]; then
          [ $nkeep -ne $MAXVOLS ]  &&
             msg "WARNING:run$cnt: have $nkeep != maxvols ($MAXVOLS). censored more volumes than min required?!"
@@ -293,15 +299,43 @@ _tat2(){
    [ $actual_nfiles -ne $nfiles ] && err "ERROR: create $actual_nfiles/$nfiles ($cnt iterations) in $tmpd"
 
    msg "tat2star $OUTPUT"
+   # combine all the normalized runs if we need to
    if [ $nfiles -gt 1 ]; then
       3dTcat -overwrite -prefix $tmpd/tat2_all.nii.gz $tmpd/*_tat2.nii.gz
-      3dTstat -prefix $OUTPUT -overwrite $tnorm_opt $tmpd/tat2_all.nii.gz
+      concated_file=$tmpd/tat2_all.nii.gz
    else
-      3dTstat -prefix $OUTPUT -overwrite $tnorm_opt $tmpd/*_tat2.nii.gz
+      concated_file=$tmpd/*_tat2.nii.gz
    fi
 
+   # truncate them
+   # count is 1-indexed, indexing is 0-indexed
+   # what to do if too few. maybe should die
+   # instead use min and update MAXTOTAL to be current maxtotal
+   concat_nvol=$(3dinfo -nt $concated_file)
+   if [ $MAXVOLSTOTAL -gt 0 ]; then
+      use_vols0=$MAXVOLSTOTAL
+      concat_nvol0=$concat_nvol
+      # 0 index
+      let concat_nvol0--
+      let use_vols0--
+
+      if [ $concat_nvol0 -lt $use_vols0 ]; then
+         msg "WARNING: have fewer volumes than requested! $use_vols0 < $concat_nvol0; 0-idx"
+         MAXVOLSTOTAL=$concat_nvol
+         use_vols0=$concat_nvol0
+      fi
+      maxvolsubset="[0..$use_vols0]"
+      msg "using $MAXVOLSTOTAL from $concat_nvol"
+   else
+      maxvolsubset=""
+      MAXVOLSTOTAL=$concat_nvol
+   fi
+
+   # time norm
+   3dTstat -prefix $OUTPUT -overwrite $tnorm_opt $concated_file$maxvolsubset
+
    all_nts="$(3dinfo -nt $tmpd/*_tat2.nii.gz|tr '\n' ',')"
-   3dNotes -h "$0 $allargs # $(pwd); SCALE=$SCALE, nvoxes=$all_numvox; nt=$all_nts; vol:$volnorm_opt, time:$tnorm_opt" $OUTPUT
+   3dNotes -h "$0 $allargs # $(pwd); SCALE=$SCALE, nvoxes=$all_numvox; nt=$all_nts; vol:$volnorm_opt, time:$tnorm_opt; $MAXVOLSTOTAL/$concat_nvol total nvols" $OUTPUT
 
    [ $CLEAN -eq 1 ] && \
       rm -r $tmpd ||\

@@ -97,6 +97,60 @@ x_cmp_y(){
    3dNotes cen.nii.gz |grep -q lastidx1
 }
 
+@test maxvolstotal {
+   (echo 1; cat c.1D) > d.1D # add another value so we know we actually stopped at 2
+
+   # actually need t to be 4 volumes long
+   3dTcat -prefix t.nii.gz  t.nii.gz 2.nii.gz -overwrite
+
+   mkdir output
+   tat2 t.nii.gz t.nii.gz t.nii.gz \
+      -tmp output -noclean \
+      -output cen.nii.gz  \
+      -mask m.nii.gz -median_time  -censor_rel d.1D \
+      -maxvolstotal 5
+
+   [ $(3dinfo -nt output/*/tat2_all.nii.gz) -eq 9 ]
+
+   3dNotes cen.nii.gz >&2
+   3dNotes cen.nii.gz |grep -q "5/9 total nvols"
+}
+@test maxvolstotal_diff {
+   # make longer version of t
+   (echo 1; cat c.1D) > d.1D
+   3dTcat -prefix t.nii.gz  t.nii.gz 2.nii.gz -overwrite
+
+   # save outputs
+   tat2 t.nii.gz t.nii.gz -output all.nii.gz  -mask m.nii.gz -median_time  -censor_rel d.1D
+   tat2 t.nii.gz t.nii.gz -output max3.nii.gz  -mask m.nii.gz -median_time  -censor_rel d.1D -maxvolstotal 3
+   diff=$(3dBrickStat '3dcalc( -a all.nii.gz -b max3.nii.gz -expr a-b )')
+   echo "diff (expect 0): '$diff'" >&2
+   [ $diff -eq 0 ]
+
+}
+
+@test maxvolstotal_toofew {
+   # TODO: this might change to die instead of continue
+   # make longer version of t
+   (echo 1; cat c.1D) > d.1D
+   3dTcat -prefix t.nii.gz  t.nii.gz 2.nii.gz -overwrite
+
+   tat2 t.nii.gz t.nii.gz -output cen.nii.gz  -mask m.nii.gz -median_time  -censor_rel d.1D -maxvolstotal 100
+
+   3dNotes cen.nii.gz >&2
+   3dNotes cen.nii.gz |grep -q "6/6 total nvols"
+}
+@test maxvolstotal_andmaxvols {
+   # TODO: this might chang
+   # make longer version of t
+   (echo 1; cat c.1D) > d.1D
+   3dTcat -prefix t.nii.gz  t.nii.gz 2.nii.gz -overwrite
+   tat2 t.nii.gz t.nii.gz -output cen.nii.gz  -mask m.nii.gz -median_time  -censor_rel d.1D -maxvolstotal 3 -maxvols 2
+
+   3dNotes cen.nii.gz >&2
+   3dNotes cen.nii.gz |grep -q "3/4 total nvols"
+}
+
 
 @test inv {
    # censor does not include large (100) value
