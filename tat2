@@ -283,6 +283,7 @@ one_ta(){
 _tat2(){
    tmpd=$(mktemp -d $TMPLOCATION/tat2star_XXXX)
    cnt=0
+   volcount=0
    all_numvox="" # will be populated with each subjectmask
 
    if [ $MKMASK -eq 1 ]; then
@@ -292,7 +293,19 @@ _tat2(){
 
    for input in ${GLOBFILES[@]}; do
       one_ta $cnt "$input" "$tmpd"
+      prev_cnt=$cnt
       let ++cnt
+
+      # we can stop processing runs if we have enough
+      if [ $MAXVOLSTOTAL -gt 0 ]; then
+         this_run=$tmpd/${prev_cnt}_*tat2.nii.gz
+         n_vol_run=$(3dinfo -nt $this_run)
+         let volcount+=$n_vol_run
+         [ $volcount -lt $MAXVOLSTOTAL ] && continue
+         msg "have $volcount >= $MAXVOLSTOTAL. stopping at $cnt/$nfiles runs"
+         nfiles=$cnt
+         break
+      fi
    done
    actual_nfiles=$(ls $tmpd/*_tat2.nii.gz|wc -l)
 

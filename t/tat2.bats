@@ -97,10 +97,10 @@ x_cmp_y(){
    3dNotes cen.nii.gz |grep -q lastidx1
 }
 
-@test maxvolstotal {
-   (echo 1; cat c.1D) > d.1D # add another value so we know we actually stopped at 2
-
+@test maxvolstotal_stop w/enough {
+   # add another value so we know we actually stopped at 2
    # actually need t to be 4 volumes long
+   (echo 1; cat c.1D) > d.1D
    3dTcat -prefix t.nii.gz  t.nii.gz 2.nii.gz -overwrite
 
    mkdir output
@@ -110,10 +110,13 @@ x_cmp_y(){
       -mask m.nii.gz -median_time  -censor_rel d.1D \
       -maxvolstotal 5
 
-   [ $(3dinfo -nt output/*/tat2_all.nii.gz) -eq 9 ]
-
    3dNotes cen.nii.gz >&2
-   3dNotes cen.nii.gz |grep -q "5/9 total nvols"
+   3dNotes cen.nii.gz |grep -q "5/6 total nvols"
+
+   total_vols=$(3dinfo -nt output/*/tat2_all.nii.gz)
+   echo "total_vols: $total_vols" >&2
+   [ $total_vols -eq 6 ]
+
 }
 @test maxvolstotal_diff {
    # make longer version of t
