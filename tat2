@@ -67,6 +67,7 @@ OPTIONS
     either a filename or regexp
        as a filename in input nifti directory (resolves to \$(dirname \$input)/\$censor_rel)  OR
        as a perl regexp run on \$input. like 's/(rest-\\d)_bold.nii.gz/\\1_cesnor.1d/'
+    despite switch's name, FILE also be an absolute path (start with '/')
 
   -maxvols NVOL
      limit each run to NVOL volumes. run after and only after censor_rel.
@@ -74,12 +75,13 @@ OPTIONS
 
   -median_time or -mean_time
         set how voxels are collapsed across time (3dTstat)
-        time norm default $tnorm_opt (mean until 20201117)
+        time norm default: '$tnorm_opt'
+        (history: mean until 20201117)
 
   -median_vol or -mean_vol
         set value used to scale across volume (each TR, 3dROIstats)
-        vol norm default $volnorm_opt
-        (def history: median [20210302],  mean [20201116], median [20201016])
+        vol norm default: '$volnorm_opt'
+        (history: median [20210302],  mean [20201116], median [20201016])
 
   -inverse     create 1/t2* and use as initial input
   -zscore_vol  changes expression to '(x-m)/s' instead of 'x/m' for 3dcalc vol norm
@@ -111,9 +113,14 @@ find_censor_file(){
   local censor_file="$1"; shift
   local censor_file="$(dirname "$input")/$censor_rel"
 
+  # if given an absolute path. try that
+  [ ! -r "$censor_file" -a ${censor_rel:0:1} == "/" ] &&
+     censor_file="$censor_rel"
+
   # try regexp pattern replace if censor_rel looks like s/
   [ ! -r "$censor_file" -a ${censor_rel:0:2} == "s/" ] &&
      censor_file="$(echo "$input" | perl -pe "$censor_rel")"
+
   # make sure we didn't just find the input file
   if [ "$censor_file" == "$input" ]; then
      rm -r $tmpd
@@ -166,7 +173,7 @@ parse_args(){
    return 0
 }
 
-args_are_sane(){ 
+args_are_sane(){
    # help if nothing given
    [ $# -eq 0 ] && usage
    parse_args "$@"

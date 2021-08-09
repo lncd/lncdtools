@@ -132,3 +132,9 @@ x_cmp_y(){
    tat2 t.nii.gz  -zscore_vol -output zscore.nii.gz -mask m.nii.gz
    x_cmp_y zscore.nii.gz '>' mean.nii.gz
 }
+@test cen_abspath {
+   # censor using absolute path (introduced 20210809)
+   echo -e "1\n1\n1" > $(pwd)/cen1.1D
+   tat2 t.nii.gz -output cen.nii.gz  -mask m.nii.gz -mean_time  -censor_rel $(pwd)/cen1.1D
+   3dNotes cen.nii.gz |grep -q keep3
+}
