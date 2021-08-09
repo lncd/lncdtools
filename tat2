@@ -120,6 +120,8 @@ HEREDOC
 err() { echo -e "$@" >&2; exit 1; }
 msg() { echo -e "# [$(date)] $@"; }
 
+tat2_gitver(){ echo $(cd $(dirname $0); git log -1 --pretty=format:%as:%h -- tat2; git diff --shortstat -- tat2 |tr -d '[a-z ]';); }
+
 find_censor_file(){
   local input="$1"; shift
   local censor_file="$1"; shift
@@ -386,7 +388,7 @@ _tat2(){
    all_nts="$(3dinfo -nt $tmpd/*_tat2.nii.gz|tr '\n' ',')"
 
    [ $vox_scale -eq 0 ] && scale_msg="SCALE=NA" || scale_msg="SCALE=$SCALE"
-   3dNotes -h "$0 $allargs # $(pwd); $scale_msg, nvoxes=$all_numvox; nt=$all_nts; vol:$volnorm_opt, time:$tnorm_opt; $MAXVOLSTOTAL/$concat_nvol total nvols" $OUTPUT
+   3dNotes -h "$0 $allargs # $(pwd); $scale_msg, nvoxes=$all_numvox; nt=$all_nts; vol:$volnorm_opt, time:$tnorm_opt; $MAXVOLSTOTAL/$concat_nvol total nvols; $(tat2_gitver)" $OUTPUT
 
    [ $CLEAN -eq 1 ] && \
       rm -r $tmpd ||\
