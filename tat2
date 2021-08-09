@@ -14,6 +14,8 @@ vox_scale=1                    #  "
 use_zscore=0                   #  "
 MAXVOLS=-1                     #  "      truncate how many volumes are in run_tat2.nii.gz
 censor_rel=""                  # 3dTcat: truncate input
+MAXVOLSTOTAL=-1                #  "      truncate how many volumes are ultimately averaged.
+IDX_SAMPLE_METHOD="first"      # how to sample indexes (first, last, random) when MAXVOLS*
 tnorm_opt="-nzmean"            # 3dTstat: final output  (time normalized)
 
 OUTPUT=tat2star.nii.gz
@@ -61,7 +63,7 @@ SYNOPSIS
         # tune with -{median,mean}_time
   final 'tat2start.nii.gz' will be in the cwd
 
-OPTIONS
+OPTIONS (in order of relevance)
   -censor_rel FILE
     specify the motion censor file. single column no header file. nLines = nVols. 0=exclude, 1=keep.
     either a filename or regexp
@@ -69,9 +71,27 @@ OPTIONS
        as a perl regexp run on \$input. like 's/(rest-\\d)_bold.nii.gz/\\1_cesnor.1d/'
     despite switch's name, FILE also be an absolute path (start with '/')
 
+
+  -mask_rel    volnorm mask is relative to the input nifit (default: subject_mask.nii.gz)
+  -mask        use mask to create volnorm.1D (-median_vol or -mean_vol)
+               default none, defer to mask_rel
+  -mkmask      ensures the number of voxels used to normalize is the same
+               across runs by create a coverage mask from all inputs
+               -nzmedian/nzmean and '-count -non-zero' could maybe get away with no mask,
+               but option is not provided
+
+
   -maxvols NVOL
      limit each run to NVOL volumes. run after and only after censor_rel.
      useful when groups (e.g. young, old) have disproportonate censored volumes
+
+  -maxvolstotal NVOL
+     in final combined timeseries of all runs, take only the first NVOL volumes
+
+  -sample_method {first,last,random}
+     how to sample indexes when using maxvols/maxvolstotal. take first n, last n, or random n
+
+
 
   -median_time or -mean_time
         set how voxels are collapsed across time (3dTstat)
@@ -87,14 +107,6 @@ OPTIONS
   -zscore_vol  changes expression to '(x-m)/s' instead of 'x/m' for 3dcalc vol norm
   -no_voxscale disables scaleing. (SCALE=1, not normalized by number of nzvoxels)
 
-
-  -mask        use mask to create volnorm.1D (-median_vol or -mean_vol)
-               default none, defer to mask_rel
-  -mask_rel    volnorm mask is relative to the input nifit (default: subject_mask.nii.gz)
-  -mkmask      ensures the number of voxels used to normalize is the same
-               across runs by create a coverage mask from all inputs
-               -nzmedian/nzmean and '-count -non-zero' could maybe get away with no mask,
-               but option is not provided
 
   -noclean     keeps tmp folder around, useful for debugging
   -tmp DIR     sets the directory to use for temporary calculations to DIR.
@@ -139,6 +151,16 @@ find_censor_file(){
 # pull out good index (censor=1 means keep). zero based
 where1csv(){ perl -lne 'push @i, $.-1 if /^1/; END{print join ",", @i;}' "$@"; }
 firstn_csv() { perl -F, -slane 'print $n<=0?$_:(join ",", grep {!/^$/} @F[0..$n-1])' -- -n=$1; }
+idx_shuffle() {
+   local method="$1"; shift
+   local cmd
+   case "$method" in
+      first) cmd=cat;;
+      last) cmd=tac;;
+      random) cmd=shuf;;
+   esac
+  tr , '\n' | $cmd |tr '\n' ,|sed s/,$//
+}
 
 parse_args(){
    # keep args around for 3dNotes history
@@ -155,6 +177,8 @@ parse_args(){
      -censor_rel) censor_rel="$2"; shift 2;;
      -tmp)        TMPLOCATION="$2"; shift 2;;
      -maxvols)    MAXVOLS="$2"; shift 2;;
+     -maxvolstotal) MAXVOLSTOTAL="$2"; shift 2;;
+     -sample_method) IDX_SAMPLE_METHOD=$2; shift 2;;
      -mkmask)     MKMASK=1; MASK_REL=""; shift;;
      -median_vol) volnorm_opt="-nzmedian"; shift;;
      -mean_vol)   volnorm_opt="-nzmean"; shift;;
@@ -177,6 +201,11 @@ args_are_sane(){
    # help if nothing given
    [ $# -eq 0 ] && usage
    parse_args "$@"
+   ! [[ "$IDX_SAMPLE_METHOD" =~ first|last|random ]] &&
+      err "-sample_method must be first, last, or random; not '$IDX_SAMPLE_METHOD'"
+   [ "$IDX_SAMPLE_METHOD" != first -a $MAXVOLSTOTAL = -1 -a $MAXVOLS = -1 ] &&
+      err "'-sample_method $IDX_SAMPLE_METHOD' doesn't makes sense without -maxvols*"
+
    echo "#files/globs: ${#GLOBFILES[@]}"
    # need to have at least one file to average
    [ -z "${GLOBFILES[*]}" ] && usage
@@ -217,10 +246,10 @@ one_ta(){
    if [ -n "$censor_rel" ]; then
       censor_file=$(find_censor_file "$input" "$censor_rel")
       # if MAXVOLS is default "-1", firstn_cvs does nothing
-      idxs=$(where1csv $censor_file| firstn_csv $MAXVOLS)
+      idxs=$(where1csv $censor_file| idx_shuffle $IDX_SAMPLE_METHOD | firstn_csv $MAXVOLS)
       nkeep=$(echo $idxs| tr ',' '\n' |wc -l)
       file_volnote=keep${nkeep}
-      msg "censor: using $nkeep/$(3dinfo -nt $input) timepoints [$censor_file]"
+      msg "censor: using $nkeep/$(3dinfo -nt $input) timepoints. (last vol: ${idxs/*,}) [$censor_file]"
       if [ $MAXVOLS -gt 0 ]; then
          [ $nkeep -ne $MAXVOLS ]  &&
             msg "WARNING:run$cnt: have $nkeep != maxvols ($MAXVOLS). censored more volumes than min required?!"
@@ -284,6 +313,7 @@ one_ta(){
 _tat2(){
    tmpd=$(mktemp -d $TMPLOCATION/tat2star_XXXX)
    cnt=0
+   volcount=0
    all_numvox="" # will be populated with each subjectmask
 
    if [ $MKMASK -eq 1 ]; then
@@ -293,22 +323,64 @@ _tat2(){
 
    for input in ${GLOBFILES[@]}; do
       one_ta $cnt "$input" "$tmpd"
+      prev_cnt=$cnt
       let ++cnt
+
+      # we can stop processing runs if we have enough
+      if [ $MAXVOLSTOTAL -gt 0 -a $IDX_SAMPLE_METHOD == "first" ]; then
+         this_run=$tmpd/${prev_cnt}_*tat2.nii.gz
+         n_vol_run=$(3dinfo -nt $this_run)
+         let volcount+=$n_vol_run
+         [ $volcount -lt $MAXVOLSTOTAL ] && continue
+         msg "have $volcount >= $MAXVOLSTOTAL and -sample_method $IDX_SAMPLE_METHOD. stopping at $cnt/$nfiles runs"
+         nfiles=$cnt
+         break
+      fi
    done
    actual_nfiles=$(ls $tmpd/*_tat2.nii.gz|wc -l)
 
    [ $actual_nfiles -ne $nfiles ] && err "ERROR: create $actual_nfiles/$nfiles ($cnt iterations) in $tmpd"
 
    msg "tat2star $OUTPUT"
+   # combine all the normalized runs if we need to
    if [ $nfiles -gt 1 ]; then
       3dTcat -overwrite -prefix $tmpd/tat2_all.nii.gz $tmpd/*_tat2.nii.gz
-      3dTstat -prefix $OUTPUT -overwrite $tnorm_opt $tmpd/tat2_all.nii.gz
+      concated_file=$tmpd/tat2_all.nii.gz
    else
-      3dTstat -prefix $OUTPUT -overwrite $tnorm_opt $tmpd/*_tat2.nii.gz
+      concated_file=$tmpd/*_tat2.nii.gz
    fi
 
+   # truncate them
+   # count is 1-indexed, indexing is 0-indexed
+   # what to do if too few. maybe should die
+   # instead use min and update MAXTOTAL to be current maxtotal
+   concat_nvol=$(3dinfo -nt $concated_file)
+   if [ $MAXVOLSTOTAL -gt 0 ]; then
+      use_vols0=$MAXVOLSTOTAL
+      concat_nvol0=$concat_nvol
+      # 0 index
+      let concat_nvol0--
+      let use_vols0--
+
+      if [ $concat_nvol0 -lt $use_vols0 ]; then
+         msg "WARNING: have fewer volumes than requested! $use_vols0 < $concat_nvol0; 0-idx"
+         MAXVOLSTOTAL=$concat_nvol
+         use_vols0=$concat_nvol0
+      fi
+      maxvolsubset="[0..$use_vols0]"
+      [ "$IDX_SAMPLE_METHOD" != first ] &&
+         maxvolsubset="[$(seq -s, 0 $concat_nvol0 |idx_shuffle $IDX_SAMPLE_METHOD | firstn_csv $MAXVOLSTOTAL)]"
+      msg "using $MAXVOLSTOTAL from $concat_nvol ($maxvolsubset)"
+   else
+      maxvolsubset=""
+      MAXVOLSTOTAL=$concat_nvol
+   fi
+
+   # time norm
+   3dTstat -prefix $OUTPUT -overwrite $tnorm_opt $concated_file$maxvolsubset
+
    all_nts="$(3dinfo -nt $tmpd/*_tat2.nii.gz|tr '\n' ',')"
-   3dNotes -h "$0 $allargs # $(pwd); SCALE=$SCALE, nvoxes=$all_numvox; nt=$all_nts; vol:$volnorm_opt, time:$tnorm_opt" $OUTPUT
+   3dNotes -h "$0 $allargs # $(pwd); SCALE=$SCALE, nvoxes=$all_numvox; nt=$all_nts; vol:$volnorm_opt, time:$tnorm_opt; $MAXVOLSTOTAL/$concat_nvol total nvols" $OUTPUT
 
    [ $CLEAN -eq 1 ] && \
       rm -r $tmpd ||\
