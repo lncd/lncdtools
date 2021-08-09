@@ -24,4 +24,8 @@ if [ $# -eq 1 ]; then
    fi
    cd "$repo"
 fi
-git rev-parse --short HEAD || echo $nover
+if git rev-parse --short HEAD >/dev/null 2>&1; then
+   echo $(git log -1 --pretty=format:%h:%as):$(git diff --shortstat|tr -d '[a-z ]')
+else
+   echo $nover
+fi
