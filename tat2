@@ -384,7 +384,9 @@ _tat2(){
    3dTstat -prefix $OUTPUT -overwrite $tnorm_opt $concated_file$maxvolsubset
 
    all_nts="$(3dinfo -nt $tmpd/*_tat2.nii.gz|tr '\n' ',')"
-   3dNotes -h "$0 $allargs # $(pwd); SCALE=$SCALE, nvoxes=$all_numvox; nt=$all_nts; vol:$volnorm_opt, time:$tnorm_opt; $MAXVOLSTOTAL/$concat_nvol total nvols" $OUTPUT
+
+   [ $vox_scale -eq 0 ] && scale_msg="SCALE=NA" || scale_msg="SCALE=$SCALE"
+   3dNotes -h "$0 $allargs # $(pwd); $scale_msg, nvoxes=$all_numvox; nt=$all_nts; vol:$volnorm_opt, time:$tnorm_opt; $MAXVOLSTOTAL/$concat_nvol total nvols" $OUTPUT
 
    [ $CLEAN -eq 1 ] && \
       rm -r $tmpd ||\
