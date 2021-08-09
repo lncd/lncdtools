@@ -90,6 +90,19 @@ x_cmp_y(){
    tat2 t.nii.gz -median_vol -output med.nii.gz -mask m.nii.gz
    x_cmp_y mean.nii.gz '<' med.nii.gz
 }
+@test cen_multiple {
+   #  censor applies to each input separately
+   mkdir -p x y out
+   cp t.nii.gz c.1D x/
+   cp t.nii.gz y/
+   echo -e "1\n1\n1" > y/c.1D
+   tat2 {x,y}/t.nii.gz -output mean.nii.gz -censor_rel c.1D -mask m.nii.gz -mean_time -tmp out -noclean
+
+   [ -r out/*/0_keep2_tat2.nii.gz ]
+   [ $(3dinfo -nt out/*/0_keep2_tat2.nii.gz) -eq 2 ]
+   [ -r out/*/1_keep3_tat2.nii.gz ]
+   [ $(3dinfo -nt out/*/1_keep3_tat2.nii.gz) -eq 3 ]
+}
 
 @test cen_mean_time {
    # censor does not include large (100) value
@@ -99,6 +112,7 @@ x_cmp_y(){
    3dNotes cen.nii.gz |grep -q keep2
    x_cmp_y cen.nii.gz '<' mean.nii.gz
 }
+
 @test cen_median_time {
    # censor does not include large (100) value
    #  unlike above (censor < mean), median stays the same.
@@ -186,9 +200,7 @@ x_cmp_y(){
    # save outputs
    tat2 t.nii.gz t.nii.gz -output all.nii.gz  -mask m.nii.gz -median_time  -censor_rel d.1D
    tat2 t.nii.gz t.nii.gz -output max3.nii.gz  -mask m.nii.gz -median_time  -censor_rel d.1D -maxvolstotal 3
-   diff=$(3dBrickStat '3dcalc( -a all.nii.gz -b max3.nii.gz -expr a-b )')
-   echo "diff (expect 0): '$diff'" >&2
-   [ $diff -eq 0 ]
+   x_cmp_y all.nii.gz = max3.nii.gz
 
 }
 
@@ -204,7 +216,7 @@ x_cmp_y(){
    3dNotes cen.nii.gz |grep -q "6/6 total nvols"
 }
 @test maxvolstotal_andmaxvols {
-   # TODO: this might chang
+   # TODO: this might change
    # make longer version of t
    (echo 1; cat c.1D) > d.1D
    3dTcat -prefix t.nii.gz  t.nii.gz 2.nii.gz -overwrite

@@ -226,6 +226,9 @@ one_ta(){
    # GLOBALS:
    #  MASK, MASK_REL, censor_rel, MAXVOLS,
    #  t2_inv, volnorm_opt, use_zscore, SCALE, vox_scale, all_numvox
+   #
+   # makes $runoutput and $volnorm_1D
+   #  looks like ${cnt}_tat2.nii.gz or $tmpd/${cnt}_keep$n_tat2.nii.gz if censoring
    local cnt="$1"; shift
    local input="$1"; shift
    local tmpd="$1"; shift
@@ -257,9 +260,9 @@ one_ta(){
          file_volnote=lastidx${idxs/*,/}
       fi
       # truncate input
-      newinput="$tmpd/${cnt}_inputcensor_${file_volnote}.nii.gz"
-      3dTcat -prefix $newinput "$input[$idxs]"
-      input="$newinput"
+      # previous used 3dTcat to truncation. but 3dROIstats and 3dcalc understand '[$index]' notation
+      # so no need to make another (potentially large) file
+      input="$input[$idxs]"
       # must match *_tat2.nii.gz to be picked up by 3dTstat at the end
       runoutput="$tmpd/${cnt}_${file_volnote}_tat2.nii.gz"
    fi
@@ -323,6 +326,7 @@ _tat2(){
 
    for input in ${GLOBFILES[@]}; do
       one_ta $cnt "$input" "$tmpd"
+      # now have e.g. 0_keep200_tat2.nii.gz
       prev_cnt=$cnt
       let ++cnt
 
