@@ -20,7 +20,7 @@ HD
 }
 
 [ $# -eq 0 ] && usage "need at least a nifti image"
-[[ "$1" =~ -h*|-useage ]] && usage
+[[ "$1" =~ ^-h*|^-useage ]] && usage
 
 img="$1"; shift
 [ $# -eq 0 ] && frac=($(seq .1 .1 .9)) || frac=("$@")
