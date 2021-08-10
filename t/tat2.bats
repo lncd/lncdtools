@@ -291,3 +291,25 @@ x_cmp_y(){
    args_are_sane -sample_method random  -maxvols 2 t.nii.gz
    [[ $IDX_SAMPLE_METHOD =~ "random" ]]
 }
+
+@test test_collapse_seq_idx {
+   source $(which tat2);
+
+   o=$(echo 0,2,3,4,10 | collapse_seq_idx)
+   [[ $o =~ 0,2..4,10 ]]
+
+   o=$(echo 0,1,2,3,4 | collapse_seq_idx)
+   [[ $o =~ 0..4 ]]
+
+   o=$(echo 1,2,3,4 | collapse_seq_idx)
+   [[ $o =~ 1..4 ]]
+
+   o=$(echo 1,2,3,10 | collapse_seq_idx)
+   [[ $o =~ 1..3,10 ]]
+
+   o=$(echo 1,2,10 | collapse_seq_idx)
+   [[ "$o" =~ 1..2,10 ]]
+
+   o=$(echo 0,10 | collapse_seq_idx)
+   [[ "$o" =~ 0,10 ]]
+}

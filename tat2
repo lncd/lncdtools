@@ -163,6 +163,32 @@ idx_shuffle() {
    esac
   tr , '\n' | $cmd |tr '\n' ,|sed s/,$//
 }
+collapse_seq_idx(){
+   # for very large volumes, the argument list is too large!
+   # > ERROR: (The longest filename allowed in AFNI is 5095 characters)
+   perl -F, -slane '
+   BEGIN{
+     $p=-2;
+     @IDX=();
+     $n="";
+     sub ndot{ push(@IDX, "..@_") if @_[0];}
+   }
+   for $i (@F){
+      if($i==$p+1){
+         $n=$i;
+      } else{
+         ndot $n; $n="";
+      }
+      push(@IDX, $i) unless $n;
+      $p=$i;
+   }
+   END{
+     ndot($n);
+     $_=join(",",@IDX);
+     s/,(\.\.)/\1/;
+     print
+  }'
+}
 
 parse_args(){
    # keep args around for 3dNotes history
@@ -264,7 +290,17 @@ one_ta(){
       # truncate input
       # previous used 3dTcat to truncation. but 3dROIstats and 3dcalc understand '[$index]' notation
       # so no need to make another (potentially large) file
+      local tat2inputfile=$input
       input="$input[$idxs]"
+
+      # > ** ERROR: (The longest filename allowed in AFNI is 5095 characters)   
+      # NB will be weird (do nothing?) when IDX_SAMPLE_METHOD is not "first"
+      #
+      # should remove conditional (>5k) so if this caues a bug
+      #   it will show up everywhere and will be tested (?)
+      [ ${#input} -ge 5095 ] &&
+         input="$tat2inputfile[$(echo $idxs | collapse_seq_idx)]"
+
       # must match *_tat2.nii.gz to be picked up by 3dTstat at the end
       runoutput="$tmpd/${cnt}_${file_volnote}_tat2.nii.gz"
    fi
