@@ -158,7 +158,7 @@ x_cmp_y(){
       -maxvolstotal 5
 
    3dNotes cen.nii.gz >&2
-   3dNotes cen.nii.gz |grep -q "5/6 total nvols"
+   3dNotes cen.nii.gz |grep -q "5/6/8 used/not-cen/total nvols"
 
    total_vols=$(3dinfo -nt output/*/tat2_all.nii.gz)
    echo "total_vols: $total_vols" >&2
@@ -224,7 +224,7 @@ x_cmp_y(){
    tat2 t.nii.gz t.nii.gz -output cen.nii.gz  -mask m.nii.gz -median_time  -censor_rel d.1D -maxvolstotal 100
 
    3dNotes cen.nii.gz >&2
-   3dNotes cen.nii.gz |grep -q "6/6 total nvols"
+   3dNotes cen.nii.gz |grep -q " 6/6/8 used/not-cen/total nvols"
 }
 @test maxvolstotal_andmaxvols {
    # TODO: this might change
@@ -234,7 +234,7 @@ x_cmp_y(){
    tat2 t.nii.gz t.nii.gz -output cen.nii.gz  -mask m.nii.gz -median_time  -censor_rel d.1D -maxvolstotal 3 -maxvols 2
 
    3dNotes cen.nii.gz >&2
-   3dNotes cen.nii.gz |grep -q "3/4 total nvols"
+   3dNotes cen.nii.gz |grep -q "3/4/8 used/not-cen/total"
 }
 
 

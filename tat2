@@ -352,6 +352,7 @@ _tat2(){
    cnt=0
    volcount=0
    all_numvox="" # will be populated with each subjectmask
+   local nvols_nocen=0
 
    if [ $MKMASK -eq 1 ]; then
          MASK="$TMPD/subj_mask.nii.gz"
@@ -363,6 +364,8 @@ _tat2(){
       # now have e.g. 0_keep200_tat2.nii.gz
       prev_cnt=$cnt
       let ++cnt
+      # track total uncensored volume count
+      let nvols_nocen+=$(3dinfo -nt "$input")
 
       # we can stop processing runs if we have enough
       if [ $MAXVOLSTOTAL -gt 0 -a $IDX_SAMPLE_METHOD == "first" ]; then
@@ -420,7 +423,7 @@ _tat2(){
    all_nts="$(3dinfo -nt $TMPD/*_tat2.nii.gz|tr '\n' ',')"
 
    [ $vox_scale -eq 0 ] && scale_msg="SCALE=NA" || scale_msg="SCALE=$SCALE"
-   3dNotes -h "$0 $allargs # $(pwd); $scale_msg, nvoxes=$all_numvox; nt=$all_nts; vol:$volnorm_opt, time:$tnorm_opt; $MAXVOLSTOTAL/$concat_nvol total nvols; $(tat2_gitver)" $OUTPUT
+   3dNotes -h "$0 $allargs # $(pwd); $scale_msg, nvoxes=$all_numvox; nt=$all_nts; vol:$volnorm_opt, time:$tnorm_opt; $MAXVOLSTOTAL/$concat_nvol/$nvols_nocen used/not-cen/total nvols; $cnt/${#GLOBFILES[@]} files; $(tat2_gitver)" $OUTPUT
 
    [ $CLEAN -eq 1 ] && \
       rm -r $TMPD ||\
