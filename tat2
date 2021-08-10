@@ -181,7 +181,7 @@ collapse_seq_idx(){
    END{
      ndot($n);
      $_=join(",",@IDX);
-     s/,(\.\.)/\1/;
+     s/,(\.\.)/\1/g;
      print
   }'
 }
