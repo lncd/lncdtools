@@ -90,6 +90,7 @@ x_cmp_y(){
    tat2 t.nii.gz -median_vol -output med.nii.gz -mask m.nii.gz
    x_cmp_y mean.nii.gz '<' med.nii.gz
 }
+
 @test cen_multiple {
    #  censor applies to each input separately
    mkdir -p x y out
@@ -98,10 +99,20 @@ x_cmp_y(){
    echo -e "1\n1\n1" > y/c.1D
    tat2 {x,y}/t.nii.gz -output mean.nii.gz -censor_rel c.1D -mask m.nii.gz -mean_time -tmp out -noclean
 
+   head -n99 out/*/*_volnorm.1D >&2
+   # 2 in the first
    [ -r out/*/0_keep2_tat2.nii.gz ]
    [ $(3dinfo -nt out/*/0_keep2_tat2.nii.gz) -eq 2 ]
+   [ $(grep -cPv '^\s*#' out/*/0_volnorm.1D)  -eq 2 ]
+   # 3 in the second
    [ -r out/*/1_keep3_tat2.nii.gz ]
    [ $(3dinfo -nt out/*/1_keep3_tat2.nii.gz) -eq 3 ]
+   [ $(grep -cPv '^\s*#' out/*/1_volnorm.1D)  -eq 3 ]
+   # tat2_all has all 5 volumes
+   [ -r out/*/tat2_all.nii.gz ]
+   [ $(3dinfo -nt out/*/tat2_all.nii.gz) -eq 5 ]
+   # final output used tat2_all.nii.gz
+   3dNotes mean.nii.gz | grep -q tat2_all.nii.gz
 }
 
 @test cen_mean_time {
