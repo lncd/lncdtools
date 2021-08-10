@@ -21,13 +21,11 @@ tnorm_opt="-nzmean"            # 3dTstat: final output  (time normalized)
 OUTPUT=tat2star.nii.gz
 TMPLOCATION=/tmp
 CLEAN=1
+TMPD="" # will be folder specific to single invocation of tat2. removed at the end
 
 # all the inputs (possibly globs) we want to work on
 declare -a GLOBFILES
 
-# 20210218WF - hygenic file usage -- tmp files after crash clog fileystem
-tmpd=""
-trap '[ -n "$tmpd" -a -d "$tmpd" -a $CLEAN -eq 1 ] && [[ "$tmpd" =~ $TMPLOCATION ]] && rm -r "$tmpd"' EXIT
 
 # 20201116
 #  back to mean default
@@ -137,13 +135,11 @@ find_censor_file(){
 
   # make sure we didn't just find the input file
   if [ "$censor_file" == "$input" ]; then
-     rm -r $tmpd
      err "ERR: censor file subsitition failed '$censor_file' matches inputfile! rel '$censor_rel' for '$input'"
   fi
 
   # and make sure we actually found a file
   if [ ! -r "$censor_file" ]; then
-     rm -r $tmpd
      err "ERR: censor file '$censor_file' DNE!"
   fi
 
@@ -352,25 +348,25 @@ one_ta(){
 }
 
 _tat2(){
-   tmpd=$(mktemp -d $TMPLOCATION/tat2star_XXXX)
+   TMPD=$(mktemp -d $TMPLOCATION/tat2star_XXXX)
    cnt=0
    volcount=0
    all_numvox="" # will be populated with each subjectmask
 
    if [ $MKMASK -eq 1 ]; then
-         MASK="$tmpd/subj_mask.nii.gz"
+         MASK="$TMPD/subj_mask.nii.gz"
          coverage_mask $MASK "${GLOBFILES[@]}"
    fi
 
    for input in ${GLOBFILES[@]}; do
-      one_ta $cnt "$input" "$tmpd"
+      one_ta $cnt "$input" "$TMPD"
       # now have e.g. 0_keep200_tat2.nii.gz
       prev_cnt=$cnt
       let ++cnt
 
       # we can stop processing runs if we have enough
       if [ $MAXVOLSTOTAL -gt 0 -a $IDX_SAMPLE_METHOD == "first" ]; then
-         this_run=$tmpd/${prev_cnt}_*tat2.nii.gz
+         this_run=$TMPD/${prev_cnt}_*tat2.nii.gz
          n_vol_run=$(3dinfo -nt $this_run)
          let volcount+=$n_vol_run
          [ $volcount -lt $MAXVOLSTOTAL ] && continue
@@ -379,17 +375,17 @@ _tat2(){
          break
       fi
    done
-   actual_nfiles=$(ls $tmpd/*_tat2.nii.gz|wc -l)
+   actual_nfiles=$(ls $TMPD/*_tat2.nii.gz|wc -l)
 
-   [ $actual_nfiles -ne $nfiles ] && err "ERROR: create $actual_nfiles/$nfiles ($cnt iterations) in $tmpd"
+   [ $actual_nfiles -ne $nfiles ] && err "ERROR: create $actual_nfiles/$nfiles ($cnt iterations) in $TMPD"
 
    msg "tat2star $OUTPUT"
    # combine all the normalized runs if we need to
    if [ $nfiles -gt 1 ]; then
-      3dTcat -overwrite -prefix $tmpd/tat2_all.nii.gz $tmpd/*_tat2.nii.gz
-      concated_file=$tmpd/tat2_all.nii.gz
+      3dTcat -overwrite -prefix $TMPD/tat2_all.nii.gz $TMPD/*_tat2.nii.gz
+      concated_file=$TMPD/tat2_all.nii.gz
    else
-      concated_file=$tmpd/*_tat2.nii.gz
+      concated_file=$TMPD/*_tat2.nii.gz
    fi
 
    # truncate them
@@ -421,14 +417,14 @@ _tat2(){
    # time norm
    3dTstat -prefix $OUTPUT -overwrite $tnorm_opt $concated_file$maxvolsubset
 
-   all_nts="$(3dinfo -nt $tmpd/*_tat2.nii.gz|tr '\n' ',')"
+   all_nts="$(3dinfo -nt $TMPD/*_tat2.nii.gz|tr '\n' ',')"
 
    [ $vox_scale -eq 0 ] && scale_msg="SCALE=NA" || scale_msg="SCALE=$SCALE"
    3dNotes -h "$0 $allargs # $(pwd); $scale_msg, nvoxes=$all_numvox; nt=$all_nts; vol:$volnorm_opt, time:$tnorm_opt; $MAXVOLSTOTAL/$concat_nvol total nvols; $(tat2_gitver)" $OUTPUT
 
    [ $CLEAN -eq 1 ] && \
-      rm -r $tmpd ||\
-      echo "find temporary files in '$tmpd'; remove '-noclean' if not testing"
+      rm -r $TMPD ||\
+      echo "find temporary files in '$TMPD'; remove '-noclean' if not testing"
 
    return 0
 }
@@ -436,6 +432,8 @@ _tat2(){
 # run if not sourced
 if ! [[ "$(caller)" != "0 "* ]]; then
    set -eou pipefail
+   # 20210218WF - hygenic file usage -- tmp files after crash clog fileystem
+   trap '[ -n "$TMPD" -a -d "$TMPD" -a $CLEAN -eq 1 ] && [[ "$TMPD" =~ $TMPLOCATION ]] && rm -r "$TMPD"' EXIT
    args_are_sane "$@"
    _tat2
 fi
