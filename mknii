@@ -85,7 +85,7 @@ main(){
        # update output for 3dNotes and final check
        [[ $outname =~ magnitude$ ]] && nii_out="$outdir/${outname}1.nii.gz"
      ;;
-     *phase) 
+     *phase|*phasediff)
        rename-recent have? || exit 1 # dont convert if we have the wrong rename
        rename-recent 's/_e\d+(_ph)?(.nii.gz|.json)$/$2/' $outdir "$outname*"
      ;;
