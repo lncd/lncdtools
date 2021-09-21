@@ -91,6 +91,14 @@ x_cmp_y(){
    x_cmp_y mean.nii.gz '<' med.nii.gz
 }
 
+@test novol_gt_mean {
+   # large outlier drives mean (denominator) way up. mean should be smaller than med
+   # mean=701.587 median=8416.67
+   tat2 t.nii.gz -mean_vol -output mean.nii.gz -mask m.nii.gz
+   tat2 t.nii.gz -no_vol -output novol.nii.gz -mask m.nii.gz
+   x_cmp_y mean.nii.gz '<' novol.nii.gz
+}
+
 @test cen_multiple {
    #  censor applies to each input separately
    mkdir -p x y out
@@ -292,6 +300,18 @@ x_cmp_y(){
    [[ $IDX_SAMPLE_METHOD =~ "random" ]]
 }
 
+@test saneargs_vol {
+   source $(which tat2)
+   args_are_sane -no_vol t.nii.gz
+   [[ $volnorm_opt =~ "none" ]]
+
+   args_are_sane -mean_vol t.nii.gz
+   [[ $volnorm_opt =~ "-nzmean" ]]
+
+   args_are_sane -median_vol t.nii.gz
+   [[ $volnorm_opt =~ "-nzmedian" ]]
+}
+
 @test test_collapse_seq_idx {
    source $(which tat2);
 
@@ -315,4 +335,7 @@ x_cmp_y(){
 
    o=$(echo 0,1,2,10,11,12,15,16,17 | collapse_seq_idx)
    [[ "$o" =~ 0..2,10..12,15..17 ]]
+
+   o=$(echo 1,1,1 | collapse_seq_idx)
+   [[ "$o" =~ 1,1,1 ]]
 }

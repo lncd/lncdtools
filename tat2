@@ -35,7 +35,7 @@ declare -a GLOBFILES
 #  and whole brain z-score normalization instead
 
 ##
-# intially from
+# initially from
 # https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0016093
 # author correspondence
 # > The normalization is within the brain for each time point.
@@ -96,10 +96,10 @@ OPTIONS (in order of relevance)
         time norm default: '$tnorm_opt'
         (history: mean until 20201117)
 
-  -median_vol or -mean_vol
+  -median_vol or -mean_vol or -no_vol
         set value used to scale across volume (each TR, 3dROIstats)
         vol norm default: '$volnorm_opt'
-        (history: median [20210302],  mean [20201116], median [20201016])
+        (history: median [20210302],  mean [20201116], median [20201016]. no_vol added 20210921)
 
   -inverse     create 1/t2* and use as initial input
   -zscore_vol  changes expression to '(x-m)/s' instead of 'x/m' for 3dcalc vol norm
@@ -206,6 +206,7 @@ parse_args(){
      -mkmask)     MKMASK=1; MASK_REL=""; shift;;
      -median_vol) volnorm_opt="-nzmedian"; shift;;
      -mean_vol)   volnorm_opt="-nzmean"; shift;;
+     -no_vol)     volnorm_opt="none"; shift;;
      -zscore_vol) use_zscore=1; shift;;
      -mean_time)  tnorm_opt="-nzmean"; shift;;
      -median_time)tnorm_opt="-nzmedian"; shift;;
@@ -309,7 +310,12 @@ one_ta(){
    fi
 
    # calc sum of each volume. output is normalize value per TR
-   3dROIstats -nomeanout $volnorm_opt -mask $mask -1Dformat $input > $volnorm_1D
+   # as long as we want to do some volume normalization
+   [ $volnorm_opt != "none" ] &&
+      3dROIstats -nomeanout $volnorm_opt -mask $mask -1Dformat $input > $volnorm_1D ||
+      perl -se 'print "1\n"x$nt' -- -nt=$(3dinfo -nt $input) > $volnorm_1D
+      # this is redundant with later calc_expr change. but here for constancy
+
    # do the same for stddev (sigma) if zscoring
    [ $use_zscore -eq 1 ] &&
      3dROIstats -nomeanout -nzsigma -mask $mask -1Dformat $input > $vol_sd
@@ -328,6 +334,9 @@ one_ta(){
     calc_expr="(x-m)/s"
    fi
    [ $vox_scale -eq 0 ] && calc_scale="1"
+
+   # 20210921 - BL measure effect of  volume normalization
+   [ $volnorm_opt == "none" ] && calc_scale="x*1"
 
 
    # normalize each voxel by the volume average or median
