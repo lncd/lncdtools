@@ -23,6 +23,10 @@ echo "export PATH=\$PATH:$HOME/lncdtools" >> $( [ "$(uname)" == Darwin ] && echo
 
 ### tat2
 
+[<img src="imgs/tat2_example.png"     width=400 />](imgs/tat2_examle.png)
+(`/Volumes/Hera/Datasets/ABCD/TAT2/tat2_avg3797_med_voldisc.nii.gz` and `/Volumes/Hera/Projects/7TBrainMech/scripts/mri/tat2/mean_176.nii.gz`)
+
+
 permutation of `tat2` calls were compared against R2 acquisitions:
 `-vol_median` is likely the approprate normalization. <br>
 [<img src="imgs/tat2_matrix.png"     width=400 />](imgs/tat2_matrix.png)
