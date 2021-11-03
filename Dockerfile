@@ -8,7 +8,7 @@ from neurodebian:buster-non-free
 run \
     apt-get update -qq \
     && apt-get install -qy neurodebian curl --no-install-recommends \
-    && curl http://neuro.debian.net/lists/buster.us-tn.full  > /etc/apt/sources.list.d/neurodebian.sources.list \
+    && curl http://neuro.debian.net/lists/buster.us-nh.full > /etc/apt/sources.list.d/neurodebian.sources.list \
     && apt-get update -qq \
     && DEBIAN_FRONTEND=noninteractive apt-get install -qy --no-install-recommends \
        afni python3-numpy python3-nibabel python3-pydicom bats octave dc r-cran-tidyverse dcm2niix pigz \
