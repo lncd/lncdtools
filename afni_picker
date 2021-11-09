@@ -10,7 +10,7 @@ proc bnames {list} {
    set res {}
    foreach e $list {
       set real_name [linkorname $e]
-      # file doesn't exist it's probably an afni command, like:
+      # if file doesn't exist, it's probably an afni command, like:
       # '-com' or  'SET_UNDERLAY ...'
       if { [ file exist $real_name ] } {
          lappend res [file tail $real_name]
@@ -170,7 +170,8 @@ wm protocol . WM_DELETE_WINDOW { afni_plug QUIT; destroy .}
   "enter,C-enter: set under/overlay"
   "O: overlay off"
   "o: overlay on"
-  "U: swap over/under"} \n ] 
+  "U: swap over/under"
+  "& in afni: 3/#, 4/$, 5/% for splits"} \n ]
 
 # display
 # pack forget .lb .sb .note
