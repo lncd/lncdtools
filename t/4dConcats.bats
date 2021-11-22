@@ -54,4 +54,13 @@ done
   echo "$output" >&2
   [[ "$output" =~ "must end" ]]
 }
-
+@test 4dCDT_noarg_usage {
+  run 4dConcatDataTable
+  [ $status -eq 1 ]
+  [[ "$output" =~ USAGE ]]
+}
+@test 4dCSB_noarg_usage {
+  run 4dConcatSubBriks
+  [ $status -eq 1 ]
+  [[ "$output" =~ USAGE ]]
+}

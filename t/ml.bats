@@ -11,6 +11,11 @@ teardown(){
  return 0
 }
 
+@test ml-noarg-usage {
+   run ml
+   [ $status -eq 1 ]
+   [[ "$output" =~ USAGE ]]
+}
 @test matlab_eval {
    command -v matlab || skip
    checkout $(ml -e "$MLCMD")
