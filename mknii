@@ -9,7 +9,8 @@ env | grep ^DRYRUN= && DRYRUN=echo || DRYRUN=""
 #  20210113WF  use rename-recent. nest into "main" (source for testing)
 usage() {
 cat <<HEREDOC
-$(basename "$0") output.nii.gz path/to/dcm/
+USAGE:
+   $(basename "$0") output.nii.gz path/to/dcm/
 
    output.nii.gz - 1st argument is the output nifti. must end in .nii.gz
    path/to/dcm   - 2nd arg must be a folder or single dicom

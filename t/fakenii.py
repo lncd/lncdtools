@@ -16,11 +16,10 @@ def img3d(s):
 
 if __name__ == "__main__":
     import sys
-    import os
     data = np.array([[[1, 2], [3, 4]], [[5, 6], [7, 8]]])
     if not len(sys.argv) in [2, 3]:
         print(f"usage: {sys.argv[0]} outputname ['csv_row;csv_row|csv_row;csv_row|...']")
-        os.exit(1)
+        sys.exit(1)
     if len(sys.argv) == 2:
         inputstr = '1,2;3,4|5,6;7,8'
     else:

@@ -1,4 +1,4 @@
-.PHONY: docker test
+.PHONY: docker test coverage
 
 test:
 	bats --tap t/
@@ -9,3 +9,6 @@ docker:
 
 docker-test:
 	docker run lncd/tools make test
+
+coverage:
+	kcov --bash-dont-parse-binary-dir --exclude-path=/usr,/tmp t/coverage/ bats t/

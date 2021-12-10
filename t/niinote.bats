@@ -10,7 +10,7 @@ setup() {
 
 teardown() {
    cd $BATS_TMPDIR
-   rm -r $THISTESTDIR
+   [ -d "$THISTESTDIR" ] && rm -r $THISTESTDIR
    return 0
 }
 
@@ -20,6 +20,11 @@ testnote(){
   [[ "$output" =~ "fakenii.py"  ]]
 }
 
+@test niinote-noarg-usage {
+  run niinote
+  [ $status -eq 1 ]
+  [[ "$output" =~ USAGE ]]
+}
 @test niinote {
   niinote test.nii.gz fakenii.py test.nii.gz
   testnote test.nii.gz

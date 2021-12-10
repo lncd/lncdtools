@@ -37,6 +37,16 @@ x_cmp_y(){
    [ "x$nvxltmn" == "x1" ]
 }
 
+@test tat2-noargs-usage {
+ run tat2
+ [ $status -eq 1 ]
+ [[ "$output" =~ USAGE ]]
+
+ run tat2 -h
+ [ $status -eq 1 ] # not ideal exit status, but its what we have
+ [[ "$output" =~ USAGE ]]
+}
+
 @test csvidx {
  source $(which tat2)
  goodidx=$(where1csv c.1D)

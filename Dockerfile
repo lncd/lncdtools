@@ -15,6 +15,8 @@ run \
     && apt-get install -qy make cpanminus \
     && rm -rf /var/lib/apt/lists/* && \
     cpanm Perl::RunEND Test2::V0  File::Rename --force
+
+# && \  curl https://github.com/SimonKagstrom/kcov/releases/download/v39/kcov-amd64.tar.gz | tar -C / -xzf -
 workdir /opt/lncd
-ENV PATH="/opt/lncd:/usr/lib/afni/bin/:${PATH}"
+ENV PATH="/opt/lncd:/usr/lib/afni/bin/:/usr/local/bin:${PATH}"
 add . /opt/lncd

@@ -14,6 +14,14 @@ teardown() {
    return 0
 }
 
+# no args is an error that prints usage
+# mostly a test to increase coverage :)
+@test mknii-noargs-usage {
+  run mkdcm.py
+  [ $status -eq 1 ]
+  # not sure why usage is lowercase
+  [[ "$output" =~ usage ]]
+}
 @test mknii-samedir {
   mkdcm.py "test.dcm" 
   mknii test.nii.gz test.dcm 
