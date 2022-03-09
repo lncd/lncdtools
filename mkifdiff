@@ -10,8 +10,19 @@ set -euo pipefail
 tty >/dev/null  && echo "need to pipe to $0; cmd | $0 output.txt" && exit 1
 [ $# -ne 1 ] && echo "USAGE: cmd | $0 output.txt" && exit 1
 # temporary file for diffing
-TMPFILE=$(mktemp /tmp/XXXXX-$(basename $0).lst)
+TMPFILE=$(mktemp "/tmp/XXXXX-$(basename "$0").lst")
+# dont leave tempfiles all over the place
+trap '[ -n "$TMPFILE" -a -r "$TMPFILE" ] && rm $TMPFILE' EXIT
+
+# when file doesn't exist. there's nothing to diff. so just write it
+if [ ! -e "$1" ]; then
+   cat > "$1"
+   echo "$1 did not previously exist. creating"
+   exit 0
+fi
 # put pipe into a file
-cat > $TMPFILE
+cat > "$TMPFILE"
 # update input only if pipe output was different
-! diff -q $TMPFILE $1 2>&1 >/dev/null && cp $TMPFILE $1 || echo "$1 has not changed"
+! diff -q "$TMPFILE" "$1" 2>&1 >/dev/null &&
+   mv "$TMPFILE" "$1" ||
+   echo "$1 has not changed"
