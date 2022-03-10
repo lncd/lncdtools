@@ -6,9 +6,15 @@ for rmfile in $BATS_TMPDIR/{junk{1,2,}.nii.gz,dt.txt}; do
 done
 }
 
-@test noargs_justopts {
+@test noargs_justopts_missing_prefix {
   run 4dConcatSubBriks -p 'patt*'
-  [[ "$output" =~ "need output and glob arguments. see -h" ]]
+  [[ "$output" =~ "For help, see" ]]
+  [ $status -eq 1 ]
+}
+@test missing_files {
+  run 4dConcatSubBriks -p 'patt*' -o $BATS_TMPDIR/rm_me.nii.gz
+  [[ "$output" =~ "For help, see" ]]
+  [ $status -eq 1 ]
 }
 
 @test concatsub_pattern {
