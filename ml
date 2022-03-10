@@ -14,7 +14,7 @@ USAGE:
 }
 
 iseval=0 # run file or eval code
-opts="-nosplash -nodesktop -r"
+opts="-nosplash -nodesktop -r" # 20211119 '-batch' might be better. and no need for try,...,end?
 bin="matlab"
 # N.B. octave doesn't need this wrapper -- it will normally just run file and exit
 # but it will work like matlab and makes this wrapper easier
