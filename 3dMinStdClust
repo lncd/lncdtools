@@ -11,14 +11,16 @@ warn(){ echo "$@" >&2; }
 mask_by_var() {
    local minvol=125 # min 5mm*5mm*5mm
    local pct_thres=2
+
+   local input="$1"; shift
+   local outd=/tmp # default output to temp
+   [ $# -gt 0 ] && outd="$1" && shift
+
    local std=$outd/vx_std.nii.gz
    local clst=$outd/vx_std_clust  # .1d and .nii.gz created
    local pct_file=$outd/std_pct.txt
-   local pct_val input mask outd
-   local input="$1"; shift
-   ## optional inputs
-   outd=/tmp # default output to temp
-   [ $# -gt 0 ] && local outd="$1" && shift
+   local pct_val input mask
+
    mask=$std # use no mask by default by using std of input
    [ $# -gt 0 ] && mask="$1" && shift
 
