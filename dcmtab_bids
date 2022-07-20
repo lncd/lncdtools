@@ -261,6 +261,8 @@ Example criteria specifications
    bold=mytask;pname=rest,ndcm=180;3
    bold=rest;pname=rest,ndcm=180
    T1w;pname=mprage,ndcm=176
+   magnitude1;pname=FieldMap,ndcm=144
+   phasediff;pname=FieldMap,ndcm=72
 
 =back
 

@@ -14,7 +14,7 @@ suma -niml -spec $specFile -sv $t1image &
 sleep 30
 
 DriveSuma -com  viewer_cont \
-     -key ctrl+left `#reorient the brain (all arrow keys)` \
+     -key ctrl+left `#reorient the brain (all arrow keys), ctrl+[ or ] to toggle hemisphere` \
      -key F3 `#toggles crosshair on/off` \
      -key F6 `#toggles background black/white` \
      -key:r:8 period `#changes brain display (reverse through with comma)`\

@@ -11,6 +11,8 @@ USAGE:
 
 EXAMPLE:
   $(basename $0) allmprage.nii.gz '1*_2*/struct/*/*_G2_256x240*/mprage_warp_linear.nii.gz'
+  $(basename $0) -n 2 -p '\\d' all_3rdvol.nii.gz  'file*.nii.gz'
+  $(basename $0)  -p '\\d' all_3rdvol.nii.gz  -- file1.nii.gz file2.nii.gz
 
 SYNOPSIS:
  wrap around 3dbucket and 3drefit
@@ -23,41 +25,73 @@ OPTIONS: (are optional)
  -a                # show afni afteward
  -p '\d{5}_\d{8}'  # change id pattern
  -h                # this help
+ -n SUBBRICKIDX    # use zero-index subbrick instead of first (0)
+ -o output.nii.gz  # can use -o. if not assumed first argument will be output file name
+ -- file1 file2 ...# instead of using 'gl*b', expliclty list input files after --
 
 ARGUMENTS:
  output.nii.gz - final file to create
- 'gl*ob' - file glob matching all images to concat. MUST BE QUOTED
- subbrik (optional) specify with volume of each globbed file to use
+ 'gl*ob' - file glob matching all images to concat. MUST BE QUOTED. 
+
+NOTES:
+  * options must come before arguments.
+     good: 4dConcatSubBriks -n 2 output.nii.gz '/path/to/*nii.gz'
+     bad: 4dConcatSubBriks output.nii.gz '/path/to/*nii.gz' -n 2 
+  * 'gl*ob' should be quoted. if you want to expliclty enumerate files, use -- file1 file2 ....
+  * cant mix '--' and '-n'
 HEREDOC
   exit 1
 }
 
 [ $# -lt 2 ] && usage
 PATTERN='\d{5}_\d{8}'
-case $1 in
-  -p) PATTERN="$2"; shift 2;;
-  -a) NOAFNI=""; shift;;
-  -h) usage;;
-   *) ;; # nothing to do. will use stuff later
-esac
-[ $# -eq 0 ] && echo "need output and glob arguments. see -h" && exit 1
-[ $# -gt 3 ] && echo "too many input argumetns ($#)! did you put single quotes around the 'gl*ob'?" >&2 && exit 1
+FILES=
+prefix=
+subbrik=0
 
-prefix="$1"; shift
-glob="$1"; shift
-[ $# -ne 0 ] && subbrik="$1" || subbrik=0
+while [ $# -gt 0 ]; do
+   case $1 in
+     -p) PATTERN="$2"; shift 2;;
+     -a) NOAFNI=""; shift;;
+     -h) usage;;
+     -n) subbrik="$2"; shift 2;;
+     -o) prefix="$2"; shift 2;;
+     --) shift; FILES=("$@"); set -- ;;
+      *) break;; # nothing to do. will use stuff later
+   esac
+done
 
-! [[ $prefix =~ nii$|nii.gz$|.HEAD$ ]] && echo "prefix '$prefix' must end in .nii, .nii.gz, or .HEAD" && exit 1
-[ -z "$(ls $glob)" ] && echo "bad glob provided ($glob). consider .HEAD?" >&2 && exit 1
-ids="$(ls $glob | grep -Po "$PATTERN" || :)"
-[ -z "$ids" ] && echo "could not find ID using pattern '$PATTERN' in provided glob '$glob'" >&2 && exit 1
+# initially allowed prefix to be first argument (after options)
+# continue allowing that if we didn't specify with -o
+[ $# -eq 0 ] && [ -z "$prefix" ] && echo "output prefix not specified! For help, see $0 -h" && exit 1
+[ -z "$prefix" ] && prefix="$1" && shift
 
+if [ -z "$FILES" ]; then
+   [ $# -eq 0 ] && echo "no files specified! For help, see $0 -h" && exit 1
+   glob="$1"; shift
+   [ $# -gt 0 ] && echo "too many input argumetns ($#)! maybe you need single quotes around the 'gl*ob'?" >&2 && exit 1
+   ! [[ $prefix =~ nii$|nii.gz$|.HEAD$ ]] && echo "prefix '$prefix' must end in .nii, .nii.gz, or .HEAD" && exit 1
+   [ -z "$(ls $glob)" ] && echo "bad glob provided ('$glob'). afni files? maybe add '.HEAD' to glob?" >&2 && exit 1
+   ids=($(ls $glob | grep -Po "$PATTERN" || :))
+   [ -z "$ids" ] && echo "could not find ID using pattern '$PATTERN' in provided glob '$glob'" >&2 && exit 1
+   FILES=($(ls $glob | sed "s/$/[$subbrik]/"))
+else
+  [ $subbrik -ne 0 ] && echo "ERROR: -n not supported with '--' explicit file list. add it with sed if you must" && exit 1
+  # check all exist -- might have [] or other afni syntax. use 3dinfo instead of just [ -f ... ]
+  for f in "${FILES[@]}"; do  ! 3dinfo -space $f >/dev/null && echo "ERROR: cannot read $f" && exit 1; done
+  # extract ids
+  ids=($(for f in "${FILES[@]}"; do echo $f; done | grep -Po "$PATTERN" || :))
+fi
 
+echo "# Input Files: ${FILES[*]}"
+
+[ ${#ids[@]} -ne ${#FILES[@]} ] && echo "ERROR: have ${#ids[@]} ids but ${#FILES[@]} files. Consider modifying pattern '$PATTERN' with -p."
+ 
 if [ ! -r "$prefix" ]; then
    echo "3dbucket: combine"
-   $DRYRUN 3dbucket -prefix "$prefix" $(ls $glob | sed "s/$/[$subbrik]/")
+   $DRYRUN 3dbucket -prefix "$prefix" "${FILES[@]}"
    echo "3drefit: relabel"
-   $DRYRUN 3drefit -relabel_all_str "$ids" "$prefix"
+   $DRYRUN 3drefit -relabel_all_str "${ids[*]}" "$prefix"
 else 
    echo "rm $prefix # to regenerate; skipping 3dbucket and 3drefit"
 fi

@@ -62,10 +62,9 @@ def img_dcm(image2d, PatientName="World^Hello", ID="123456"):
 
 if __name__ == "__main__":
     import sys
-    import os
     if not len(sys.argv) in [2, 3]:
         print(f"usage: {sys.argv[0]} outputname ['csv_row;csv_row;...']")
-        os.exit(1)
+        sys.exit(1)
     if len(sys.argv) == 2:
         image2d = np.array([[0, 1], [2, 0]])
     else:

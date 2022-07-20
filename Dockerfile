@@ -8,13 +8,15 @@ from neurodebian:buster-non-free
 run \
     apt-get update -qq \
     && apt-get install -qy neurodebian curl --no-install-recommends \
-    && curl http://neuro.debian.net/lists/buster.us-tn.full  > /etc/apt/sources.list.d/neurodebian.sources.list \
+    && curl http://neuro.debian.net/lists/buster.us-nh.full > /etc/apt/sources.list.d/neurodebian.sources.list \
     && apt-get update -qq \
     && DEBIAN_FRONTEND=noninteractive apt-get install -qy --no-install-recommends \
        afni python3-numpy python3-nibabel python3-pydicom bats octave dc r-cran-tidyverse dcm2niix pigz \
     && apt-get install -qy make cpanminus \
     && rm -rf /var/lib/apt/lists/* && \
     cpanm Perl::RunEND Test2::V0  File::Rename --force
+
+# && \  curl https://github.com/SimonKagstrom/kcov/releases/download/v39/kcov-amd64.tar.gz | tar -C / -xzf -
 workdir /opt/lncd
-ENV PATH="/opt/lncd:/usr/lib/afni/bin/:${PATH}"
+ENV PATH="/opt/lncd:/usr/lib/afni/bin/:/usr/local/bin:${PATH}"
 add . /opt/lncd

@@ -11,35 +11,40 @@ teardown(){
  return 0
 }
 
+@test ml-noarg-usage {
+   run ml
+   [ $status -eq 1 ]
+   [[ "$output" =~ USAGE ]]
+}
 @test matlab_eval {
    command -v matlab || skip
-   checkout $(m -e "$MLCMD")
+   checkout $(ml -e "$MLCMD")
 }
 @test matlab_file {
    command -v matlab || skip
    command -v octave || skip
-   checkout $(m $BATS_TMPDIR/testm.m)
+   checkout $(ml $BATS_TMPDIR/testm.m)
 }
 @test octave_eval {
    command -v octave || skip
-   checkout $(m -o -e "$MLCMD")
+   checkout $(ml -o -e "$MLCMD")
 }
 @test octave_file {
    command -v octave || skip
-   checkout $(m -o $BATS_TMPDIR/testm.m)
+   checkout $(ml -o $BATS_TMPDIR/testm.m)
 }
 @test test_fail {
-   ! checkout $(m -o -e "disp('hi')")
+   ! checkout $(ml -o -e "disp('hi')")
 }
 @test missing_file {
    badfile=/tmp/this_file_does_not_exit_$(date +%s)
-   ! checkout $(m $badfile)
-   m $badfile 2>&1 |
+   ! checkout $(ml $badfile)
+   ml $badfile 2>&1 |
    grep -iq 'bad file'
 }
 @test order_independent {
-   checkout $(m -e -o "$MLCMD")
-   checkout $(m -eo "$MLCMD")
-   checkout $(m -oe "$MLCMD")
-   checkout $(m -o -e "$MLCMD")
+   checkout $(ml -e -o "$MLCMD")
+   checkout $(ml -eo "$MLCMD")
+   checkout $(ml -oe "$MLCMD")
+   checkout $(ml -o -e "$MLCMD")
 }

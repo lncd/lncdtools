@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -euo pipefail
+tmpdir=""
+trap '[ -n "$tmpdir" -a -d "$tmpdir" ] && rm -r $tmpdir' EXIT SIGINT
+[ -v "SCALE" ] || SCALE=200%
+
+usage(){
+  local exit=0
+  [ $# -gt 0 ] && echo "ERROR: $@" && exit=1
+  cat<<HD
+  $0 niftifile [frac1 frac2 ....]
+  $0  -help = this help
+
+run a bunch of bets and show the results in feh  
+defaults to frac .1 to .9 by 1
+
+SCALE=100% $0 nifile .5 # undo default 200% scaling
+HD
+  exit $exit
+}
+
+[ $# -eq 0 ] && usage "need at least a nifti image"
+[[ "$1" =~ ^-h*|^-useage ]] && usage
+
+img="$1"; shift
+[ $# -eq 0 ] && frac=($(seq .1 .1 .9)) || frac=("$@")
+
+tmpdir=$(mktemp -d /tmp/bet-some-XXX)
+echo "# writing to '$tmpdir' (removed when feh closes)"
+for frac in ${frac[@]}; do
+  echo -n "$frac ... "
+  out=$tmpdir/bet-$frac.nii.gz
+  sliceout=${out/nii.gz/png}
+  bet $img $out -f $frac
+  # with the unnamed pipe, we dont wait for convert to finish.
+  # 'all.png' will miss last one.  easiest if in two steps
+  # slicer -a >(convert -scale $SCALE - -background white label:$frac -gravity center -append $sliceout) $out $img
+  slicer -a $sliceout $out $img
+  convert -scale $SCALE $sliceout -background white label:$frac -gravity center -append $sliceout
+done
+echo
+convert -append $tmpdir/*.png $tmpdir/all.png
+feh $tmpdir/all.png

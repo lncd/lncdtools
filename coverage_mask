@@ -11,6 +11,10 @@ USAGE:
 
  This is a wrapper for 3dTstat -absmax ...; 3dMean -mask_inter ...
  You may want 3dTstat -absmax ..; 3dMean -count ... # for a more descriptive coverage map
+
+ Input is expected to be timeseries. If you already have mask per run, you dont need this!
+ Consider:
+   3dMean -prefix \$outfile -count inputs*
 HEREDOC
 exit 1
 }

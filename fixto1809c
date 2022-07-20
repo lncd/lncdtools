@@ -46,7 +46,7 @@ fixto1809c() {
 
   [ ! -r $ref -o ! -r $mat ] && echo "$FUNCNAME cannot find ref or mat ($ref $mat)" >&2 && return 1
   [ -z "$REDOWARP" -a -r "$output" ] && echo "have $output" >&2 && return 0
-  echo "createing $output ($dim)"
+  echo "creating $output ($dim)"
   cmd="applyxfm4D '$input'  $ref '$output'  $mat -singlematrix" # default to sinc
   [ -n "$mask" ] && cmd="flirt -ref '$ref' -in '$input' -applyxfm -init '$mat' -out '$output' -interp nearestneighbour"
   if command -v rel >/dev/null; then

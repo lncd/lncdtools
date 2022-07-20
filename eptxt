@@ -44,18 +44,22 @@ id from file matches this pattern
 in wide form, only show provided keys. comman separate.
 C<id> is an automatically created key (using pattern optionally specified by C<-p>)
 C<file> is also avaiable
+
+=item C<-e> :encoding(UTF-16LE):crlf
+encoding. defaults to dos UTF-16LE. also consider C<-e ''> or C<-e ':crlf'>
+
 =back
 =cut
 
 # setup paramaters
-my %opt=(l=>0, p=>'\d{5}_\d{8}', h=>0, k=>'');
-getopts('lp:hk:',\%opt);
+my %opt=(l=>0, p=>'\d{5}_\d{8}', h=>0, k=>'', e=>':encoding(UTF-16LE):crlf');
+getopts('lp:hk:e:',\%opt);
 HELP_MESSAGE() if($opt{h});
 
 my $re = qr/$opt{p}/s;
 my @a;
 for my $f (@ARGV) {
-    open my $fid, "<:encoding(UTF-16LE):crlf", $f;
+    open my $fid, "<$opt{e}", $f;
     my $id = $f=~/$re/?$&:"NA";
     my $h={id=>$id, file=>$f};
     my %n_logframe = (1=>0);

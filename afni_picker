@@ -5,9 +5,18 @@
 #  afni -YESplugouts path/to/*nii.gz
 set SELECTOR {rofi -dmenu}
 package require Tk
-proc linkorname {f} { if { {link} eq [file type $f] } { file readlink $f} else { return $f } }
+proc linkorname {f} { if { [ file exist "$f" ] && ({link} eq [file type "$f"]) } { file readlink "$f"} else { return "$f" } }
 proc bnames {list} {
-   set res {}; foreach e $list {lappend res [file tail [linkorname $e]]}; set res
+   set res {}
+   foreach e $list {
+      set real_name [linkorname $e]
+      # if file doesn't exist, it's probably an afni command, like:
+      # '-com' or  'SET_UNDERLAY ...'
+      if { [ file exist $real_name ] } {
+         lappend res [file tail $real_name]
+      }
+   }
+   set res
 }
 
 # for testing we can use noop instead of exec
@@ -43,11 +52,11 @@ proc list_files {argv} {
     # otherwise explicit files
     set narg [llength $argv]
     if {$narg == 0} {
-	return [glob "*.nii" "*HEAD" "*.nii.gz"]
+        return [glob "*.nii" "*HEAD" "*.nii.gz"]
     } elseif {$narg == 1 && [file isdirectory $argv]} {
         return [glob "$argv/*nii.gz" "$argv/*nii" "$argv/*HEAD"] 
     } else {
-	return $argv
+        return $argv
     }
 }
 # launch afni
@@ -81,7 +90,7 @@ proc update_color {how idx} {
      # then set the color back to the other's (instead of both)
      set restore_color $COLORS(VISITED)
      if { $COLORED_IDX($how) == $COLORED_IDX($other) } {
-	 set restore_color $COLORS($other)
+        set restore_color $COLORS($other)
      }
      set_color $COLORED_IDX($how) $restore_color
  }
@@ -121,7 +130,7 @@ proc fuzzy {how} {
     set opts [.lb get 0 end]
     catch {set sel [exec echo [join $opts \n] | {*}$SELECTOR]}
     if {$sel ne ""} {
-	select_img $how [lsearch -exact $opts $sel]
+      select_img $how [lsearch -exact $opts $sel]
     }
 }
 
@@ -161,7 +170,8 @@ wm protocol . WM_DELETE_WINDOW { afni_plug QUIT; destroy .}
   "enter,C-enter: set under/overlay"
   "O: overlay off"
   "o: overlay on"
-  "U: swap over/under"} \n ] 
+  "U: swap over/under"
+  "& in afni: 3/#, 4/$, 5/% for splits"} \n ]
 
 # display
 # pack forget .lb .sb .note
