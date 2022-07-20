@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+#
+# intended to be used by tat2
+# get a mask of the lowest varience region
+#
+# 20220720WF - init
+#
+[ -v DRYRUN ] && DRYRUN=echo || DRYRUN=
+warn(){ echo "$@" >&2; }
+
+mask_by_var() {
+   local minvol=125 # min 5mm*5mm*5mm
+   local pct_thres=2
+   local std=$outd/vx_std.nii.gz
+   local clst=$outd/vx_std_clust  # .1d and .nii.gz created
+   local pct_file=$outd/std_pct.txt
+   local pct_val input mask outd
+   local input="$1"; shift
+   ## optional inputs
+   outd=/tmp # default output to temp
+   [ $# -gt 0 ] && local outd="$1" && shift
+   mask=$std # use no mask by default by using std of input
+   [ $# -gt 0 ] && mask="$1" && shift
+
+   3dTstat -overwrite -prefix $std -stdev $input >&2
+   # calc value to threshold. abs use is redundant stdev cant be negative
+   3dmaskave -quiet \
+      -mask "3dcalc(-a $std -m $mask -expr step(step(m)*abs(a)) )" \
+      -perc $pct_thres\
+      $std > $pct_file
+
+   pct_val=$(cat $pct_file)
+   3dClusterize -overwrite \
+      -NN 1 -inset $std -ithr 0 \
+      -within_range 0 $pct_val \
+      -pref_map $clst.nii.gz \
+      -clust_vol $minvol > $clst.1d
+
+   ## get lowest std cluster
+   # local vals_txt=${clst}_vals.txt
+   # 3dROIstats -quiet -mask $clst.nii.gz $std |tr '\t' '\n' |sed 1d > $vals_txt
+   # read minclust_i minclust_val <<< $(perl -lne 'if(!$m||$_<abs($m)){$i=$.; $m=$_}END{print $i," ", $m;}' $vals_txt)
+
+   # [ -z "$minclust_val" ] &&
+   #    echo "ERROR: no clusters in $std ($input) for $minvol mm^3 at $pct_thres% ($pct_val)!?" >&2 &&
+   #    return 1
+   # local outmask=$outd/vx_minsd_clust${minclust_i}-${minclust_val}_mask.nii.gz
+   # 3dcalc -a $clst.nii.gz"<$minclust_i>" -expr 'step(a)' -prefix "$outmask" >&2
+
+   ## all clusters together
+   local outmask=$outd/vx_minsd_clust-lt-${pct_val}_mask.nii.gz
+   3dcalc -a $clst.nii.gz -expr 'step(a)' -prefix "$outmask" >&2
+   echo $outmask
+}
+usage(){
+   echo "USAGE: $0 4d.nii.gz [output_dir/] [mask.nii.gz]"
+}
+
+# if not sourced (testing), run as command
+if ! [[ "$(caller)" != "0 "* ]]; then
+  set -euo pipefail
+  trap 'e=$?; [ $e -ne 0 ] && echo "$0 exited in error $e"' EXIT
+  [ $# -eq 0 ] && usage && exit 1
+  mask_by_var "$@"
+  exit $?
+fi
+
+####
+# testing with bats. use like
+#   bats ./3dLowestStd --verbose-run
+####
+if  [[ "$(caller)" =~ /bats.*/preprocessing.bash ]]; then
+@test "init" {
+   mask_by_var
+}
+fi
