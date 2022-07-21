@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 env | grep ^DRYRUN= && DRYRUN=echo || DRYRUN=""
+[ -v NOECHOCHECK ] && NOECHOCHECK="check" || NOECHOCHECK=""
 
 #
 #run dcm2niix with 3dNotes wrapper. check for existing file
@@ -57,6 +58,8 @@ main(){
   dcm_folder="$@"; shift
   [ -r "$nii_out" ] && echo "# have '$nii_out'" && exit 0
   test -r "${nii_out/magnitude.nii.gz/magnitude1.nii.gz}" && echo "# have '$_', considering that the same as '$nii_out'" && exit 0
+  test -z "$NOECHOCHECK" -a -r "${nii_out/.nii.gz/_e1.nii.gz}" &&
+     echo "# have '$_', considering that the same as '$nii_out' (set export NOECHOCHECK=check)" && exit 0
   [ ${nii_out:(-7)} != ".nii.gz" ] && echo "output must have .nii.gz extention!" && exit 1
   
   # should let dcm2niix just fail instead of doing the work here?
@@ -89,6 +92,14 @@ main(){
      *phase|*phasediff)
        rename-recent have? || exit 1 # dont convert if we have the wrong rename
        rename-recent 's/_e\d+(_ph)?(.nii.gz|.json)$/$2/' $outdir "$outname*"
+     ;;
+      *task-*_bold)
+         # add rest taskname to json sidecar
+         local task
+         [[ $outname =~ task-([^-_.]*) ]] && task=${BASH_REMATCH[1]}
+         if [ -z "$task" ]; then echo "WARNING: unknown taskname for $outdir/$outname!"; else 
+            grep -L TaskName "$outdir/$outname.json" |xargs -r sed -i "s/^{/{\\n  \"TaskName\": \"$task\",/"
+         fi
      ;;
   esac
   

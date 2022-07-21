@@ -27,6 +27,17 @@ teardown() {
   mknii test.nii.gz test.dcm 
   [ -r test.nii.gz ]
 }
+@test mknii-taskname {
+  mkdcm.py "test.dcm" 
+  mknii sub-x_task-rest_bold.nii.gz test.dcm 
+  [ -r sub-x_task-rest_bold.nii.gz ]
+  [ -r sub-x_task-rest_bold.json ]
+  grep TaskName sub-x_task-rest_bold.json
+
+  mknii second.nii.gz test.dcm 
+  [ -r second.json ]
+  ! grep TaskName second.json
+}
 @test mknii-mkdir {
   mkdcm.py "test.dcm" 
   mknii sub-1/ses-1/junk/test.nii.gz test.dcm 
