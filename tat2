@@ -57,9 +57,10 @@ SYNOPSIS
         # tune with -{median,mean,zscor}_vol, and -mask, -mkmask, or -mask_rel
      2) 3dcalc -x input_1  -m volnorm_1.1D -expr "(x/m)*SCALE/numvox #rep. f.ea. input
         # tune with -no_voxscale, -scale
+        # numvox derived from mask (but output not masked)
      3) 3dTstat allnormed_concated.nii.gz
         # tune with -{median,mean}_time
-  final 'tat2start.nii.gz' will be in the cwd
+  final '$OUTPUT' will be in the cwd
 
 OPTIONS (in order of relevance)
   -censor_rel FILE
@@ -103,7 +104,7 @@ OPTIONS (in order of relevance)
 
   -inverse     create 1/t2* and use as initial input
   -zscore_vol  changes expression to '(x-m)/s' instead of 'x/m' for 3dcalc vol norm
-  -no_voxscale disables scaleing. (SCALE=1, not normalized by number of nzvoxels)
+  -no_voxscale disables scaling. (SCALE=1, not normalized by number of nzvoxels)
 
 
   -noclean     keeps tmp folder around, useful for debugging
