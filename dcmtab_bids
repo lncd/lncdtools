@@ -9,6 +9,7 @@ use Data::Dumper;
 my %mode_folder = (dwi=>'dwi',
    T1w=>'anat', T2w=>'anat',
    bold=>'func', sbref=>'func',
+   epi=>'fmap',
    'magnitude'=>'fmap', 'magnitude1'=>'fmap', 'magnitude2'=>'fmap',
    'phase'=>'fmap', 'phase1'=>'fmap', 'phase2'=>'fmap', 'phasediff'=>'fmap');
 my @attributes_ordered = qw/task acq ce dir rec run echo mode/;
@@ -82,11 +83,20 @@ sub dsl($class, $cfgstring) {
    # bold=mytask;pname=rest,ndcm=180;3
    # bold=rest;pname=rest,ndcm=180
    # T1w;pname=mprage,ndcm=176
+   # epi;pname=spinecho,ndcm=4;dir=AP
+   
+   # excpliclty check number of seps b/c ; and , is confusing and hard to debug
+   # expect at most 2 ';' seps between 3 pieces: mode ; criteria ; #runs
+   # but also can have acq= and dir=
    my $help_msg="Want eg. bold=mytask;pname=MyTask,ndcm=180;3";
-   croak "bad separator: too many ';' in '$cfgstring'. $help_msg" if scalar(()=$cfgstring =~ m/;/g) > 2;
-   $cfgstring =~ m/^(?<mode>[^;=]+)=?(?<task>[^;]+)?;(?<matches>[^;]+);?(?<n_expect>\d+)?$/ or
+   my $max_seps = 2;
+   my $extra_colons = scalar(()=$cfgstring =~ m/(acq|dir)=/g);
+   my $n_seps_seen  = scalar(()=$cfgstring =~ m/;/g);
+   croak "bad separator: too many ';' in '$cfgstring'. $help_msg" if $n_seps_seen > ($max_seps + $extra_colons);
+
+   $cfgstring =~ m/^(?<mode>[^;=]+)=?(?<task>[^;]+)?;(?<matches>[^;]+);?(?<n_expect>\d+)?(;dir=(?<dir>[^;=]+))?(;acq=(?<acq>[^;=]+))?$/ or
      croak "criteria: failed to parse '$cfgstring'. $help_msg";
-   my %bids = %+{qw/mode task/};
+   my %bids = %+{qw/mode task dir acq/};
    my $n_expect = $+{n_expect};
    my %matches = map {split /=/} (split /,/, $+{matches});
    return new($class,
@@ -238,7 +248,7 @@ dcmtab_bids
 =head1 SYNOPSIS
 
    dcmdirtab -s 'E\d+' -d 'E07/scans/*/' |
-    dcmtab_bids 'bold=rest;ndcm=574;pname=EYESFIXED' 'T1w;pname=mprage,ndcm=176'
+    dcmtab_bids 'bold=rest;ndcm=574,pname=EYESFIXED;acq=slow' 'T1w;pname=mprage,ndcm=176'
 
 
 Generate commands from dicom info tsv and bids criteria.
@@ -250,9 +260,11 @@ Input likely from C<dcmdirtab>. See C<--help> for more.
 
 =over 4
 
-=item 'mode;pattern,pattern;runs'
+=item 'mode;pattern,pattern[;runs][;acq=label][;dir=label]'
 
-specification for data to BIDS. quote and provide as many as needed.
+specification for data to BIDS.
+'runs' (number indicating number of repeats), acq (string label), and dir (string label) are optional. but when more than one is specified, they must be in order.
+Quote each as specification as a single argument and provide as many as needed.
 
 Example criteria specifications
 
@@ -263,6 +275,7 @@ Example criteria specifications
    T1w;pname=mprage,ndcm=176
    magnitude1;pname=FieldMap,ndcm=144
    phasediff;pname=FieldMap,ndcm=72
+   epi;pname=SpinEchoAP,ndcm=4;dir=AP
 
 =back
 
@@ -303,7 +316,9 @@ my %c=(n_expect=>1, matches=>{pname => qr/rest/, ndcm=>180}, bids=>{mode=>"bold"
 my $crt = criteria->new(%c);
 ok criteria->new(%c), "make criteria";
 ok criteria->dsl('bold=mytask;pname=rest,ndcm=180;3'), "criteria from string";
-dies_ok criteria->dsl('bold=mytask;pname=rest;ndcm=180;3'), "bad separator";
+dies_ok {criteria->dsl('bold=mytask;pname=rest;ndcm=180;3')} "bad separator";
+dies_ok {criteria->dsl('bold=mytask,pname=rest;ndcm=180;3;')} "bad separator";
+dies_ok {criteria->dsl('bold=mytask;pname=rest;ndcm=180;3;dir=AP')} "bad separator w/dir";
 
 my $cdsl = criteria->dsl('bold=mytask;pname=rest,ndcm=180;3');
 is $cdsl->{n_expect}, 3, "criteria dsl nexpect";
@@ -334,5 +349,17 @@ is $res[0][0], "./nonsense.nii.gz", "use criteria->{bids} is function instead of
 is @res, 4, "found all short rests ";
 is scalar(grep {$_->[0] =~ /run-2/} @res), 1, "only 1 run2";
 is scalar(grep {$_->[0] =~ /run-1/} @res), 3, "2 run 1s";
+
+$cdsl = criteria->dsl('epi;pname=rest,ndcm=180;dir=AP');
+is $cdsl->{n_expect}, 1, "criteria dsl nexpect omited but have dir";
+is $cdsl->{bids}->{dir}, "AP", "criteria dsl: direction";
+
+$cdsl = criteria->dsl('bold;pname=rest,ndcm=180;acq=xyz;dir=PA');
+is $cdsl->{n_expect}, 1, "criteria dsl nexpect omited but have dir";
+is $cdsl->{bids}->{acq}, "xyz", "criteria dsl: direction";
+is $cdsl->{bids}->{dir}, "PA", "criteria dsl: direction";
+@res=heuristic::parse($sequences->[0], [$cdsl]);
+ok $res[0][0] =~ m:sub-1/.*func_acq-xyz_dir-PA_bold.nii.gz:,
+   "output is sub-1 rest xxx/yyyy with acq and dir";
 
 done_testing;
