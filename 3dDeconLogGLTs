@@ -1,0 +1,17 @@
+#!/usr/bin/env perl
+use strict; use warnings; use v5.34;
+my $name=$ARGV[0];
+my %h;
+my %_h;
+my $key;
+while($_=<STDIN>){
+   $key=$2 if /(Gen|Stim).*: ([^ ]*)/;
+   $h{$name}{"${key}_$1"}=$2 if /^\W+(LC|h).*=.*?([0-9.]+)/;
+}
+
+my @vals=sort (keys %{$h{(keys %h)[0]}});
+say join("\t","name",@vals);
+for my $f (keys %h){
+  %_h = %{$h{$f}};
+  say join("\t",$f, @_h{@vals} );
+}
