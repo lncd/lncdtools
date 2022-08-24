@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-set -euo pipefail
 env | grep ^DRYRUN= && DRYRUN=echo || DRYRUN=""
 [ -v NOECHOCHECK ] && NOECHOCHECK="check" || NOECHOCHECK=""
 
@@ -51,67 +50,111 @@ rename-phase(){
   local pattern='s/_e\d+(_ph)?(.nii.gz|.json)$/$2/'
   _rename-recent "$pattern" "$@"
 }
+rename-epi-multiecho(){
+  local outdir="$1"; shift
+  local outname="$1"; shift
+  if [ -r "$outdir/${outname}_e1.nii.gz" ]; then
+     echo "# trying to rename multiecho seq $outname";
+     _rename-recent 's/(sbref|bold)_e(\d+).(json|nii.gz)/echo-$2_$1.$3/' "$outdir" "${outname}_e*"
+  fi
+}
+
+add_echo_name(){ perl -pe 's/_(bold|sbref).nii.gz/_echo-1_$1.nii.gz/' <<< "$*"; }
+multiecho_exists(){
+  # okay to flag nii_out as mutliecho even if it's not
+  # will have been caught earlier
+  local nii_out="$1"
+  for ME_name in "${nii_out/.nii.gz/_e1.nii.gz}" \
+    "${nii_out/magnitude.nii.gz/magnitude1.nii.gz}" \
+    "$(add_echo_name "$nii_out")"; do
+   ! test -r "$ME_name" && continue
+   echo "# have '$ME_name', considering that the same as '$nii_out' (set export NOECHOCHECK=1 to go anyway)"
+   return 0
+ done
+ return 1
+}
+
+add_json_task(){
+  local outdir="$1"; shift
+  local outname="$1"; shift
+  local task
+  [[ $outname =~ task-([^-_.]*) ]] && task=${BASH_REMATCH[1]}
+  if [ -z "$task" ]; then
+     echo "WARNING: unknown taskname for $outdir/$outname!";
+     return 0
+  else
+     me_name=$(perl -pe 's/_(bold|sbref)$/_echo-*_$1/' <<< "$outname");
+     echo "$outdir $outname $me_name" >&2
+     find "$outdir" -maxdepth 1 -type f \
+        \( -name "$outname.json" -or -name "$me_name.json" \) |
+        xargs -r grep -L TaskName |
+        xargs -r $DRYRUN sed -i "s/^{/{\\n  \"TaskName\": \"$task\",/"
+  fi
+  return 0
+}
 
 main(){
+  set -euo pipefail
   [ $# -ne 2 ] && usage
   nii_out="$1"; shift
-  dcm_folder="$@"; shift
+  dcm_folder="$*"; shift
   [ -r "$nii_out" ] && echo "# have '$nii_out'" && exit 0
-  test -r "${nii_out/magnitude.nii.gz/magnitude1.nii.gz}" && echo "# have '$_', considering that the same as '$nii_out'" && exit 0
-  test -z "$NOECHOCHECK" -a -r "${nii_out/.nii.gz/_e1.nii.gz}" &&
-     echo "# have '$_', considering that the same as '$nii_out' (set export NOECHOCHECK=check)" && exit 0
-  [ ${nii_out:(-7)} != ".nii.gz" ] && echo "output must have .nii.gz extention!" && exit 1
-  
+  [ ${nii_out:(-7)} != ".nii.gz" ] &&
+     echo "output must have .nii.gz extention!" && exit 1
+
+  test -z "$NOECHOCHECK"  && multiecho_exists "$nii_out" && exit 0
+
   # should let dcm2niix just fail instead of doing the work here?
   # [ $(find -L "$dcm_folder" \( -type f -or -type l \) -print -quit|wc -l) -le 0  ] && echo "# '$dcm_folder' DNE or is empty?" && exit 1
-  
+
   outname="$(basename "$nii_out" .nii.gz)"
   outdir="$(dirname "$nii_out")"
   [ ! -d "$outdir" ] && $DRYRUN mkdir -p "$outdir"
-  
-  #pretimestamp=$(mktemp /tmp/dcmnii_XXXXXX) # -newercm $pretimestamp 
+
+  #pretimestamp=$(mktemp /tmp/dcmnii_XXXXXX) # -newercm $pretimestamp
   # TODO: add trap to cleanup file?
-  $DRYRUN dcm2niix -z y -b y -f "$outname" -o "$outdir" "$dcm_folder" 
+  $DRYRUN dcm2niix -z y -b y -f "$outname" -o "$outdir" "$dcm_folder"
   [ -n "$DRYRUN" ] && exit 0
   # if above failed, script would bail (set -e)
   # so if we don't have the file it's probably has multiple echos
-  case  $outname in 
-     *magnitude|*magnitude[12]) 
+  case $outname in
+     *magnitude|*magnitude[12])
 
        rename-recent have? || exit 1 # dont convert if we have the wrong rename
        # 20210113
        # dcm2nii  v1.0.2018 (ginger) only puts _e2 on the second echo
        # if we have _e2 and no _e1, the no _e* version is magnitude1
-       [ -r $outdir/*magnitude.nii.gz -a -r $outdir/*magnitude_e2.nii.gz ] && 
-	 rename-recent 's/magnitude\.(nii.gz|json)$/_e1.$1/' $outdir "*magnitude\.*" -v
-       rename-recent 's/[12]?_e(\d.(nii.gz|json))$/$1/' $outdir "$outname*" -v
+       [ -r "$outdir"/*magnitude.nii.gz -a -r "$outdir"/*magnitude_e2.nii.gz ] &&
+       rename-recent 's/magnitude\.(nii.gz|json)$/_e1.$1/' "$outdir" "*magnitude\.*" -v
+
+       rename-recent 's/[12]?_e(\d.(nii.gz|json))$/$1/' "$outdir" "$outname*" -v
 
        # update output for 3dNotes and final check
        [[ $outname =~ magnitude$ ]] && nii_out="$outdir/${outname}1.nii.gz"
      ;;
      *phase|*phasediff)
        rename-recent have? || exit 1 # dont convert if we have the wrong rename
-       rename-recent 's/_e\d+(_ph)?(.nii.gz|.json)$/$2/' $outdir "$outname*"
+       rename-recent 's/_e\d+(_ph)?(.nii.gz|.json)$/$2/' "$outdir" "$outname*"
      ;;
-      *task-*_bold)
-         # add rest taskname to json sidecar
-         local task
-         [[ $outname =~ task-([^-_.]*) ]] && task=${BASH_REMATCH[1]}
-         if [ -z "$task" ]; then echo "WARNING: unknown taskname for $outdir/$outname!"; else 
-            grep -L TaskName "$outdir/$outname.json" |xargs -r sed -i "s/^{/{\\n  \"TaskName\": \"$task\",/"
-         fi
+     *bold|*sbref)
+        rename-epi-multiecho "$outdir" "$outname"
      ;;
   esac
-  
+
+  # add rest taskname to json sidecar
+
+  [[ $outname =~ task-*_bold ]] &&
+     add_json_task "$outdir" "$outname"
+
   if [ ! -r "$nii_out" ]; then
      echo -e "ERROR: did not create '$nii_out'.\n\t'$dcm_folder' has a multi echo sequence??!"
      echo "NOTE: $0 can deal with this if the output name ends with 'magnitude1.nii.gz' or 'phase.nii.gz'"
      exit 1
   fi
-  
+
   # 3dNotes likes to complain. silence it
   export AFNI_NIFTI_TYPE_WARN=NO
   export AFNI_NO_OBLIQUE_WARNING="YES"
-  $DRYRUN 3dNotes -h "$0 $dcm_folder $nii_out" "$nii_out" 
+  $DRYRUN 3dNotes -h "$0 $dcm_folder $nii_out" "$nii_out"
 }
 [[ "$(caller)" != "0 "* ]] && set +u || main "$@"

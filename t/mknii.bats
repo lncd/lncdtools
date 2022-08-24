@@ -87,6 +87,76 @@ teardown() {
   [ -r sub-1_magnitude1.json ]
   [ -r sub-1_magnitude2.json ]
 }
+@test "mknii: epi multiecho bold" {
+  source $BATS_TEST_DIRNAME/../mknii
+  name=sub-1_task-rest_bold
+  touch ${name}_e{1,2}.{nii.gz,json}
+  rename-epi-multiecho ./ $name
+  ls
+  [ ! -r $name.nii.gz ]
+  [ ! -r $name.json ]
+  [ ! -r ${name}_e1.nii.gz ]
+  [ ! -r ${name}_e1.json ]
+  [ -r sub-1_task-rest_echo-1_bold.nii.gz ]
+  [ -r sub-1_task-rest_echo-1_bold.json ]
+  [ -r sub-1_task-rest_echo-2_bold.json ]
+}
+@test "mknii: epi multiecho sbref" {
+  source $BATS_TEST_DIRNAME/../mknii
+  name=sub-1_task-rest_sbref
+  touch ${name}_e{1,2}.{nii.gz,json}
+  rename-epi-multiecho ./ $name
+  ls
+  [ ! -r $name.nii.gz ]; [ ! -r $name.json ]
+  [ ! -r ${name}_e1.nii.gz ]; [ ! -r ${name}_e1.json ]
+  [ -r sub-1_task-rest_echo-1_sbref.nii.gz ]
+  [ -r sub-1_task-rest_echo-1_sbref.json ]
+  [ -r sub-1_task-rest_echo-2_sbref.json ]
+}
+@test "mknii: epi multiecho nothing on normal" {
+  source $BATS_TEST_DIRNAME/../mknii
+  name=sub-1_task-rest_sbref
+  touch ${name}.{nii.gz,json}
+  rename-epi-multiecho ./ $name
+  ls
+  [ -r $name.nii.gz ]
+  [ -r $name.json ]
+}
+
+@test "mknii: multiecho_exists" {
+  source $BATS_TEST_DIRNAME/../mknii
+
+  ! multiecho_exists sub-1_task-rest_run-3.nii.gz
+
+  touch sub-1_task-rest_echo-1_sbref.nii.gz
+  multiecho_exists sub-1_task-rest_sbref.nii.gz
+
+  touch sub-1_task-rest_run-2_sbref_e1.nii.gz
+  multiecho_exists sub-1_task-rest_run-2_sbref.nii.gz
+
+  touch magnitude1.nii.gz
+  multiecho_exists magnitude.nii.gz
+
+}
+
+@test "mknii: add_json_task" {
+  source $BATS_TEST_DIRNAME/../mknii
+  echo '{' > task-rest.json
+  echo '{' > task-rest2.json
+  echo '{' > task-rest3_echo-1_bold.json
+  echo '{' > task-rest3_echo-2_bold.json
+
+  add_json_task ./ task-rest
+  grep -q TaskName task-rest.json
+
+  add_json_task ./ task-rest3_bold
+  grep -q TaskName task-rest3_echo-1_bold.json
+  grep -q TaskName task-rest3_echo-2_bold.json
+
+  # didn't mess with the simliarly named one
+  ! grep -q TaskName task-rest2.json
+}
+
 @test "mknii: skip for mag if mag1" {
   source $BATS_TEST_DIRNAME/../mknii
 
