@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+
+# jump to an atlas ROI by searching regions with rofi
+# uses plugout_driver
+
+# 20220831WF - init
+#
+extract_name_pos() {
+   perl -lne 'print "$1\t$2 $3 $4" if m/"([\w -_0-9.]+?)".*\s+([0-9.-]{2,})\s+([0-9.-]{2,})\s+([0-9.-]{2,})/' |
+      grep -v '0.0 0.0 0.0'
+}
+
+jump_atlas(){
+ whereami -show_atlas_all 2>&1|
+  extract_name_pos|
+  rofi -dmenu|
+  cut -f2|
+  xargs -rI{} plugout_drive -quit -com 'SET_DICOM_XYZ {}'
+}
+
+[[ "$(caller)" != "0 "* ]] || jump_atlas
+
+
+function test_extract_np { #@test
+  [ 0 -eq $(echo 'xform dist: 1.000000  inverse: 0   post: 0   nelts: 27' | extract_name_pos | wc -l) ]
+  echo '++ 6: "Left-Caudate", "Left-Caudate"  12.9  -7.3   9.6' | extract_name_pos | grep ^Left
+  echo '++ 1: "Anterior Commissure", ""   0.0  -1.0  -1.0' | extract_name_pos | grep ^Anterior
+}
