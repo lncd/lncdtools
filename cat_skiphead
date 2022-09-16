@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+perl -lne '$i++;print unless $i<=0; $i=-1 if eof;' $@
