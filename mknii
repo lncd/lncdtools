@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 env | grep ^DRYRUN= && DRYRUN=echo || DRYRUN=""
+# when we are give, change value to "check"
 [ -v NOECHOCHECK ] && NOECHOCHECK="check" || NOECHOCHECK=""
+[ ! -v VERBOSE ] && VERBOSE=""
+verbose(){ [ -n "$VERBOSE" ] && echo "$*" >&2 || :; }
+
 
 #
 #run dcm2niix with 3dNotes wrapper. check for existing file
@@ -41,9 +45,8 @@ rename-mag(){
   local outdir="$1";shift
   # if input is magnitude.nii.gz and maginguted_e2.nii.gz
   # make first look like magnitude_e1 for later rename
-  find $outdir -maxdepth 1 -mtime -1 -name '*magnitude*e2*.nii.gz' |grep -q magnitude &&
+  find $outdir -maxdepth 1 -mtime -1 -name '*magnitude*e2*.nii.gz' | grep -q magnitude &&
      _rename-recent 's/magnitude(.nii.gz|.json)$/magnitude_e1$1/' $outdir "*magnitude.*"
-
   _rename-recent "$pattern" "$outdir" "$@"
 }
 rename-phase(){
@@ -67,11 +70,21 @@ multiecho_exists(){
   for ME_name in "${nii_out/.nii.gz/_e1.nii.gz}" \
     "${nii_out/magnitude.nii.gz/magnitude1.nii.gz}" \
     "$(add_echo_name "$nii_out")"; do
+   verbose "# checking for multiecho like '$ME_name'"
    ! test -r "$ME_name" && continue
    echo "# have '$ME_name', considering that the same as '$nii_out' (set export NOECHOCHECK=1 to go anyway)"
    return 0
  done
  return 1
+}
+
+find_multiechos(){
+   local outdir="$1"; shift
+   local outname="$1"; shift
+   local ext="$1"; shift
+   me_name=$(perl -pe 's/_(bold|sbref)$/_echo-*_$1/' <<< "$outname");
+   find "$outdir" -maxdepth 1 -type f \
+      \( -name "$outname$ext" -or -name "$me_name$ext" \)
 }
 
 add_json_task(){
@@ -83,12 +96,11 @@ add_json_task(){
      echo "WARNING: unknown taskname for $outdir/$outname!";
      return 0
   else
-     me_name=$(perl -pe 's/_(bold|sbref)$/_echo-*_$1/' <<< "$outname");
-     echo "$outdir $outname $me_name" >&2
-     find "$outdir" -maxdepth 1 -type f \
-        \( -name "$outname.json" -or -name "$me_name.json" \) |
-        xargs -r grep -L TaskName |
-        xargs -r $DRYRUN sed -i "s/^{/{\\n  \"TaskName\": \"$task\",/"
+     verbose "# adding task to json in '$outdir' for '$outname'"
+     find_multiechos "$outdir" "$outname" ".json" |
+        xargs -rI{} grep -L TaskName {} |
+        xargs -rI{} $DRYRUN sed -i "s/^{/{\\n  \"TaskName\": \"$task\",/" {}
+     verbose "# finished adding task name to $outdir/$outname.json"
   fi
   return 0
 }
@@ -143,18 +155,25 @@ main(){
 
   # add rest taskname to json sidecar
 
-  [[ $outname =~ task-*_bold ]] &&
+  [[ $outname =~ task-.*_bold ]] &&
      add_json_task "$outdir" "$outname"
 
-  if [ ! -r "$nii_out" ]; then
+  local nii_outs
+  mapfile -t nii_outs < <(find_multiechos "$outdir" "$outname" .nii.gz)
+
+  if [ ${#nii_outs[@]} -le 0 ]; then
      echo -e "ERROR: did not create '$nii_out'.\n\t'$dcm_folder' has a multi echo sequence??!"
      echo "NOTE: $0 can deal with this if the output name ends with 'magnitude1.nii.gz' or 'phase.nii.gz'"
+     echo "     or for _bold and _sbref files"
      exit 1
   fi
 
   # 3dNotes likes to complain. silence it
   export AFNI_NIFTI_TYPE_WARN=NO
   export AFNI_NO_OBLIQUE_WARNING="YES"
-  $DRYRUN 3dNotes -h "$0 $dcm_folder $nii_out" "$nii_out"
+  verbose "# adding 3dNotes"
+  for nii_out_me in "${nii_outs[@]}"; do
+     $DRYRUN 3dNotes -h "$0 $dcm_folder $nii_out" "$nii_out_me"
+  done
 }
 [[ "$(caller)" != "0 "* ]] && set +u || main "$@"
