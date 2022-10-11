@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+if [ -v DRYRUN ] && [ -n "$DRYRUN" ]; then
+    DRYRUN=echo
+else
+    DRYRUN=""
+fi
+$DRYRUN "$@"
