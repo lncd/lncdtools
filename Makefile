@@ -1,6 +1,9 @@
-.PHONY: docker test coverage
+.PHONY: docker test coverage docker-test
 
-test:
+warn: src/warn.c
+	gcc -o warn $<
+
+test: warn
 	bats --tap t/
 	perl-run-end dcmtab_bids
 
