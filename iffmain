@@ -1,0 +1,32 @@
+#!/usr/bin/env perl
+
+=head1 SYNOPSIS
+print bash code to test if script is run or sourced
+output code tests if we are run directly from a script (vs source/testing)
+if from script:
+ - execute provided main function
+ - in bash "strict" mode 
+ - with an exit trap
+
+=head1 USAGE
+
+in a bash/library with "mainfunc" defined use near end of file/script
+
+   eval "$(iffmain "mainfunc")"
+
+=cut
+
+# read from end of this file
+# replace MAINFUNCNAME in template below with first input argument
+while(<DATA>){
+  s/MAINFUNCNAME/$ARGV[0]/g;
+  print
+}
+
+__DATA__
+if [[ "$(caller)" == "0 "* ]]; then
+  set -euo pipefail
+  trap 'e=$?; [ $e -ne 0 ] && echo "$0 exited in error $e"' EXIT
+  MAINFUNCNAME "$@"
+  exit $?
+fi
