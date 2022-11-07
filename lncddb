@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
 # see ~/.pgpass for credentials
-dbcmd='psql -h arnold.wpic.upmc.edu lncddb lncd'
+host=10.145.64.121 # anrold.wpic.upmc.edu # 20221004 - arnold psql down using reese
+dbcmd="psql -h $host lncddb lncd"
 [ $# -ne 0 ] && $dbcmd -AF$'\t' -qtc "$@" || $dbcmd
