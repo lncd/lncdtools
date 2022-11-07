@@ -34,7 +34,7 @@ deconreml(){
       -overwrite
    
    test -r "${prefix}_REMLvar.nii.gz" ||
-    3dREMLfit -matrix "${prefix}.xmat.1D"\
+    OMP_NUM_THREADS=${DECON_NJOBS:-10} 3dREMLfit -matrix "${prefix}.xmat.1D"\
       -input "$ts4d" \
       $maskswitch -rout -tout \
       -Rbuck "${prefix}_REML.nii.gz" \
