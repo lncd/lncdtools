@@ -11,7 +11,7 @@ set -euo pipefail
 
 ID_PATT='\d{5}_\d{8}'
 IN_PATT='s:.*/|.nii$|.nii.gz$|.HEAD$::g'
-NJOBS=1
+NJOBS=1 DATATABLE="" DATACOL=""
 
 # remove common neuroimaging file extensions
 # and also strip out any usafe characters (eg. <1> range selectors)
@@ -29,11 +29,15 @@ run 3dmaskave over many files and saves an output csv:
 
 USAGE:
 $(basename $0) -csv dlpfc.csv -mask "mask.nii.gz" -- paths/to/1*_2*/inputs.nii.gz
+3dmaskave_grp -njobs 3 -v -datatable /tmp/dt.tsv -label_col 2,3 -m "ACC_1=$mask"
 
 3dmaskave_grp -csv MPFC-ACC_1.csv -m "ACC=mask.nii.gz" -m "PFC=mask_many.nii.gz<3>" -- paths/to/1*_2*/inputs.nii.gz
 
   -m|-mask NAME=MASK    input mask optionally with afni selector
   -csv  FILE            save csv as FILE (defaults to NAME.csv)
+  -datatable FILE       use datatable as input. req Subj is first and InputFile last col
+  -label_col IDX        req. for datatable. what col index to use for labels
+                        csv for multiple: -label_col "3,4"
   -redo                 rerun, overwritting old
                           defaults to only writting new lines if not already in csv
   -pattern PAT          use PAT to extract id (default: '$ID_PATT')
@@ -53,7 +57,7 @@ NOTE:
 
  # for inputs and a mask like
  IN=(/Volumes/Hera/Projects/7TBrainMech/subjs/101*/conn_mrsi_rest/mxcovsph/08-MPFC_deconreml-r.nii.gz)
- mask='mvm/ACC_p2-16_cl40.nii.gz<1>'
+ mask='/Volumes/Hera/Projects/Maria/7Trest_mrsi/mvm/ACC_p2-16_cl40.nii.gz<1>'
 
  # compare this tool
  3dmaskave_grp -csv MPFC-ACC_1.csv -mask "ACC_1=\$mask" -- "\${IN[@]}"
@@ -79,42 +83,75 @@ parse_args(){
         -redo) REDO=1; shift;;
         -h|-usage) usage; exit 0;;
         -v|-verbose) VERBOSE=1; shift;;
+        -datatable) DATATABLE="$2"; shift 2;;
+        -label_col) DATACOL="$2"; shift 2;;
         -njobs) NJOBS="$2"; shift 2;;
         *) warn "UNKNOWN ARG: '$1'"; usage; exit 1;;
      esac
    done
-   [ -z "${MASK[*]}" ] && warn "ERROR: need -mask 'mask.nii.gz' to be specified" && exit 1
-   [ -z "${CFILES[*]}" ] && warn "ERROR: must specify subject/to-mask input files! use -- file1 file2 ..." && exit 2
-   [ -z "${OUTNAME:-}" -a ${#MASK[@]} -eq 0 ] && OUTNAME="$(niibasename "${MASK[0]}").csv"
+   [ -z "${MASK[*]}" ] && warn "ERROR: need -mask 'mask.nii.gz' to be specified" && return 1
+   [ -z "$DATATABLE" -a -z "${CFILES[*]}" ] && warn "ERROR: must specify subject/to-mask input files! use -datatable file.txt  or  -- file1.nii.gz file2.nii.gz ..." && return 2
+   # only name out same as mask if only one mask
+   [ -z "${OUTNAME:-}" -a ${#MASK[@]} -eq 1 ] && OUTNAME="$(niibasename "${MASK[0]}").csv"
+   [ -z "${OUTNAME:-}" ] && warn "ERROR: need -csv OUTNAME" && return 3
    return 0
 }
 
 check_mask() {
    mask="$1"
-   maskval=$(3dmaskave -q -mask "$mask" "$mask"|| echo 0)
+   maskval=$(3dmaskave -q -mask "$mask" "$mask" 2>/dev/null|| echo 0)
    [[ $maskval == 0 ]] && warn "ERROR:BAD MASK: '$mask'" && return 1
    return 0
 }
-maskave_csv() {
-   name="$1"; shift
-   mask="$1"; shift
-   cfile="$1"; shift
-  	#subj=$(echo $cfile | cut -d "/" -f7)
-   input_name="$(perl -pe "$IN_PATT" <<< "$cfile")"
-  	id=$(grep -m1 -oP "$ID_PATT" <<< "$cfile" | sed 1q)
-   [ -z "$id" ] && warn "# no subj id in '$cfile' matching '$ID_PATT'" && return 0
 
-   if [[ $REDO -eq 0 ]] && grep -q "$name,$id,$input_name," "$OUTNAME"; then
-      [ -n "${VERBOSE:-}" ] && warn "# id+input $id+$input_name in $OUTNAME"
-      return 0
-   fi
+name_in_file() { perl -pe "$IN_PATT" <<< "$*"; }
+id_in_file() { grep -m1 -oP "$ID_PATT" <<< "$*" | sed 1q; }
 
-  	cmd="3dmaskave -quiet -mask '$mask' $cfile"
-  	[ -n "${VERBOSE:-}" ] && warn "$cmd"
-
-  	val="$(eval "$cmd"||echo NA)"
-  	echo "${name},${id},${input_name},${val}"
+name_patt_test() { #@test
+   run name_in_file /Volumes/Hera/Projects/7TBrainMech/subjs/10129_20180917/conn_mrsi_rest/mxcovsph/08-MPFC_deconreml-r.nii.gz
+   [[ $output == 08-MPFC_deconreml-r ]]
 }
+id_patt_test() { #@test
+   run id_in_file /Volumes/Hera/Projects/7TBrainMech/subjs/10129_20180917/conn_mrsi_rest/mxcovsph/08-MPFC_deconreml-r.nii.gz
+   [[ $output == 10129_20180917 ]]
+}
+
+maskave_NA() {
+   local mask_file="$1";shift
+   local cfile="$1";shift
+   cmd="3dmaskave -quiet -mask '$mask_file' $cfile"
+   [ -n "${VERBOSE:-}" ] && warn "$cmd"
+   eval "$cmd" || echo NA
+}
+already_exists() {
+   if [[ $REDO -eq 0 ]] && grep -q "$*" "$OUTNAME"; then
+      [ -n "${VERBOSE:-}" ] && warn "# '$*' already in $OUTNAME"
+      return 0
+   else
+      return 1
+   fi
+}
+maskave_filename_info() {
+  local input_name="$(name_in_file "$3")"
+  local id="$(id_in_file "$3")"
+  [ -z "$input_name" ] && warn "# no subj id in '$3' matching '$IN_PATT'" && return 0
+  [ -z "$id" ] && warn "# no subj id in '$3' matching '$ID_PATT'" && return 0
+  maskave_csv "$@" "$input_name" "$id"
+}
+
+maskave_csv() {
+   mask_name="$1"; shift
+   mask_file="$1"; shift
+   cfile="$1"; shift
+   input_name="$1"; shift
+   id="$1"; shift
+
+   already_exists "$mask_name,$id,$input_name," && return 0
+
+   val="$(maskave_NA "$mask_file" "$cfile")"
+   echo "${mask_name},${id},${input_name},${val}"
+}
+
 split_name(){
    local name mask name_mask="$1"
    name=${name_mask/=*/}
@@ -167,10 +204,76 @@ check_all_masks(){
   fi
 }
 
+maskave_grp_files(){
+  local name="$1"; shift
+  local mask="$1"; shift
+  local input_files=("$@");
+  warn "# extracting '$name' ($mask) mean from ${#input_files[@]} files"
+  if [ "$NJOBS" -gt 1 ]; then
+     parallel --jobs "$NJOBS" -q \
+        maskave_filename_info "$name" "$mask" ::: "${input_files[@]}" >> "$OUTNAME"
+  else
+     for cfile in "${input_files[@]}"; do
+        maskave_filename_info "$name" "$mask" "$cfile"  >> "$OUTNAME"
+     done
+  fi
+}
+maskave_grp_datatable(){
+   local name mask table cols
+   read -r name mask table cols <<< "$@"
+   mapfile -t ids < <(cut -f 1 "$table"|sed 1d)
+   mapfile -t labels < <(cut -f "$cols" "$table"| sed '1d;s/\s\+/_/g')
+   lastcol=$(awk '{print NF; exit}' "$table")
+   mapfile -t files < <(cut -f "$lastcol" "$table"|sed 1d)
+
+   # NB. this might hit max number of input args for large datatable files
+   parallel --jobs "$NJOBS" -q \
+     maskave_csv "$name" "$mask" \
+       :::+ "${files[@]}" \
+       :::+ "${labels[@]}" \
+       :::+ "${ids[@]}" \
+        >> "$OUTNAME"
+}
+
+check_datatable(){
+    local file="$1"; shift
+    local data_col="$1"; shift
+    ! test -r "$file" && warn "ERROR: cannot read $file!" && return 5
+
+    if ! sed 1q "$file" |grep -q '^Subj.*InputFile$' ; then
+        warn "ERROR: '$file' must start with Subj and end with InputFile"
+        return 5
+    fi
+
+    if grep -qm1 ' ' "$file"; then
+        warn "ERROR: '$file' includes spaces! must be tab delimited for this script"
+        return 5
+    fi
+
+    if [ -z "$data_col" ]; then
+        warn "ERROR: must specify -label_col when using -datafile"
+        return 6
+    fi
+
+    fcols=$(awk '{print NF; exit}' "$file")
+    maxcol=$(tr ',' '\n' <<< "$data_col"|sort -nr|sed 1q)
+    if [ $fcols -lt $maxcol ]; then
+        warn "ERROR: -label_col '$data_col' (max=$maxcol) when file has only $fcols columns"
+        return 6
+    fi
+
+    return 0
+}
+
 main() {
   [ $# -eq 0 ] && usage && exit
-  parse_args "$@"
+  parse_args "$@" || exit $?
+  warn "# checking all input masks"
   check_all_masks "${MASK[@]}"
+
+  if [ -n "$DATATABLE" ]; then
+      check_datatable "$DATATABLE" "$DATACOL" || exit $?
+  fi
 
   # don't need to check file for maskave if file is empty.
   # run will be the same as REDO anyway
@@ -180,20 +283,18 @@ main() {
   fi
 
   # export functions and pattern vars for gnu parallel
-  export -f check_all_masks cnt_test maskave_csv
-  export IN_PATT ID_PATT OUTNAME
+  export -f check_all_masks cnt_test maskave_csv \
+            name_in_file id_in_file maskave_NA \
+            already_exists maskave_filename_info
+  export IN_PATT ID_PATT OUTNAME REDO VERBOSE
 
   for name_mask in "${MASK[@]}"; do
-     read -r name mask <<< "$(split_name "$name_mask")"
-     warn "# extracting '$name' ($mask) mean from ${#CFILES[@]} files"
-     if [ "$NJOBS" -gt 1 ]; then
-        parallel --jobs "$NJOBS" -q \
-           maskave_csv "$name" "$mask" ::: "${CFILES[@]}" >> "$OUTNAME"
-     else
-        for cfile in "${CFILES[@]}"; do
-           maskave_csv "$name" "$mask" "$cfile"  >> "$OUTNAME"
-        done
-     fi
+    read -r name mask <<< "$(split_name "$name_mask")"
+    if [ -z "$DATATABLE" ]; then
+      maskave_grp_files "$name" "$mask" "${CFILES[@]}"
+    else
+      maskave_grp_datatable "$name" "$mask" "$DATATABLE" "$DATACOL"
+    fi
   done
 }
 
