@@ -1,0 +1,184 @@
+#!/usr/bin/env bash
+set -euo pipefail
+#
+# 0.for a given mask
+# 1.iterate over subject image volumes, extracting roi average values
+# 2.saves to ld8+roi+mask single row comma seprated value 
+#     "${maskname},${subj},${roi},${val}" 
+#
+# 20221108WF - extracted from various 07* scripts
+#
+
+ID_PATT='\d{5}_\d{8}'
+IN_PATT='s:.*/|.nii$|.nii.gz$|.HEAD$::g'
+
+# remove common neuroimaging file extensions
+# and also strip out any usafe characters (eg. <1> range selectors)
+niibasename(){ perl -pe 's:.*/|\.nii.gz|\.nii|\.HEAD::g;s/\W+/_/g;s/_$//;' <<< "$*"; }
+function niibase_test { #@test
+   run niibasename 'path/to/ab.nii.gz<1>'
+   echo $output >&2
+   [[ $output == ab_1 ]]
+}
+
+usage(){ cat <<HEREDOC
+SYNOPSIS:
+run 3dmaskave over many files, save csv like:
+  roi,subj,input,beta
+
+USAGE:
+$(basename $0) -mask "mask.nii.gz<2>" -name dlpfc -csv dlpfc.csv -- paths/to/1*_2*/inputs.nii.gz
+
+3dmaskave_grp -csv MPFC-ACC_1.csv -m "ACC=mask.nii.gz<2>" -m "PFC=mask.nii.gz<3>" -- paths/to/1*_2*/inputs.nii.gz
+
+  -m|-mask NAME=MASK    input mask optionally with afni selector
+  -csv  FILE            save csv as FILE (defaults to NAME.csv)
+  -redo                 rerun, overwritting old 
+                          defaults to only writting new lines if not already in csv
+  -pattern PAT          use PAT to extract id (default: '$ID_PATT')
+  -inputext PAT         perl 's///' to extract input name (default: '$IN_PATT')
+  -v|-verbose           print when not writting b/c already exists in csv
+  -h|-usage             this text
+
+  -- FILE1 FILE2 ...  input files listed after '--', probably use a glob
+
+NOTE:
+ you may want 3dROIstats instead. It can do more and quicker!
+
+ # for inputs and a mask like
+ IN=(/Volumes/Hera/Projects/7TBrainMech/subjs/101*/conn_mrsi_rest/mxcovsph/08-MPFC_deconreml-r.nii.gz)
+ mask='mvm/ACC_p2-16_cl40.nii.gz<1>'
+
+ # compare this tool
+ 3dmaskave_grp -csv MPFC-ACC_1.csv -mask "ACC_1=\$mask" -- "\${IN[@]}"
+ # vs
+ 3dROIstats -mask "\$mask" "\${IN[@]}"
+
+ # and the perl extraction version
+ 3dROIstats -mask "\$mask" "\${IN[@]}" |
+   perl -slane '/\\d{5}_\\d{8}/ || next; print "\$mask,$&,",\$F[0]=~s:.*/|.nii.gz$::gr,",\$F[2]"' -- -mask=ACC_1
+HEREDOC
+}
+parse_args(){
+   MASK=()
+   REDO=0
+   CFILES=()
+   while [ $# -gt 1 ]; do
+     case "$1" in
+        --) shift; CFILES=("$@"); break;;
+        -m|-mask) MASK+=("$2"); shift 2;;
+        -csv) OUTNAME="$2"; shift 2;; # def to basename of mask.csv
+        -redo) REDO=1; shift;;
+        -pattern) ID_PATT="$1"; shift;;
+        -inputext) IN_PATT="$1"; shift;;
+        -usage) usage; exit 0;;
+        -v|-verbose) VERBOSE=1; shift;;
+        *) warn "UNKOWN ARG: '$1'"; usage; exit 1;;
+     esac
+   done
+   [ -z "${MASK[*]}" ] && warn "ERROR: need -mask 'mask.nii.gz' to be specified" && exit 1
+   [ -z "${CFILES[*]}" ] && warn "ERROR: must specify subject/to-mask input files! use -- file1 file2 ..." && exit 2
+   [ -z "${OUTNAME:-}" -a ${#MASK[@]} -eq 0 ] && OUTNAME="$(niibasename "${MASK[0]}").csv"
+   return 0
+}
+
+check_mask() {
+   mask="$1"
+   maskval=$(3dmaskave -q -mask "$mask" "$mask"|| echo 0)
+   [[ $maskval == 0 ]] && warn "ERROR:BAD MASK: '$mask'" && return 1
+   return 0
+}
+maskave_csv() {
+   name="$1"; shift
+   mask="$1"; shift
+   cfile="$1"; shift
+  	#subj=$(echo $cfile | cut -d "/" -f7)
+   input_name="$(perl -pe "$IN_PATT" <<< "$cfile")"
+  	id=$(grep -m1 -oP "$ID_PATT" <<< "$cfile" | sed 1q)
+   [ -z "$id" ] && warn "# no subj id in '$cfile'" && return 0
+
+   if [[ $REDO -eq 0 ]] && grep -q "$name,$id,$input_name," "$OUTNAME"; then 
+      [ -n "${VERBOSE:-}" ] && warn "# id+input $id+$input_name in $OUTNAME"
+      return 0
+   fi
+
+  	cmd="3dmaskave -quiet -mask '$mask' $cfile"
+  	[ -n "${VERBOSE:-}" ] && warn "$cmd"
+  
+  	val="$(eval "$cmd"||echo NA)"
+  	echo "${name},${id},${input_name},${val}"
+}
+split_name(){
+   local name mask name_mask="$1"
+   name=${name_mask/=*/}
+   mask=${name_mask#*?=}
+   [[ $name == $mask ]] && 
+      name="$(niibasename "$mask")"
+   echo "$name" "$mask"
+}
+split_name_test() { #@test
+   read -r name mask <<< $(split_name "ACC=my/mask.nii.gz<1>")
+   [[ $name == ACC ]]
+   [[ $mask == "my/mask.nii.gz<1>" ]]
+
+   read -r name mask <<< $(split_name "ACC=my/mask_gm=1.nii.gz<1>")
+   [[ $name == ACC ]]
+   [[ $mask == "my/mask_gm=1.nii.gz<1>" ]]
+
+   read -r name mask <<< $(split_name "my/mask_gm1.nii.gz<1>")
+   [[ $name == mask_gm1_1 ]]
+   [[ $mask == "my/mask_gm1.nii.gz<1>" ]]
+}
+
+cnt_uniq_match(){
+  cnt=$(printf '%s\n' "$@"| sort -u |wc -l)
+  [ "$cnt" -eq $# ]
+}
+cnt_test() { #@test
+   cnt_uniq_match a b c d
+   ! cnt_uniq_match b a d b 
+}
+
+check_all_masks(){
+  # double pass. first make sure everything checksout
+  # before running potentially a whole lot of 3dmaskavs
+  all_names=()
+  all_masks=()
+  local name mask name_mask
+  for name_mask in "$@"; do
+     read -r name mask <<< "$(split_name "$name_mask")"
+     #warn "# checking '$name_mask': '$name' = '$mask'"
+     all_names+=("$name")
+     all_masks+=("$mask")
+     check_mask "$mask" # mask has non-zero voxels
+  done
+
+  # did we uniquely name all?
+  if ! cnt_uniq_match "${all_names[@]}"; then
+     warn "#ERROR: repeated names in name=mask: ${all_names[*]} "
+     return 1
+  fi
+}
+
+main() {
+  [ $# -eq 0 ] && usage && exit
+  parse_args "$@"
+  check_all_masks "${MASK[@]}"
+
+  # don't need to check file for maskave if file is empty. 
+  # run will be the same as REDO anyway
+  if [ "$(wc -l < "$OUTNAME")" -le 1 ]; then
+     echo "roi,subj,input,beta" > "$OUTNAME"
+     REDO=1
+  fi
+
+  for name_mask in "${MASK[@]}"; do
+     read -r name mask <<< "$(split_name "$name_mask")"
+     warn "# extracting '$name' ($mask) mean from ${#CFILES[@]} files"
+     for cfile in "${CFILES[@]}"; do 
+        maskave_csv "$name" "$mask" "$cfile"  >> "$OUTNAME"
+     done
+  done
+}
+
+eval "$(iffmain "main")"
