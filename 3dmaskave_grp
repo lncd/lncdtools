@@ -3,14 +3,15 @@ set -euo pipefail
 #
 # 0.for a given mask
 # 1.iterate over subject image volumes, extracting roi average values
-# 2.saves to ld8+roi+mask single row comma seprated value 
-#     "${maskname},${subj},${roi},${val}" 
+# 2.saves to ld8+roi+mask single row comma seprated value
+#     "${maskname},${subj},${roi},${val}"
 #
 # 20221108WF - extracted from various 07* scripts
 #
 
 ID_PATT='\d{5}_\d{8}'
 IN_PATT='s:.*/|.nii$|.nii.gz$|.HEAD$::g'
+NJOBS=1
 
 # remove common neuroimaging file extensions
 # and also strip out any usafe characters (eg. <1> range selectors)
@@ -33,10 +34,11 @@ $(basename $0) -csv dlpfc.csv -mask "mask.nii.gz" -- paths/to/1*_2*/inputs.nii.g
 
   -m|-mask NAME=MASK    input mask optionally with afni selector
   -csv  FILE            save csv as FILE (defaults to NAME.csv)
-  -redo                 rerun, overwritting old 
+  -redo                 rerun, overwritting old
                           defaults to only writting new lines if not already in csv
   -pattern PAT          use PAT to extract id (default: '$ID_PATT')
   -inputext PAT         perl 's///' to extract input name (default: '$IN_PATT')
+  -njobs   CORES        run with NCORES (>1 requires gnu parallel)
   -v|-verbose           print when not writting b/c already exists in csv
   -h|-usage             this text
 
@@ -77,6 +79,7 @@ parse_args(){
         -redo) REDO=1; shift;;
         -h|-usage) usage; exit 0;;
         -v|-verbose) VERBOSE=1; shift;;
+        -njobs) NJOBS="$2"; shift 2;;
         *) warn "UNKNOWN ARG: '$1'"; usage; exit 1;;
      esac
    done
@@ -99,16 +102,16 @@ maskave_csv() {
   	#subj=$(echo $cfile | cut -d "/" -f7)
    input_name="$(perl -pe "$IN_PATT" <<< "$cfile")"
   	id=$(grep -m1 -oP "$ID_PATT" <<< "$cfile" | sed 1q)
-   [ -z "$id" ] && warn "# no subj id in '$cfile'" && return 0
+   [ -z "$id" ] && warn "# no subj id in '$cfile' matching '$ID_PATT'" && return 0
 
-   if [[ $REDO -eq 0 ]] && grep -q "$name,$id,$input_name," "$OUTNAME"; then 
+   if [[ $REDO -eq 0 ]] && grep -q "$name,$id,$input_name," "$OUTNAME"; then
       [ -n "${VERBOSE:-}" ] && warn "# id+input $id+$input_name in $OUTNAME"
       return 0
    fi
 
   	cmd="3dmaskave -quiet -mask '$mask' $cfile"
   	[ -n "${VERBOSE:-}" ] && warn "$cmd"
-  
+
   	val="$(eval "$cmd"||echo NA)"
   	echo "${name},${id},${input_name},${val}"
 }
@@ -116,7 +119,7 @@ split_name(){
    local name mask name_mask="$1"
    name=${name_mask/=*/}
    mask=${name_mask#*?=}
-   [[ $name == $mask ]] && 
+   [[ $name == $mask ]] &&
       name="$(niibasename "$mask")"
    echo "$name" "$mask"
 }
@@ -140,7 +143,7 @@ cnt_uniq_match(){
 }
 cnt_test() { #@test
    cnt_uniq_match a b c d
-   ! cnt_uniq_match b a d b 
+   ! cnt_uniq_match b a d b
 }
 
 check_all_masks(){
@@ -169,19 +172,28 @@ main() {
   parse_args "$@"
   check_all_masks "${MASK[@]}"
 
-  # don't need to check file for maskave if file is empty. 
+  # don't need to check file for maskave if file is empty.
   # run will be the same as REDO anyway
   if [ ! -e "$OUTNAME" ] || [ "$(wc -l < "$OUTNAME" 2>/dev/null||echo 0)" -le 1 ]; then
      echo "roi,subj,input,beta" > "$OUTNAME"
      REDO=1
   fi
 
+  # export functions and pattern vars for gnu parallel
+  export -f check_all_masks cnt_test maskave_csv
+  export IN_PATT ID_PATT OUTNAME
+
   for name_mask in "${MASK[@]}"; do
      read -r name mask <<< "$(split_name "$name_mask")"
      warn "# extracting '$name' ($mask) mean from ${#CFILES[@]} files"
-     for cfile in "${CFILES[@]}"; do 
-        maskave_csv "$name" "$mask" "$cfile"  >> "$OUTNAME"
-     done
+     if [ "$NJOBS" -gt 1 ]; then
+        parallel --jobs "$NJOBS" -q \
+           maskave_csv "$name" "$mask" ::: "${CFILES[@]}" >> "$OUTNAME"
+     else
+        for cfile in "${CFILES[@]}"; do
+           maskave_csv "$name" "$mask" "$cfile"  >> "$OUTNAME"
+        done
+     fi
   done
 }
 
