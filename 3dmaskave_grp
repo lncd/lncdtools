@@ -171,7 +171,7 @@ main() {
 
   # don't need to check file for maskave if file is empty. 
   # run will be the same as REDO anyway
-  if [ "$(wc -l < "$OUTNAME")" -le 1 ]; then
+  if [ ! -e "$OUTNAME" ] || [ "$(wc -l < "$OUTNAME" 2>/dev/null||echo 0)" -le 1 ]; then
      echo "roi,subj,input,beta" > "$OUTNAME"
      REDO=1
   fi
