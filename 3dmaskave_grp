@@ -23,13 +23,13 @@ function niibase_test { #@test
 
 usage(){ cat <<HEREDOC
 SYNOPSIS:
-run 3dmaskave over many files, save csv like:
+run 3dmaskave over many files and saves an output csv:
   roi,subj,input,beta
 
 USAGE:
-$(basename $0) -mask "mask.nii.gz<2>" -name dlpfc -csv dlpfc.csv -- paths/to/1*_2*/inputs.nii.gz
+$(basename $0) -csv dlpfc.csv -mask "mask.nii.gz" -- paths/to/1*_2*/inputs.nii.gz
 
-3dmaskave_grp -csv MPFC-ACC_1.csv -m "ACC=mask.nii.gz<2>" -m "PFC=mask.nii.gz<3>" -- paths/to/1*_2*/inputs.nii.gz
+3dmaskave_grp -csv MPFC-ACC_1.csv -m "ACC=mask.nii.gz" -m "PFC=mask_many.nii.gz<3>" -- paths/to/1*_2*/inputs.nii.gz
 
   -m|-mask NAME=MASK    input mask optionally with afni selector
   -csv  FILE            save csv as FILE (defaults to NAME.csv)
@@ -43,7 +43,11 @@ $(basename $0) -mask "mask.nii.gz<2>" -name dlpfc -csv dlpfc.csv -- paths/to/1*_
   -- FILE1 FILE2 ...  input files listed after '--', probably use a glob
 
 NOTE:
- you may want 3dROIstats instead. It can do more and quicker!
+ you may want 3dROIstats instead. It can do more and quicker! but
+    you'll have to rerun for any new addition (mask value or inputfile)
+    you can only use one mask file. but that mask file can have n values (for n rois)
+    the results are wider and will need more post processsing
+
 
  # for inputs and a mask like
  IN=(/Volumes/Hera/Projects/7TBrainMech/subjs/101*/conn_mrsi_rest/mxcovsph/08-MPFC_deconreml-r.nii.gz)
@@ -63,17 +67,17 @@ parse_args(){
    MASK=()
    REDO=0
    CFILES=()
-   while [ $# -gt 1 ]; do
+   while [ $# -gt 0 ]; do
      case "$1" in
         --) shift; CFILES=("$@"); break;;
         -m|-mask) MASK+=("$2"); shift 2;;
         -csv) OUTNAME="$2"; shift 2;; # def to basename of mask.csv
+        -pattern) ID_PATT="$2"; shift 2;;
+        -inputext) IN_PATT="$2"; shift 2;;
         -redo) REDO=1; shift;;
-        -pattern) ID_PATT="$1"; shift;;
-        -inputext) IN_PATT="$1"; shift;;
-        -usage) usage; exit 0;;
+        -h|-usage) usage; exit 0;;
         -v|-verbose) VERBOSE=1; shift;;
-        *) warn "UNKOWN ARG: '$1'"; usage; exit 1;;
+        *) warn "UNKNOWN ARG: '$1'"; usage; exit 1;;
      esac
    done
    [ -z "${MASK[*]}" ] && warn "ERROR: need -mask 'mask.nii.gz' to be specified" && exit 1
