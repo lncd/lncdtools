@@ -158,6 +158,10 @@ bind .lb <Control-Return> { select_img SET_OVERLAY [.lb curselection] }
 bind .lb <o> { afni_plug "SET_FUNC_VISIBLE +" }
 bind .lb <O> { afni_plug "SET_FUNC_VISIBLE -" }
 bind .lb <U> { swap_over_under }
+bind .lb <P> { afni_plug "PURGE_MEMORY" }
+bind .lb <j> { exec afni_atlas_jump & }
+#bind .lb <J> {  afni_plug "JUMP_BACK" } # afni doesn't have this driver
+   
 
 wm protocol . WM_DELETE_WINDOW { afni_plug QUIT; destroy .}
 ## widget config
@@ -168,9 +172,10 @@ wm protocol . WM_DELETE_WINDOW { afni_plug QUIT; destroy .}
   "/ ?: fuzzy search underlay/overlay"
   "left, right click: set under/overlay" 
   "enter,C-enter: set under/overlay"
-  "O: overlay off"
-  "o: overlay on"
+  "o,O: overlay on/off"
   "U: swap over/under"
+  "P: 'purge' (reload) all datasets"
+  "j: jump to region"
   "& in afni: 3/#, 4/$, 5/% for splits"} \n ]
 
 # display
