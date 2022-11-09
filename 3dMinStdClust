@@ -15,6 +15,7 @@ mask_by_var() {
    local input="$1"; shift
    local outd=/tmp # default output to temp
    [ $# -gt 0 ] && outd="$1" && shift
+   [ ! -d $outd ] && warn "WARNING: making $outd" && mkdir -p $outd
 
    local std=$outd/vx_std.nii.gz
    local clst=$outd/vx_std_clust  # .1d and .nii.gz created

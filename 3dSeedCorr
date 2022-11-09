@@ -1,0 +1,157 @@
+#!/usr/bin/env bash
+
+deconreml(){
+   local prefix="$1"; shift
+   local ts4d="$1";shift
+   local seed="$1"; shift
+   local motionfile="$1"; shift
+   # only use a mask if provided
+   local maskfile="";
+   [ $# -gt 0 ] && maskfile="$1"
+
+	# all files are readable right?
+   for infile in ts4d seed motionfile; do
+      ! test -r "${!infile}" -a -s "${!infile}"  && echo "Cannot open $infile '$_'" && return 1
+   done
+
+   # use mask only we hav eit to use
+   # speeds things up potentially
+   # but doesn't change values (TODO: is that true for reml?)
+   [ -n "$maskfile" -a -r "$maskfile" ] &&
+      maskswitch="-mask '$maskfile'" ||
+      maskswitch="" 
+
+
+   test -r "${prefix}.xmat.1D" ||
+    3dDeconvolve \
+      -input "$ts4d" -polort 3 -jobs "${DECON_NJOBS:-10}" \
+      -num_stimts 1 -stim_file 1 "${seed}" -stim_label 1 "seed" \
+      $maskswitch \
+      -rout \
+      -bucket "${prefix}_seeddecon.nii.gz" \
+      -x1D "${prefix}.xmat.1D" \
+      -censor "${motionfile}" \
+      -overwrite
+   
+   test -r "${prefix}_REMLvar.nii.gz" ||
+    OMP_NUM_THREADS=${DECON_NJOBS:-10} 3dREMLfit -matrix "${prefix}.xmat.1D"\
+      -input "$ts4d" \
+      $maskswitch -rout -tout \
+      -Rbuck "${prefix}_REML.nii.gz" \
+      -Rvar "${prefix}_REMLvar.nii.gz" \
+      -verb \
+      -overwrite
+   
+   3dcalc -r "${prefix}_REML.nii.gz[seed_R^2]" \
+          -c "${prefix}_REML.nii.gz[seed#0_Coef]" \
+          -expr 'ispositive(c)*sqrt(r)-isnegative(c)*sqrt(r)' \
+          -prefix "${prefix}.nii.gz" \
+          -overwrite
+}
+cleanup(){
+   local prefix="$1"
+   local bname=$(basename "$prefix" .nii.gz)
+   mapfile -t TORM < <(find "$(dirname "$prefix")" -maxdepth 1 \
+      -name "$bname*" \
+      -not -name "$bname.nii.gz") #-exec rm {} \+
+
+   [ ${#TORM[@]} -eq 5 ] &&
+      rm "${TORM[@]}"  ||
+      warn "cannot cleanup '$bname*', have ${#TORM[@]} != 5 matches"
+      
+}
+
+tcor1d(){
+   local prefix="$1"; shift
+   local ts4d="$1";shift
+   local seed="$1"; shift
+   local cen="$1"; shift
+   gidx=$(awk '($1==1){print NR-1}' "$cen" |paste -sd,)
+   # shellcheck disable=SC1087 # afni subbrik selectors, not bash array
+   3dTcorr1D -prefix "$prefix" "$ts4d[$gidx]" "$seed{$gidx}"
+}
+
+isnii(){
+   # remove subbrik and value selector
+   img=$(sed 's/[<[].*//' <<< "$1");
+   [[ $CEN =~ nii(.gz)?$ ]] && return 0
+   [[ $CEN =~ (HEAD|BRIK(.gz)?)$ ]] && return 0
+   return 1
+}
+
+
+usage() { echo "USAGE:
+   $0 -prefix xxx -ts yyy.nii.gz -seed t.1d -cen cen.1d -mask subj.nii.gz [-jobs 10]
+
+generate single 3d volume with per-voxel correlation between 4d timeseries and 1d seed timeseries
+with high motion timepoints remove (censoring)
+
+REQUIRED
+  -prefix file.nii.gz   output. will create temporary files like file_REML*
+  -ts     ts.nii.gz     input 4d time series 
+  -seed   ts.1d         input 1d seed time series 
+  -cen    cen.1d        1 include/0 excluded nrows = seed nrows = ts nvols
+EITHER
+  -reml                 3dDeconvolve + 3dREMLfit
+  -tcor                 run 3dTcorr1D instead of decon+REML (still censors, faster)
+
+OPTIONAL
+  -noclean              dont rm temporary decon and reml files
+  -mask   subj.nii.gz   optional subject mask
+  -jobs   10            set number of cores to use for decon and reml
+
+
+   ";}
+dr_main(){
+   local MASK="" TS="" SEED="" CEN=""
+   local INPUT="$*" tcor=0 reml=0 clean=1
+   #NB DECON_NJOBS not local
+   [ $# -eq 0 ] && usage && exit 1
+   while [ $# -gt 0 ]; do
+      case "$1" in
+         -prefix)   PREFIX="$2"; shift 2;;
+         -ts)       TS="$2"; shift 2;;
+         -seed)     SEED="$2"; shift 2;;
+         -cen)      CEN="$2"; shift 2;;
+         -mask)     MASK="$2"; shift 2;;
+         -tcor)     tcor=1; shift 1;;
+         -reml)     reml=1; shift 1;;
+         -noclean)  clean=0; shift 1;;
+         -jobs)     DECON_NJOBS="$2"; shift 2;;
+         -help) usage; exit;;
+      esac
+   done
+
+   [ -z "$PREFIX" ] && echo "$0: must provide -prefix" && exit 1
+   ! [[ "$PREFIX" =~ nii.gz$ ]] && echo "-prefix should end in nii.gz" && exit 1
+   [ -r "$PREFIX" ] && warn "# '$PREFIX' exists. skipping" && exit 0
+   prefix=$(sed s/.nii.gz$// <<< "$PREFIX")
+
+   if isnii "$SEED"; then
+      echo "# seed is an image. making ts 1D"
+      3dmaskave -queit -mask "$SEED" "$TS" > "$PREFIX.roits.1d"
+      SEED="$prefix.roits.1d"
+   fi
+
+   # TODO:
+   # if cen is mot.tsv awk NF>0, get censor file
+
+   # fast or slow?
+   if [ $tcor -eq 1 ]; then
+     tcor1d "$PREFIX" "$TS" "$SEED" "$CEN"
+   elif [ $reml -eq 1 ]; then
+     deconreml "$prefix" "$TS" "$SEED" "$CEN" "$MASK"
+     # remove intermediate steps
+     [ $clean -eq 1 ] && cleanup "$PREFIX"
+   else
+      warn "# must specify either -tcor or -reml!"
+      exit 1
+   fi
+
+   # add not to final output
+   3dNotes -h "$0 $INPUT" "$PREFIX"
+
+}
+
+
+eval "$(iffmain "dr_main")"
