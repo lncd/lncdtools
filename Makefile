@@ -1,7 +1,11 @@
 .PHONY: docker test coverage docker-test
 
 warn: src/warn.c
-	gcc -o warn $<
+	gcc -o $@ $<
+
+# 20221203. not ready to replace shell code with c code (chatgpt)
+dryrun.exe: src/dryrun.c
+	gcc -o $@ $<
 
 test: warn
 	bats --tap t/
