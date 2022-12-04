@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
 # see ~/.pgpass for credentials
-dbcmd='psql -h arnold.wpic.upmc.edu lncddb lncd'
+#
+# might want to run test command to see if db is up
+# PGCONNECT_TIMEOUT=.25 psql -h $host lncddb lncd -c 'select 1'
+host=arnold.wpic.upmc.edu
+host=10.145.64.121
+dbcmd="psql -h $host lncddb lncd"
 [ $# -ne 0 ] && $dbcmd -AF$'\t' -qtc "$@" || $dbcmd
