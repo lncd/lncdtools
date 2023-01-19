@@ -87,6 +87,17 @@ x_cmp_y(){
  [[ $goodidx == "0,2" ]]
 }
 
+@test where1csv_spaces {
+ source $(which tat2)
+ echo -e " 1\n0\n1" > c_space.1D
+ run where1csv c_space.1D
+ [[ $output == "0,2" ]]
+
+ echo -e "1\n 0\n 1" > c_space.1D
+ run where1csv c_space.1D
+ [[ $output == "0,2" ]]
+}
+
 @test sametwice {
    tat2 t.nii.gz -median_vol -output med1.nii.gz -mask m.nii.gz
    tat2 t.nii.gz -median_vol -output med2.nii.gz -mask m.nii.gz

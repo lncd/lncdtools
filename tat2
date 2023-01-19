@@ -148,7 +148,7 @@ find_censor_file(){
 }
 
 # pull out good index (censor=1 means keep). zero based
-where1csv(){ perl -lne 'push @i, $.-1 if /^1/; END{print join ",", @i;}' "$@"; }
+where1csv(){ perl -lne 'push @i, $.-1 if /^\s?1/; END{print join ",", @i;}' "$@"; }
 firstn_csv() { perl -F, -slane 'print $n<=0?$_:(join ",", grep {!/^$/} @F[0..$n-1])' -- -n=$1; }
 idx_shuffle() {
    local method="$1"; shift
