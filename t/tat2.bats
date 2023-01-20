@@ -147,11 +147,26 @@ x_cmp_y(){
 }
 
 @test mask_rel {
-   cp m.nii.gz x/m.nii.gz
-   cp m.nii.gz y/m.nii.gz
-   run tat2 {x,y}/t.nii.gz -output mean.nii.gz -mask_rel s/t.nii.gz/m.nii.gz/ -mean_time -tmp out -noclean
+   mkdir -p x y out
+   echo "
+      0 0 0 0
+      0 1 0 1
+      1 0 0 1
+      1 1 0 1
+   " > 1zero.1d
+   3dUndump -dimen 2 2 2 -ijk  -prefix 1zero.nii.gz -overwrite 1zero.1d
+
+   cp 1zero.nii.gz t.nii.gz x/
+   cp 1zero.nii.gz t.nii.gz y/
+   run tat2 {x,y}/t.nii.gz -output tat2_1zero.nii.gz -mask_rel s/t.nii/1zero.nii/
    [[ $status -eq 0 ]]
-   [ -r tat2.nii.gz ]
+   [ -r tat2_1zero.nii.gz ]
+   run 3dNotes tat2_1zero.nii.gz
+   [[ $output =~ nvoxes=3,3 ]]
+
+   tat2 {x,y}/t.nii.gz -output tat2_m.nii.gz -mask $(pwd)/m.nii.gz
+   run 3dNotes tat2_m.nii.gz
+   [[ $output =~ nvoxes=4,4 ]]
 }
 
 @test cen_multiple {
