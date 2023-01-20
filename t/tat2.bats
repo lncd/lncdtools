@@ -120,6 +120,40 @@ x_cmp_y(){
    x_cmp_y mean.nii.gz '<' novol.nii.gz
 }
 
+@test find_rel_file {
+   source $(which tat2)
+   mkdir nested/dir/ -p
+   touch nested/dir/xx.1D
+   run find_rel_file "nested/dir/t.nii.gz" "s/t.nii.gz/xx.1D/"
+   [[ $output == "nested/dir/xx.1D" ]]
+
+   run find_rel_file "nested/dir/t.nii.gz" "xx.1D"
+   [[ $output == "nested/dir/xx.1D" ]]
+
+   run find_rel_file "nested/dir/t.nii.gz" $(pwd)/nested/dir/xx.1D
+   [[ $output == $(pwd)/nested/dir/xx.1D ]]
+
+   run find_rel_file t.nii.gz /dne.1D
+   [[ $status != 0 ]]
+   [[ $output =~ ERR.*dne.1D ]]
+
+   run find_rel_file t.nii.gz s/t/dne.1D
+   [[ $status != 0 ]]
+   [[ $output =~ ERR.*dne.1D ]]
+
+   run find_rel_file t.nii.gz s/t/dne.1D
+   [[ $status != 0 ]]
+   [[ $output =~ ERR.*dne.1D ]]
+}
+
+@test mask_rel {
+   cp m.nii.gz x/m.nii.gz
+   cp m.nii.gz y/m.nii.gz
+   run tat2 {x,y}/t.nii.gz -output mean.nii.gz -mask_rel s/t.nii.gz/m.nii.gz/ -mean_time -tmp out -noclean
+   [[ $status -eq 0 ]]
+   [ -r tat2.nii.gz ]
+}
+
 @test cen_multiple {
    #  censor applies to each input separately
    mkdir -p x y out

@@ -49,7 +49,7 @@ declare -a GLOBFILES
 usage(){
   cat <<-HEREDOC
 USAGE
-    tat2 '/paths/to/*/t2.nii.gz' [ -mask_rel $MASK_REL | -mask /the/only/mask.nii.gz | -mkmask]  [-output $OUTPUT] [-scale $SCALE]  [-censor_rel relative/censor.1D | -censor_rel s/epi/mask/] [-median_time|-mean_time]  [-median_vol|-mean_vol|-zscore_vol] [-no_voxscale] [-inverse] [-noclean] [-verbose] [-tmp $TMPLOCATION]
+    tat2 '/paths/to/*/t2.nii.gz' [ -mask_rel $MASK_REL | -mask_rel s/_bold.nii.gz/_bold_mask.nii.gz/ | -mask /the/only/mask.nii.gz | -mkmask]  [-output $OUTPUT] [-scale $SCALE]  [-censor_rel relative/censor.1D | -censor_rel s/epi/censor/] [-median_time|-mean_time]  [-median_vol|-mean_vol|-zscore_vol] [-no_voxscale] [-inverse] [-noclean] [-verbose] [-tmp $TMPLOCATION]
 
 SYNOPSIS
   calculates time averaged T2* like:
@@ -72,6 +72,8 @@ OPTIONS (in order of relevance)
 
 
   -mask_rel    volnorm mask is relative to the input nifit (default: subject_mask.nii.gz)
+               like censor_rel, if given 's/find/replace/' perl regexp
+               will replace 'find' in the input.nii.gz with 'replace'
   -mask        use mask to create volnorm.1D (-median_vol or -mean_vol)
                default none, defer to mask_rel
   -mkmask      ensures the number of voxels used to normalize is the same
@@ -121,31 +123,32 @@ msg() { echo -e "# [$(date)] $@"; }
 
 tat2_gitver(){ echo $(cd $(dirname $0); git log -1 --pretty=format:%as:%h -- tat2; git diff --shortstat -- tat2 |tr -d '[a-z ]';); }
 
-find_censor_file(){
+find_rel_file(){
   local input="$1"; shift
-  local censor_file="$1"; shift
-  local censor_file="$(dirname "$input")/$censor_rel"
+  local rel_str="$1"; shift
+  local rel_file="$(dirname "$input")/$rel_str"
 
   # if given an absolute path. try that
-  [ ! -r "$censor_file" -a ${censor_rel:0:1} == "/" ] &&
-     censor_file="$censor_rel"
+  [ ! -r "$rel_file" -a ${rel_str:0:1} == "/" ] &&
+     rel_file="$rel_str"
 
-  # try regexp pattern replace if censor_rel looks like s/
-  [ ! -r "$censor_file" -a ${censor_rel:0:2} == "s/" ] &&
-     censor_file="$(echo "$input" | perl -pe "$censor_rel")"
+  # try regexp pattern replace if rel_str looks like s/
+  [ ! -r "$rel_file" -a ${rel_str:0:2} == "s/" ] &&
+     rel_file="$(echo "$input" | perl -pe "$rel_str")"
 
   # make sure we didn't just find the input file
-  if [ "$censor_file" == "$input" ]; then
-     err "ERR: censor file subsitition failed '$censor_file' matches inputfile! rel '$censor_rel' for '$input'"
+  if [ "$rel_file" == "$input" ]; then
+     err "ERR: relative file subsitition failed '$rel_file' matches inputfile! rel '$rel_str' for '$input'"
   fi
 
   # and make sure we actually found a file
-  if [ ! -r "$censor_file" ]; then
-     err "ERR: censor file '$censor_file' DNE!"
+  if [ ! -r "$rel_file" ]; then
+     err "ERR: file '$rel_file' (from '$rel_str') DNE!"
   fi
 
-  echo $censor_file
+  echo $rel_file
 }
+
 
 # pull out good index (censor=1 means keep). zero based
 where1csv(){ perl -lne 'push @i, $.-1 if /^\s?1/; END{print join ",", @i;}' "$@"; }
@@ -258,7 +261,7 @@ one_ta(){
    local cnt="$1"; shift
    local input="$1"; shift
    local tmpd="$1"; shift
-   [ -n "$MASK" ] && mask="$MASK" || mask="$(dirname "$input")/$MASK_REL"
+   [ -n "$MASK" ] && mask="$MASK" || mask=$(find_rel_file "$input" "$MASK_REL")
    [ ! -f $mask ] && err "mask '$mask' DNE; add -mkmask to create"
    # add _tat2.nii.gz to the end
    runoutput="$tmpd/${cnt}_tat2.nii.gz"
@@ -273,7 +276,7 @@ one_ta(){
 
    # censor input
    if [ -n "$censor_rel" ]; then
-      censor_file=$(find_censor_file "$input" "$censor_rel")
+      censor_file=$(find_rel_file "$input" "$censor_rel")
       # if MAXVOLS is default "-1", firstn_cvs does nothing
       idxs=$(where1csv $censor_file| idx_shuffle $IDX_SAMPLE_METHOD | firstn_csv $MAXVOLS)
       nkeep=$(echo $idxs| tr ',' '\n' |wc -l)
