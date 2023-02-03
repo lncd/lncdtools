@@ -120,6 +120,55 @@ x_cmp_y(){
    x_cmp_y mean.nii.gz '<' novol.nii.gz
 }
 
+@test find_rel_file {
+   source $(which tat2)
+   mkdir nested/dir/ -p
+   touch nested/dir/xx.1D
+   run find_rel_file "nested/dir/t.nii.gz" "s/t.nii.gz/xx.1D/"
+   [[ $output == "nested/dir/xx.1D" ]]
+
+   run find_rel_file "nested/dir/t.nii.gz" "xx.1D"
+   [[ $output == "nested/dir/xx.1D" ]]
+
+   run find_rel_file "nested/dir/t.nii.gz" $(pwd)/nested/dir/xx.1D
+   [[ $output == $(pwd)/nested/dir/xx.1D ]]
+
+   run find_rel_file t.nii.gz /dne.1D
+   [[ $status != 0 ]]
+   [[ $output =~ ERR.*dne.1D ]]
+
+   run find_rel_file t.nii.gz s/t/dne.1D
+   [[ $status != 0 ]]
+   [[ $output =~ ERR.*dne.1D ]]
+
+   run find_rel_file t.nii.gz s/t/dne.1D
+   [[ $status != 0 ]]
+   [[ $output =~ ERR.*dne.1D ]]
+}
+
+@test mask_rel {
+   mkdir -p x y out
+   echo "
+      0 0 0 0
+      0 1 0 1
+      1 0 0 1
+      1 1 0 1
+   " > 1zero.1d
+   3dUndump -dimen 2 2 2 -ijk  -prefix 1zero.nii.gz -overwrite 1zero.1d
+
+   cp 1zero.nii.gz t.nii.gz x/
+   cp 1zero.nii.gz t.nii.gz y/
+   run tat2 {x,y}/t.nii.gz -output tat2_1zero.nii.gz -mask_rel s/t.nii/1zero.nii/
+   [[ $status -eq 0 ]]
+   [ -r tat2_1zero.nii.gz ]
+   run 3dNotes tat2_1zero.nii.gz
+   [[ $output =~ nvoxes=3,3 ]]
+
+   tat2 {x,y}/t.nii.gz -output tat2_m.nii.gz -mask $(pwd)/m.nii.gz
+   run 3dNotes tat2_m.nii.gz
+   [[ $output =~ nvoxes=4,4 ]]
+}
+
 @test cen_multiple {
    #  censor applies to each input separately
    mkdir -p x y out
