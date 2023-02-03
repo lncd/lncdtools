@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+#
+# run tendana from minimally preprocessed fmriprep --me-
+# also warp
+#
+# 20230120WF - init
+#
+tedana_from_echo1(){
+  outdir=$(dirname "$f")
+  prefix=$(basename "$f" _echo-1_desc-preproc_bold.nii.gz)
+
+  ! [[ "$prefix" =~ sub-[^_]*_ses-[^_]* ]] && warn "nos sub-*_ses- in '$prefix'" && return 2
+  sub_ses=${BASH_REMATCH[0]}
+  tedana_mni="$outdir/${prefix}_space-MNI152NLin2009cAsym_desc-optcom_bold.nii.gz"
+
+  test -r "$tedana_mni" &&
+     warn "# already finished. have '$_'" && return 0
+
+  #shellcheck disable=2206 # no spaces in fmriprep deriv path or we're in trouble
+  echos=(${f/echo-1/echo-*})
+  mapfile -t echotimes < <(jq .EchoTime*1000 "${echos[@]/.nii.gz/.json}")
+  # todo: echos == echotimes
+
+  tedana_epi="$outdir/${prefix}_desc-optcomDenoised_bold.nii.gz"
+
+  dryrun \
+     niinote "$tedana_epi" \
+     tedana \
+     --out-dir "$outdir" --prefix "$prefix" \
+     --convention bids \
+     -e "${echotimes[@]}" \
+     -d "${echos[@]}" || return 1
+  test -r tedana_report.html && dryrun mv "$_" "${prefix}_$_"
+
+  # warping files
+  transform_nonlin="${outdir/func/anat}/${sub_ses}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5"
+  transform_lin="$outdir/${prefix}_from-scanner_to-T1w_mode-image_xfm.txt"
+
+  # this is high res mniref of t1 (likely 1mm^3)
+  #mniref="${outdir/func/anat}/${sub_ses}_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz"
+  # this is lower res w/epi dims. using mask for 3D. 4D preproc_bold as ref messes with transform
+  mniref="${outdir}/${prefix}_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz"
+
+  # this is probably not the correct file to use!
+  sdc_nonlin_all=("${outdir/func/fmap}/${sub_ses}_"fmap*_desc-coeff_fieldmap.nii.gz)
+  sdc_nonlin="${sdc_nonlin_all[0]}"
+
+  for v in transform_nonlin transform_lin mniref `#sdc_nonlin`; do
+    test -z "${!v}" -o ! -r "${!v}" && warn "cannot find $v like '$_'" && return 3
+  done
+
+  # todo warp to MNI
+  # https://brainhack-princeton.github.io/handbook/content_pages/04-03-registration.html
+  dryrun \
+     niinote "${tedana_mni}" \
+     antsApplyTransforms \
+        -d 3 -e 3 -v \
+        -i "$tedana_epi" \
+        --reference-image "$mniref" \
+        --output "$tedana_mni" \
+        --transform "$transform_nonlin" \
+        --transform "$transform_lin" \
+        #--transform "$sdc_nonlin" \
+
+  dryrun 3drefit -space MNI "${tedana_mni}"
+
+}
+
+tedana_main() {
+  if [[ $# -eq 0 || "${1:-}" =~ ^-h ]]; then
+     cat <<-EOF 
+     USAGE:
+        $0 all # looks in deriv/ for fmriprep output
+        $0 deriv/sub-XXX/ses-YYY/func/*_task-*_run-*_echo-1_desc-preproc_bold.nii.gz 
+
+     runs tedana for all echos in sequence of each given '*echo-1*.nii.gz' file
+     OUTPUT: 
+      *_space-MNI152NLin2009cAsym_desc-optcomDenoise_bold.nii.gz
+
+     TODO:
+       * confirm optcomDenoise is ideal output
+       * apply SDC?
+
+EOF
+     
+     exit 1
+  fi
+
+  [ "$1" == "all" ] &&
+     FILES=(deriv/sub-*/ses-*/func/*_task-*_run-*_echo-1_desc-preproc_bold.nii.gz) ||
+     FILES=("$@")
+
+  for f in "${FILES[@]}"; do
+     [[ ! $f =~ echo-1 ]] && warn "ERROR: bad input file. no echo-1 in '$f'" && continue
+     tedana_from_echo1 "$f"
+     break
+  done
+  return 0
+}
+
+# if not sourced (testing), run as command
+eval "$(iffmain "tedana_main")"
+
+####
+# testing with bats. use like
+#   bats ./01.2_tedana.bash --verbose-run
+####
+tedana_main_test() { #@test
+   return 1
+}
