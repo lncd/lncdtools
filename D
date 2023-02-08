@@ -1,0 +1,2 @@
+#!/usr/bin/env sh
+DRYRUN=1 "$@"

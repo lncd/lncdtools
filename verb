@@ -1,0 +1,19 @@
+#!/usr/bin/env sh
+# USAGE:
+#  VERBOSE=1 verb debug msg   # prints "debug msg"
+#            verb not printed # no print w/o VERBOSE set
+#  VERBOSE=1 verb -level 99 not shown # can set -level
+#  VERBOSE=1 verb -level 9  debug msg # printed
+
+# 20230208WF - init
+#
+# TODO: stderr? help?
+if [ -n "${VERBOSE}" ]; then
+ # optional set level
+ level=1
+ [ "$1" = "-level" ] && level="$2" && shift 2
+
+ # print message. TODO: should it go to stderr?
+ [ "${VERBOSE}" -ge "$level" ] && echo "$*" 
+fi
+exit 0
