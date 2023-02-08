@@ -18,8 +18,9 @@ in a bash/library with "mainfunc" defined use near end of file/script
 
 # read from end of this file
 # replace MAINFUNCNAME in template below with first input argument
+my $main_and_args=join(" ", @ARGV);
 while(<DATA>){
-  s/MAINFUNCNAME/$ARGV[0]/g;
+  s/MAINFUNCNAME/$main_and_args/g;
   print
 }
 
