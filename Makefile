@@ -1,4 +1,5 @@
 .PHONY: docker test coverage docker-test
+all: warn dryrun.exe
 
 warn: src/warn.c
 	gcc -o $@ $<
