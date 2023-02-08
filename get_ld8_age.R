@@ -7,7 +7,7 @@
 # ld8 age   sex   dob
 # 11543_20180626 16.06 M  2002-06-03
 # 11570_20180615 20.39 F  1998-01-23
-# 
+#
 # N.B. merge is likely to resort from input order
 # if bad date or unfound luna, will spit out "NA"
 #
@@ -46,7 +46,7 @@ ld8info <- function(ld8_vec, want_ses=FALSE) {
     session <- LNCDR::db_query(
    "select
       id || '_' || to_char(vtimestamp, 'YYYYMMDD') as ld8,
-      visitno as session 
+      visitno as session
     from visit v
     join enroll e on e.pid=v.pid and e.etype = 'LunaID'")
     f <- merge(f, session, by="ld8", all.x=T)
@@ -61,7 +61,7 @@ ld8info_main <- function() {
    want_ses <- FALSE
    # TODO:
    # USAGE if no args or -help
-   # 
+   #
    if(first(input_args) == "-ses") {
       input_args <- input_args[-1]
       want_ses <- TRUE

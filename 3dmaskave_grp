@@ -29,7 +29,7 @@ run 3dmaskave over many files and saves an output csv:
 
 USAGE:
 $(basename $0) -csv dlpfc.csv -mask "mask.nii.gz" -- paths/to/1*_2*/inputs.nii.gz
-3dmaskave_grp -njobs 3 -v -datatable /tmp/dt.tsv -label_col 2,3 -m "ACC_1=$mask"
+3dmaskave_grp -njobs 3 -v -datatable /tmp/dt.tsv -label_col 2,3 -m "ACC_1=mask.nii.gz"
 
 3dmaskave_grp -csv MPFC-ACC_1.csv -m "ACC=mask.nii.gz" -m "PFC=mask_many.nii.gz<3>" -- paths/to/1*_2*/inputs.nii.gz
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-[ $# -ne 1 ] && echo "ERROR: $0 needs exactly 1 argument. given $# ($*)" >&2 && exit 1
-tty >/dev/null  && echo "need to pipe to $0; cmd | $0 output.txt" && exit 1
+[ $# -ne 1 ] && warn "ERROR: $0 needs exactly 1 argument. given $# ($*)" && exit 1
+tty >/dev/null  && warn "need to pipe to $0; cmd | $0 output.txt" && exit 1
 if [ -v DRYRUN ] && [ -n "$DRYRUN" ]; then
- sed "s/^/#\t/;5q";
- echo "# would be written to $1"
+ sed "s/^/#\t/;5q" >&2;
+ warn "# would be written to $1"
 else
  cat > "$1"
 fi

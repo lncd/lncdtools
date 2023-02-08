@@ -8,6 +8,18 @@ Example:
    mkmissing -1 'bids/sub-*' -2 'proc/sub-*' # show subj in bids but not proc
    # either side can have more than one glob to use
    mkmissing -1 'bids/sub-*' -2 'proc_a/sub-*' -2 'proc_b/sub-*'
+
+Options:
+    search and replace to normalize: eg. / -> _
+    -s '(\d{5})/(\d{8})' -r '\1_\2' # specific
+    -s '/' -r '_'                   # general
+
+    verbose with -v to see contents of inset and outset
+    as well as their intersection in addition to -1 not in -2
+
+    -p sets the pattern extracted from each file to compare between sets
+    for BIDS vs fmriprep: -p 'sub-\d+_ses-\d+_task-[^_]*'
+    for simple ld8:       -p '\d{5}_\d{8}'
 """
 import re
 from glob import glob
@@ -75,13 +87,18 @@ def __main__():
 
     # when debuging pattern, it's useful to see the matches
     if args.verbose:
-        print(p)
-        print(search_replace)
-        print(args.in_glob)
+        print(f"ARGS: p={p}; search_replace={search_replace}")
+        print(f"INSET: {len(inset)} in {args.in_glob}")
         print(inset)
-        print(args.out_glob)
+        print(f"OUTSET: {len(outset)} in {args.out_glob}")
         print(outset)
+        print(f"MISSING: {len(missing)}")
         print(missing)
+
+        # likely to be exactly inset, but maybe worth checking
+        both = inset.intersection(outset)
+        print(f"BOTH: {len(both)}")
+        print(both)
 
     outstr = "\n".join(missing)
     # dont write to file if none provided
