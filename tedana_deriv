@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 #
-# run tendana from minimally preprocessed fmriprep --me-
+# run tendana from minimally preprocessed:
+#    fmriprep --me-output-echos
 # also warp
 #
 # 20230120WF - init
+# 20230207WF - mni for both optcom and optcomDenoised 
 #
 tedana_from_echo1(){
   outdir=$(dirname "$f")
@@ -11,7 +13,7 @@ tedana_from_echo1(){
 
   ! [[ "$prefix" =~ sub-[^_]*_ses-[^_]* ]] && warn "nos sub-*_ses- in '$prefix'" && return 2
   sub_ses=${BASH_REMATCH[0]}
-  tedana_mni="$outdir/${prefix}_space-MNI152NLin2009cAsym_desc-optcom_bold.nii.gz"
+  tedana_mni="$outdir/${prefix}_space-MNI152NLin2009cAsym_desc-optcomDenoised_bold.nii.gz"
 
   test -r "$tedana_mni" &&
      warn "# already finished. have '$_'" && return 0
@@ -45,25 +47,40 @@ tedana_from_echo1(){
   sdc_nonlin_all=("${outdir/func/fmap}/${sub_ses}_"fmap*_desc-coeff_fieldmap.nii.gz)
   sdc_nonlin="${sdc_nonlin_all[0]}"
 
-  for v in transform_nonlin transform_lin mniref `#sdc_nonlin`; do
+  for v in transform_nonlin transform_lin mniref `: sdc_nonlin`; do
     test -z "${!v}" -o ! -r "${!v}" && warn "cannot find $v like '$_'" && return 3
   done
 
+  # define function (closure -- use top level function local vars)
+  warp_tedana() {
+   local in="$1"; shift # tedana_epi
+   local out="$1"; shift # $tedana_mni
+   dryrun \
+      niinote "${out}" \
+      antsApplyTransforms \
+         -d 3 -e 3 -v \
+         -i "$in" \
+         --output "$out" \
+         --reference-image "$mniref" \
+         --transform "$transform_nonlin" \
+         --transform "$transform_lin" \
+         #--transform "$sdc_nonlin" \
+
+    dryrun 3drefit -space MNI "${out}"
+  }
+
+
   # todo warp to MNI
   # https://brainhack-princeton.github.io/handbook/content_pages/04-03-registration.html
-  dryrun \
-     niinote "${tedana_mni}" \
-     antsApplyTransforms \
-        -d 3 -e 3 -v \
-        -i "$tedana_epi" \
-        --reference-image "$mniref" \
-        --output "$tedana_mni" \
-        --transform "$transform_nonlin" \
-        --transform "$transform_lin" \
-        #--transform "$sdc_nonlin" \
 
-  dryrun 3drefit -space MNI "${tedana_mni}"
+  # warping both optcomDenoised and optcom
+  warp_tedana "$tedana_epi" "$tedana_mni"
+  warp_tedana "$outdir/${prefix}_desc-optcom_bold.nii.gz"\
+              "$outdir/${prefix}_space-MNI152NLin2009cAsym_desc-optcom_bold.nii.gz"
 
+
+  # TODO: gsr, wm, csf
+  #3droistats -mask 
 }
 
 tedana_main() {
@@ -75,11 +92,12 @@ tedana_main() {
 
      runs tedana for all echos in sequence of each given '*echo-1*.nii.gz' file
      OUTPUT: 
-      *_space-MNI152NLin2009cAsym_desc-optcomDenoise_bold.nii.gz
+      *_space-MNI152NLin2009cAsym_desc-optcomDenoised_bold.nii.gz
 
      TODO:
-       * confirm optcomDenoise is ideal output
+       * confirm optcomDenoise is ideal output (continue to avoid --gscontrol mir)
        * apply SDC?
+       * recalc gsr, csf, wm, ... in _desc-confounds_timeseries.tsv?
 
 EOF
      
