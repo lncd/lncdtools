@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
+id_pattern='[0-9]{5}_[0-9]{8}'
+! tty >/dev/null && grep -Po "$id_pattern"
 while [ $# -gt 0 ]; do
  ld8="$1"; shift
- [[ $ld8 =~ [0-9]{5}_[0-9]{8} ]] || continue
- echo $BASH_REMATCH
+ [[ $ld8 =~ $id_pattern ]] || continue
+ echo "${BASH_REMATCH[0]}"
 done
