@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# 20230131WF - quick look at roi volume (mm^3)
+# use 3dROIstats nzvolume with mask as own input. reformat and transpose
+# columns are
+# ROI# VOLUME(mm)
+
+# NB. removed neat bash trick: "$1"{,}  same as  "$1" "$1"
+
+echo -e "#ROI\tVolume_mm3"
+3dROIstats -1Dformat -nomeanout -nzvolume -mask "$1" "$1"|
+ sed '2s/#//;s/\.0\+//g;s/Volume_//g;s/^\t\+//'|
+ grep -v '#'|
+ datamash transpose

@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# reimplement waitforjobs as a shell script to avoid having to source stuff
+# 20230119WF - init
+
+# this script will be among those. %a is command with arguements
+parent_processes(){ ps --no-headers -o "%a" --ppid $PPID; }
+dt_msg(){ echo "$(date +%FT%H:%M): $*"; }
+waiting(){ 
+   sleeptime=${SLEEPTIME:-60s}
+   maxjobs=${MAXJOBS:-2}
+   
+   while mapfile -t procs < <(parent_processes) &&
+      [ ${#procs[@]} -gt "$maxjobs" ]; do
+         dt_msg "sleep $sleeptime on ${#procs[@]}: $(printf "%s;" "${procs[@]}")"
+      sleep "$sleeptime"
+   done
+}
+
+eval "$(iffmain waiting)"

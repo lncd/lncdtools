@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+#
+# run 3dNotes for each file argument
+# 3dNotes alone will only work on one file
+#
+# 20220308WF - init
+#
+[ -v DRYRUN ] && DRYRUN=echo || DRYRUN=
+warn(){ echo "$@" >&2; }
+
+add_noop() { cat; }
+add_f() { sed "s;^;${1//;/_}\t;";}
+_3dNotes_each() {
+  prepend_func=add_noop
+  while [[ $# -gt 0 && "$1" =~ ^- ]]; do
+     case $1 in
+        -f) prepend_func=add_f; shift;;
+        -h) echo "USAGE: $0 [-f] file.nii.gz file2.nii.gz -- maybe-more-files.nii.gz"; exit ;;
+        --) shift; break;;
+     esac
+  done
+  
+  for f in "$@"; do
+     echo "# $f"
+     (3dNotes "$f" || :) | $prepend_func "$f"
+  done
+  return 0
+}
+
+# if not sourced (testing), run as command
+if ! [[ "$(caller)" != "0 "* ]]; then
+  set -euo pipefail
+  trap 'e=$?; [ $e -ne 0 ] && echo "$0 exited in error $e"' EXIT
+  _3dNotes_each "$@"
+  exit $?
+fi
+
+####
+# testing with bats. use like
+#   bats ./3dNotes_each --verbose-run
+####
+if  [[ "$(caller)" =~ /bats.*/preprocessing.bash ]]; then
+@test "emtpy does nothing" {
+   run _3dNotes_each
+}
+@test "can run with bad file" {
+   run _3dNotes_each FILEDNE.nii.gz
+   [[ "$output" =~ FILEDNE.nii.gz ]] 
+}
+fi
