@@ -99,6 +99,7 @@ parse_args(){
 
 check_mask() {
    mask="$1"
+   [[ $mask =~ ^3dcalc ]] && warn "WARNING: inline 3dcalc will be run for each input file!" && return 0
    maskval=$(3dmaskave -q -mask "$mask" "$mask" 2>/dev/null|| echo 0)
    [[ $maskval == 0 ]] && warn "ERROR:BAD MASK: '$mask'" && return 1
    return 0
