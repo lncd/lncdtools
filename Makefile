@@ -1,7 +1,9 @@
 .PHONY: docker test coverage docker-test
 all: warn dryrun.exe
 
-warn: src/warn.c
+# 20230225: use perl version
+# c version does not handle \t properly
+warn.fast: src/warn.c
 	gcc -o $@ $<
 
 # 20221203. not ready to replace shell code with c code (chatgpt)

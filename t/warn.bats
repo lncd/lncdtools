@@ -15,3 +15,10 @@ function test_warn_emoji { # @test
   [[ $output == "✨" ]]
   [ $status -eq 0 ]
 }
+
+function test_warn_newline { # @test
+  run warn "a\nb\tc" 2>&1 >/dev/null
+  [[ $output == "a
+b	c" ]]
+  [ $status -eq 0 ]
+}
