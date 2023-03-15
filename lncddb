@@ -3,7 +3,9 @@
 #
 # might want to run test command to see if db is up
 # PGCONNECT_TIMEOUT=.25 psql -h $host lncddb lncd -c 'select 1'
-host=arnold.wpic.upmc.edu
-#host=10.145.64.121
-dbcmd="psql -h $host lncddb lncd"
+# LNCDDBHOST="0.0.0.0 --port=63333"  with
+#   ssh -L 63333:arnold:5432 rhea
+#host=arnold.wpic.upmc.edu
+host=10.145.64.121
+dbcmd="psql -h ${LNCDDBHOST:-$host} lncddb lncd"
 [ $# -ne 0 ] && $dbcmd -AF$'\t' -qtc "$@" || $dbcmd
