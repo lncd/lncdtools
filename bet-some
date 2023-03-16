@@ -4,29 +4,35 @@ tmpdir=""
 trap '[ -n "$tmpdir" -a -d "$tmpdir" ] && rm -r $tmpdir' EXIT SIGINT
 [ -v "SCALE" ] || SCALE=200%
 
+imageviewer=${IMAGEVIEWER:-feh}
+
 usage(){
   local exit=0
-  [ $# -gt 0 ] && echo "ERROR: $@" && exit=1
+  [ $# -gt 0 ] && echo "ERROR: $*" && exit=1
   cat<<HD
   $0 niftifile [frac1 frac2 ....]
   $0  -help = this help
 
-run a bunch of bets and show the results in feh  
+run a bunch of bets and show the results in $imageviewer (\$IMAGEVIEWER)
 defaults to frac .1 to .9 by 1
 
 SCALE=100% $0 nifile .5 # undo default 200% scaling
+
+IMAGEVIEWER=: $0 nifile .5 # dont open an imageviewer after bets
 HD
   exit $exit
 }
 
 [ $# -eq 0 ] && usage "need at least a nifti image"
 [[ "$1" =~ ^-h*|^-useage ]] && usage
+! command -v bet >/dev/null && warn "no 'bet' command! install fsl" && exit 1
+! command -v $imageviewer >/dev/null && warn "no image viewer '$imageviewer'. set IMAGEVIEWER. IMAGEVIEWER=':' to ignore" && exit 1
 
 img="$1"; shift
 [ $# -eq 0 ] && frac=($(seq .1 .1 .9)) || frac=("$@")
 
 tmpdir=$(mktemp -d /tmp/bet-some-XXX)
-echo "# writing to '$tmpdir' (removed when feh closes)"
+echo "# writing to '$tmpdir' (removed when '$imageviewer' closes)"
 for frac in ${frac[@]}; do
   echo -n "$frac ... "
   out=$tmpdir/bet-$frac.nii.gz
@@ -40,4 +46,4 @@ for frac in ${frac[@]}; do
 done
 echo
 convert -append $tmpdir/*.png $tmpdir/all.png
-feh $tmpdir/all.png
+$imageviewer $tmpdir/all.png
