@@ -1,0 +1,51 @@
+# Maintainer: Will Foran <willforan+aur@gmail.com>
+pkgname=lncdtools-git
+pkgver=r256.801649a
+pkgrel=1
+pkgdesc="collection of LNCD utilities including make sentinels, BIDS formating, and neuroimaging"
+arch=(any)
+url="https://github.com/lncd/lncdtools"
+license=('GPL')
+groups=()
+depends=()
+optdepends=('dcm2niix: for BIDS formating'
+            'octave: "ml" util')
+makedepends=('git' 'bash-bats' 'python-pydicom') 
+provides=("${pkgname%-git}")
+conflicts=("${pkgname%-git}")
+replaces=()
+backup=()
+options=()
+install=
+source=('lncdtools::git+https://github.com/LabNeuroCogDevel/lncdtools')
+noextract=()
+md5sums=('SKIP')
+
+# Please refer to the 'USING VCS SOURCES' section of the PKGBUILD man page for
+# a description of each element in the source array.
+
+pkgver() {
+	cd "$srcdir/${pkgname%-git}"
+	printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+prepare() {
+	cd "$srcdir/${pkgname%-git}"
+   # as of 20230315: nothing to prepare
+}
+
+build() {
+	cd "$srcdir/${pkgname%-git}"
+   # as of 20230315: no need to compile anything
+}
+
+check() {
+	cd "$srcdir/${pkgname%-git}"
+   #cpanp install Perl::RunEND
+	make -k check
+}
+
+package() {
+	cd "$srcdir/${pkgname%-git}"
+	make DESTDIR="$pkgdir/" install
+}
