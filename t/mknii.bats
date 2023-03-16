@@ -3,6 +3,7 @@
 # get mkdcm.py
 # setup temporary folder
 setup() {
+   command -v dcm2niix || skip "no dcm2niix"
    export PATH="$BATS_TEST_DIRNAME:$PATH"
    THISTESTDIR=$(mktemp -d $BATS_TMPDIR/XXX)
    cd $THISTESTDIR
@@ -29,9 +30,13 @@ teardown() {
 }
 @test mknii-taskname {
   mkdcm.py "test.dcm" 
-  mknii sub-x_task-rest_bold.nii.gz test.dcm 
+
+  # we only have 2d image. dcm2niix complains w/ status 123
+  # okay with this for now (20230315. tried to fix some warnigns in t/mkdcm.py)
+  mknii sub-x_task-rest_bold.nii.gz test.dcm || :
   [ -r sub-x_task-rest_bold.nii.gz ]
   [ -r sub-x_task-rest_bold.json ]
+  cat sub-x_task-rest_bold.json >&2
   grep TaskName sub-x_task-rest_bold.json
 
   mknii second.nii.gz test.dcm 

@@ -10,6 +10,9 @@ def img_dcm(image2d, PatientName="World^Hello", ID="123456"):
     """from
     https://stackoverflow.com/questions/14350675/create-pydicom-file-from-numpy-array
     /users/231422/corvin
+
+    re: 2d mirroring
+    https://github.com/rordenlab/dcm2niix/issues/204
     """
     image2d = image2d.astype(np.uint16)
 
@@ -54,10 +57,16 @@ def img_dcm(image2d, PatientName="World^Hello", ID="123456"):
     ds.PhotometricInterpretation = "MONOCHROME2"
     ds.PixelRepresentation = 1
 
+    # 20230315 - failing test b/c of missing field warnings?
+    #            maybe b/c only 2D? and warns about being mirrored
+    ds[0x0018, 0x1030] = pydicom.DataElement((0x0018, 0x1030), 'PN',
+                                             'FakeProtcol')
+    ds.Manufacturer = 'Siemens'
+
     pydicom.dataset.validate_file_meta(ds.file_meta, enforce_standard=True)
 
     ds.PixelData = image2d.tobytes()
-    return(ds)
+    return ds
 
 
 if __name__ == "__main__":
