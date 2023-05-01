@@ -6,24 +6,26 @@
 parent_processes(){ ps --no-headers -o "%a" --ppid $PPID; }
 dt_msg(){ echo "$(date +%FT%H:%M): $*"; }
 waitforjobs_usage(){
- cat <<HERE 
+ cat <<HERE
 USAGE:
   waitforjobs [-j numjobs] [-s sleeptimesecs] [-h|--help]"
 
 SYNOPSIS:
   wait until fewer than MAXJOBS are running.
   check the number of jobs every SLEEPTIME
-  
+
   useful when not using SLURM/TORQUE but just bash forks with '&'
    sleep 3 &
    sleep 3 &
-   waitforjobs -j 1 -s 1 
+   waitforjobs -j 1 -s 1
   will wait until all jobs are finished
-   # 2023-03-15T13:45: sleep 1 on 2/1 procs: sleep 3; sleep 3; 
+   # 2023-03-15T13:45: sleep 1 on 2/1 procs: sleep 3; sleep 3;
 
 OPTIONS:
   -j --maxjobs    set number of threads before waiting
   -s --sleeptime  set time for 'sleep' command
+  -c/--config     config file that can be resourced to update jobs and sleep
+                  if "auto", uses /tmp/host-user-basename.jobcfg
   -h --help       this message
 
 ENVIRONMENT:
@@ -44,17 +46,31 @@ EXAMPLES
     MAXJOBS=2 waitforjobs
 
 TODO:
-  -c/--config    config file that can be resourced to update jobs and sleep
   --nightjobs    jobs to run after work hours
 HERE
 }
-reload_config(){
-   [ ! -r "$1" ] && echo "warn 'watiforjobs config $1 does not exist!' && exit 1" && return 1
-   echo "echo 'waitforjobs config is not implemented!'; exit 1"; return 1
-   echo "maxjobs=${MAXJOBS:-2}"
-   echo "sleeptime=${SLEEPTIME:-60s}"
+initial_config(){
+  echo "maxjobs=${maxjobs:-2}"
+  echo "sleeptime=${sleeptime:-60s}"
 }
-waiting(){ 
+reload_config(){
+   config="$1"
+   if [[ $config = "auto" ]]; then
+      parent_name=$(ps -cq $PPID -o command=|sed 's/[^a-zA-Z0-9@_-]//')
+      config="${TMPDIR:-/tmp}/$HOSTNAME-$USER-$parent_name.jobcfg"
+      [ ! -r "$config" ] &&
+         initial_config > "$config" &&
+         warn "# wrote waitforjobs config to $config"
+   fi
+   if [ ! -r "$config" ]; then
+     echo "warn 'watiforjobs config $config does not exist!' && exit 2"
+     return 2
+   fi
+   # only grab lines that look like things we care about
+   # in case file has something accidentally malicious
+   grep -P '^(maxjobs|sleeptime)=' "$config"
+}
+waiting(){
    sleeptime=${SLEEPTIME:-60s}
    maxjobs=${MAXJOBS:-2}
    config=""
@@ -68,7 +84,7 @@ waiting(){
          *) warn "'$1' is bad option! see 'waitforjobs --help'";  exit 1;;
       esac
    done
-   
+
    while mapfile -t procs < <(parent_processes) &&
       # greater (not equal)  b/c expect parent process (waitforjobs itself) to be in the count
       # min $#procs is 1
