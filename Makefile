@@ -26,7 +26,7 @@ coverage: #$(wildcard t/*bats)
 ## make install
 # move all exec files in top level to install directory (/usr/bin)
 # exclude those not useful outside of lncd server rhea
-IGNORE_EXECS=V D r mrid pet_scan_age.R get_ld8_age.R fixto1809c rhea_user 
+IGNORE_EXECS=V D r mrid pet_scan_age.R get_ld8_age.R fixto1809c rhea_user dryrun.exe warn.fast
 EXECS := $(filter-out $(IGNORE_EXECS),$(shell find -maxdepth 1 -type f -perm /u+x -printf "%P\n"))
 BIN := $(addprefix $(DESTDIR)/usr/bin/,$(EXECS))
 $(DESTDIR)/usr/bin/%: %
