@@ -1,0 +1,19 @@
+site_name: LNCD Tools
+theme:
+  name: material
+  features:
+    - content.code.annotate
+markdown_extensions:
+  - abbr
+  - attr_list
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.snippets
+  - footnotes
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+
