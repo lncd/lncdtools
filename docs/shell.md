@@ -119,7 +119,13 @@ USAGE:
 
 
 ## `iffmain`
-In scripts use like `eval "$(iffmain main_function)"` where `main_function` is a function defined in the script.
+In a scripts where `main_function` is a deifned function, `iffmain` use at the end like 
+
+
+```bash
+eval "$(iffmain main_function)"
+```
+
 
 Defensive shell scripting calls for `set -euo pipefail` but running that (e.g. via `source`) on the command line will break other scripts and normal interactive shell [^sete_break]. `iffmain` is modeled after the python idiom `if __name__ == "__main__"`. When the script is not sourced, it toggles the ideal settings and sets a standard `trap` to notify on error.
 
@@ -130,6 +136,7 @@ A bash file that can be sourced can be reused and is able to be tested. See
 [Bash Test Driven Development](https://neuro-programmers.pitt.edu/wiki/doku.php?id=public:bash_tdd)
 
 ### Template
+`iffmain` generates shell code that looks like
 ```shell title="iffmain template"
 if [[ "$(caller)" == "0 "* ]]; then
   set -euo pipefail
