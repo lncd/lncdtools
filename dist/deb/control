@@ -1,0 +1,14 @@
+Maintainer: Will Foran <foran@pitt.edu>
+Section: misc
+Priority: optional
+Standards-Version: 3.9.2
+Build-Depends: debhelper (>= 9)
+Package: lncdtools
+Version: 1.0
+Architecture: any
+Depends: bash, perl
+Recommends: rename
+Suggests: postgresql-client-13, afni
+Enhances: afni
+Description: shell convience tools
+ lncdtools provides a suit of shell utilities for neuroimagaing
