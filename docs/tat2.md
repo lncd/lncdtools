@@ -14,21 +14,21 @@ also see ["Relative Concentration of Brain Iron (rcFe)"](https://www.biorxiv.org
 
 
 ## Pipeline
-![](/imgs/tat2.png)
+![](/lncdtools/imgs/tat2.png)
 
 ## Example
 Example mean tat2 images [^loc]
-[<img src="/imgs/tat2_example.png"     width=400 />](/imgs/tat2_examle.png)
+[<img src="/lncdtools/imgs/tat2_example.png"     width=400 />](/lncdtools/imgs/tat2_examle.png)
 
 [^loc]:from `/Volumes/Hera/Datasets/ABCD/TAT2/tat2_avg3797_med_voldisc.nii.gz` and `/Volumes/Hera/Projects/7TBrainMech/scripts/mri/tat2/mean_176.nii.gz`
 
 ## Comparisons
 Permutation of `tat2` calls were compared against R2 acquisitions.
 `-vol_median` is likely the appropriate normalization. <br>
-[<img src="/imgs/tat2_matrix.png"     width=400 />](/imgs/tat2_matrix.png)
+[<img src="/lncdtools/imgs/tat2_matrix.png"     width=400 />](/lncdtools/imgs/tat2_matrix.png)
 ### Correlation with R2
 tat2 is negatively correlated R2\* [^loccor]
-[<img src="/imgs/tat2_vs_r2prime.png" height=400 />](/imgs/tat2_vs_r2prime.png) <br>
+[<img src="/lncdtools/imgs/tat2_vs_r2prime.png" height=400 />](/lncdtools/imgs/tat2_vs_r2prime.png) <br>
 
 [^loccor]: from `/Volumes/Phillips/mMR_PETDA/scripts/tat2/multiverse`
 
