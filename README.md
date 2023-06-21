@@ -1,7 +1,6 @@
 # LNCD Tools
 small scripts useful for data wrangling at the LNCD 
 
-[![Build Status](https://travis-ci.com/LabNeuroCogDevel/lncdtools.svg?branch=master)](https://travis-ci.com/LabNeuroCogDevel/lncdtools)
 
 ## Install
 ```
