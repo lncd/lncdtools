@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # create a 1D 0/1 binary censor file based on FD > 0.5
 create_censor(){
+   local mot out
    mot=${1//bold.nii.gz/motion.txt}
    out=${1//bold.nii.gz/fdcen.1D}
    [ ! -r "$mot" ] && warn "no $mot!" && return 1
