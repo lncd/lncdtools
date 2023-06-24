@@ -5,6 +5,7 @@ Jump right into with an [example](#example-script).
 ## `dryrun`
 
 `dryrun` runs a command only when the `$DRYRUN` environmental variable is not set. [^dryrun_name]
+Also see [`try`](https://github.com/binpash/try), comparable to `make -n`
 
 ```shell title="dryrun'ed"
 $ echo hi > myfile
