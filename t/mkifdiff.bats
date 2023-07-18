@@ -40,7 +40,6 @@ modtime_unchanged() {
 }
 
 @test dne {
-
   [ -r "$MKIFDIFFFILE_DNE" ] && rm "$MKIFDIFFFILE_DNE"
   newdate=$(date)
   output=$(echo -n "$newdate" | mkifdiff $MKIFDIFFFILE_DNE)
@@ -50,4 +49,12 @@ modtime_unchanged() {
   [ -r "$MKIFDIFFFILE_DNE" ]
   [[ "$(cat $MKIFDIFFFILE_DNE)" == "$newdate" ]]
   [[ "$output" =~ "creating" ]]
+}
+
+@test fail_on_empty {
+  echo -n | mkifdiff -n $MKIFDIFFFILE  || :
+  [[ "$(cat $MKIFDIFFFILE)" == "$DATE" ]]
+
+  echo -n | mkifdiff $MKIFDIFFFILE
+  [[ ! -s $MKIFDIFFFILE ]]
 }

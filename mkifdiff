@@ -5,10 +5,18 @@ set -euo pipefail
 #  used in `make`. keep timestamps older unless there's a change
 #
 #  20191024WF  init
+#  20230718WF  add NOEMPTY (-n or --noempty)
 
 # need a file and needs to be in a pipe
 tty >/dev/null  && echo "need to pipe to $0; cmd | $0 output.txt" && exit 1
-[ $# -ne 1 ] && echo "USAGE: cmd | $0 output.txt" && exit 1
+usage(){ echo "USAGE: cmd | $0 [-n|--noempty] output.txt"; }
+[ $# -ne 1 ] && usage >&2 && exit 1
+[ "$1" == "-h" ] && usage && exit 0
+
+# might want to avoid overwritting with an empty file
+NOEMPTY=
+[ "$1" = "--noempty" -o $1 = "-n"] && NOEMPTY=1 && shift;
+
 # temporary file for diffing
 TMPFILE=$(mktemp "/tmp/XXXXX-$(basename "$0").lst")
 # dont leave tempfiles all over the place
@@ -17,11 +25,17 @@ trap '[ -n "$TMPFILE" -a -r "$TMPFILE" ] && rm $TMPFILE' EXIT
 # when file doesn't exist. there's nothing to diff. so just write it
 if [ ! -e "$1" ]; then
    cat > "$1"
-   echo "$1 did not previously exist. creating"
+   echo "$1 did not previously exist. nothing for $0 to diff. creating '$1'"
    exit 0
 fi
 # put pipe into a file
 cat > "$TMPFILE"
+if [ ! -s "$TMPFILE" ]; then
+   warn "# WARNING: empty output directed to '$1'!"
+   [ -n "$NOEMPTY" ] &&
+      warn "# remove -n|--noempty to continue" &&  exit 1
+fi
+
 # update input only if pipe output was different
 ! diff -q "$TMPFILE" "$1" 2>&1 >/dev/null &&
    mv "$TMPFILE" "$1" ||
