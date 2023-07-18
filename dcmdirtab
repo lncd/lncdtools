@@ -47,7 +47,7 @@ sub get_config(){
    my %conf=();
    $conf{subpat} = qr/$opts{subpat}/;
    $conf{sespat} = qr/$opts{sespat}/;
-   $conf{dcmpat} = '.*MR.*\|.*dcm$';
+   $conf{dcmpat} = '.*MR.*\|.*dcm$\|.*IMA$';
    # default file info things to grab
 
    $conf{columns}={

@@ -3,6 +3,7 @@
 # sheet api call outlined in
 # http://wescpy.blogspot.com/2016/09/formatting-cells-in-google-sheets-with.html
 
+# pip install google-api-python-client
 from googleapiclient.discovery import build
 from oauth2client.service_account import ServiceAccountCredentials
 import httplib2

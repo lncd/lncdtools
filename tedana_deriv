@@ -18,6 +18,9 @@ tedana_from_echo1(){
   test -r "$tedana_mni" &&
      warn "# already finished. have '$_'" && return 0
 
+  ! python -c 'import tedana' &&
+     warn "tedana not available! 'pip install tedana --user'" && exit 22
+
   # warping files
   transform_nonlin="${outdir/func/anat}/${sub_ses}_from-T1w_to-MNI152NLin2009cAsym_mode-image_xfm.h5"
   transform_lin="$outdir/${prefix}_from-scanner_to-T1w_mode-image_xfm.txt"

@@ -47,3 +47,22 @@ function test_waitforjobsoutput { # @test
   [[ ! $output =~ "waitforjobs" ]]
   [[ $dur -eq 2 ]]
 }
+
+function test_fail_config { # @test
+  run waitforjobs -j 3 -c /I/dont/exist.jobcfg
+  [ $status -eq 2 ]
+}
+
+function test_config { # @test
+  #sleep 2 &
+  #sleep 2 &
+  #sleep 2 &
+  TMPDIR=$BATS_TEST_TMPDIR run waitforjobs -s .5 -j 2 -c auto
+  f=$(ls $BATS_TEST_TMPDIR/$HOSTNAME-$USER-*.jobcfg)
+  [ -n "$f" -a -r "$f" ]
+  grep maxjobs=2 "$f"
+  grep sleeptime=.5 "$f"
+
+  #echo "output: '$output'" >&2
+  #[[ $output =~ sleep ]]
+}
