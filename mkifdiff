@@ -10,12 +10,12 @@ set -euo pipefail
 # need a file and needs to be in a pipe
 tty >/dev/null  && echo "need to pipe to $0; cmd | $0 output.txt" && exit 1
 usage(){ echo "USAGE: cmd | $0 [-n|--noempty] output.txt"; }
-[ $# -ne 1 ] && usage >&2 && exit 1
+[ $# -eq 0 -o $# -gt 2 ] && usage >&2 && exit 1
 [ "$1" == "-h" ] && usage && exit 0
 
 # might want to avoid overwritting with an empty file
 NOEMPTY=
-[ "$1" = "--noempty" -o $1 = "-n"] && NOEMPTY=1 && shift;
+[ "$1" = "--noempty" -o "$1" = "-n" ] && NOEMPTY=1 && shift;
 
 # temporary file for diffing
 TMPFILE=$(mktemp "/tmp/XXXXX-$(basename "$0").lst")
@@ -33,7 +33,7 @@ cat > "$TMPFILE"
 if [ ! -s "$TMPFILE" ]; then
    warn "# WARNING: empty output directed to '$1'!"
    [ -n "$NOEMPTY" ] &&
-      warn "# remove -n|--noempty to continue" &&  exit 1
+      warn "# remove -n/--noempty to continue" &&  exit 1
 fi
 
 # update input only if pipe output was different
