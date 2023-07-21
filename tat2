@@ -192,7 +192,7 @@ collapse_seq_idx(){
 
 parse_args(){
    # keep args around for 3dNotes history
-   allargs="$@"
+   allargs="$*"
 
 
    # read in any arguments/paramaters
