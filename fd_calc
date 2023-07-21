@@ -53,11 +53,22 @@ d <- read.table(file('stdin', 'r'))
 trans <- d[,opt$tran_cols]
 rot_cov <- ifelse(opt$rot_meas=='deg', pi/180, 1)
 rots <- rot_cov * d[,opt$rot_cols]
+
+# check rot
+rots_mean <-mean(apply(rots,1, function(x) mean(abs(x))))
+if(rots_mean > .01 || rots_mean < 1e-4){
+   message("#WARNING fd_calc input: rot mean rot is ", rots_mean,
+       "expect 1e-4 < x < .01. check deg vs rad\n")
+}
+
 rot_disp <- sin(rots) * ANGLE_DISP_SPHERE
 x <- cbind(trans, rot_disp)
 diffcols <- function(x) abs(apply(x,2,diff))
 #fd <- c(0, sqrt(rowSums(diffcols(x)^2)))
 fd <- c(0, rowSums(diffcols(x)))
+
+if(any(fd<0)) stop("negative fd! something is wrong!")
+
 if(opt$thres > 0) {
    output <- ifelse(fd > opt$thres, 0, 1)
 } else {
@@ -66,3 +77,4 @@ if(opt$thres > 0) {
 outstr <- paste(collapse="\n", output)
 cat(outstr)
 cat("\n")
+on.exit(close(stdin()))
