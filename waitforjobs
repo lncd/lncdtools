@@ -8,7 +8,7 @@ dt_msg(){ echo "$(date +%FT%H:%M): $*"; }
 waitforjobs_usage(){
  cat <<HERE
 USAGE:
-  waitforjobs [-j numjobs] [-s sleeptimesecs] [-h|--help]"
+  waitforjobs [-j numjobs] [-s sleeptimesecs] [-c "auto"] [-h|--help]"
 
 SYNOPSIS:
   wait until fewer than MAXJOBS are running.
