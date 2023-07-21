@@ -70,6 +70,13 @@ sub get_config(){
       "bandwidth"=>"0018,0095", # echospacing = 1/(bandwith*matrixsize[0]) 
       "imagetime"=>"0008,0033",
       "seriesdesc"=>"0008,103e",
+      # 20230510 -- for identifing the scanner. at some point we should just use the DICOM cpan module to get names
+      "station"=>"0008,1010",  # ID Station Name//MRC18914
+      "model"=>"0008,1090",    # ID Manufacturer Model Name//Investigational_Device_7T
+      "seqname"=>"0018,0024",  # ACQ Sequence Name//*fl2d1
+      "strength"=>"0018,0087", # ACQ Magnetic Field Strength//6.98
+      "software"=>"0018,1020", # ACQ Software Version//syngo MR B17
+
       "example"=>sub($p){firstdcm($p, $conf{dcmpat})},
       "accel"=>sub($p){return dcmstring(firstdcm($p, $conf{dcmpat}),'sPat.lAccelFactPE.*')},
    };
