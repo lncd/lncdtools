@@ -47,11 +47,30 @@ def plot_rois(ax_roi, fname, roi_idxs=[1, 2, 7, 8, 9, 10], display_mode='xz'):
                              display_mode=display_mode, alpha=.5,
                              axes=ax_roi)
 
-def plot_nii(ax_roi, fname, display_mode='xz'):
-    img = image.smooth_img(fname, 'fast')
+def plot_nii(ax_roi, fname, display_mode='xz', digitize=True):
+    """plot rois in nii. stat map needs its own function
+    digitize takes eg roi mask/atlas with values 37,38 to 1,2"""
+    # fname="/Volumes/Zeus/scratch/MNI_caez_ml_hpc37_38.nii.gz"
+    #img = image.smooth_img(fname, 'fast')
+    import nibabel as nib
+    img = nib.load(fname)
+    data = img.get_data()
+
+    # if had nifti with roi vaules 7, 8 make them 1,2
+    rois = np.unique(np.round(data))
+    if digitize:
+        dig = np.digitize(np.round(data), bins=rois)-1
+        img = nib.Nifti1Image(dig, img.affine, img.header)
+        rois = np.unique(dig)
+
+    # TODO: what if we want 7 to always be the same color?
+    # need to pass in maxroi?
+    # TODO: tab20 not best choice? allow user to set
+
     plotting.plot_glass_brain(img,
+                             cmap='tab20',
                              display_mode=display_mode, alpha=.5,
-                             vmax=100,
+                             vmax=max(rois),
                              vmin=0,
                              axes=ax_roi)
 
