@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+#
+# 3dAutomask combine(mean=>ratio) and thresholded
+# as suggested by Daniel Gale Jun 18, 2023 via AP
+#
+# 20230724WF - init
+#
+
+[[ "${1:---help}" =~ ^--?h ]] && cat <<HERE  && exit 1
+SYNOPSIS:
+  3dAutomask iterations combined and masked
+USAGE:
+ $(basename "$0") mask_out.nii.gz input.nii.gz [-bucket] [-ratio] [-thresh=.7] [-seq=45,5,75]
+  -bucket      save _bucket.nii.gz  subrick for each mask iteration
+  -ratio       save _ratio.nii.gz   mean of all masks
+  -thres=.5    change mask threshold to half of all automasks (default=.7)
+  -seq=45,5,75 change automask clfrac sequences (default 45 to 75 by 5; csv given to 'seq')
+  -noclean     don't cleanup temp files (each 3dAutomask)
+   
+HERE
+
+mask_out="${1:?first argument is output name}"
+[ -r "$mask_out" ] && warn "arealdy have $1; rm to redo" && exit 0
+! [[ "$1" =~ .nii(.gz)?$ ]] && echo "first input should be nifti file!" && exit 1
+mask_tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/automask_XXXXX")
+
+# shellcheck disable=SC2064
+#trap "$(trap -p EXIT| perl -pe "s/.*?'//;s/;?' EXIT//"); test -d '$mask_tmpdir' && rm -r '$mask_tmpdir';" EXIT
+[[ $* =~ -noclean ]] &&
+   echo "# SAVING TO $mask_tmpdir" || 
+   trap "test -d '$mask_tmpdir' && rm -r '$mask_tmpdir';" EXIT
+
+[[ $* =~ -seq?=([,0-9]+) ]] && seq="${BASH_REMATCH[1]}" || seq=45,5,75
+# shellcheck disable=SC2086 # want to split into 3
+for frac in $(seq ${seq//,/ }); do
+   3dAutomask -prefix "$mask_tmpdir/$frac.nii.gz"  -clfrac "0.$frac" "${2:?output name}"
+done
+3dMean -prefix "$mask_tmpdir/cnt.nii.gz" "$mask_tmpdir/"*.nii.gz
+
+[[ $* =~ -bucket ]] && 3dbucket -prefix "${mask_out/.nii/_bucket.nii}" "$mask_tmpdir/"[0-9]*.nii.gz
+[[ $* =~ -ratio  ]] && cp "$mask_tmpdir/cnt.nii.gz" "${mask_out/.nii/_ratio.nii}"
+[[ $* =~ -thresh?=([.0-9]+) ]] && thres="${BASH_REMATCH[1]}" || thres=0.7
+
+3dcalc -overwrite -prefix "${mask_out}" -a "$mask_tmpdir/cnt.nii.gz" -expr "step(a-$thres)"
+3dNotes -h "$0 $* #git:$(gitver "$0")" "${mask_out}"
