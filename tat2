@@ -26,7 +26,7 @@ TMPD="" # will be folder specific to single invocation of tat2. removed at the e
 # all the inputs (possibly globs) we want to work on
 declare -a GLOBFILES
 
-
+TAT2_VER="20230804-withver"
 # 20201116
 #  back to mean default
 # add
@@ -434,11 +434,17 @@ _tat2(){
    all_nts="$(3dinfo -nt $TMPD/*_tat2.nii.gz|tr '\n' ',')"
 
    [ $vox_scale -eq 0 ] && scale_msg="SCALE=NA" || scale_msg="SCALE=$SCALE"
+
+   # use gitver (lncdtool) when on path and tat2 tracked in git repo (e.g. in development)
+   # otherwise use hardcoded TAT2_VER (e.g. copied just tat2/no repo; or using from system package)
    gitver="$(gitver "$0"||:)"
-   3dNotes -h "$0 $allargs # $(pwd); $scale_msg, nvoxes=$all_numvox; nt=$all_nts; vol:$volnorm_opt, time:$tnorm_opt; $MAXVOLSTOTAL/$concat_nvol/$nvols_nocen used/not-cen/total nvols; $cnt/${#GLOBFILES[@]} files; ${gitver:-git:NA}" $OUTPUT
+   [[ -z "$gitver" || "$gitver" =~ :NA$ ]] && gitver=$TAT2_VER
+
+   note_msg="$0 $allargs # $(pwd); $scale_msg, nvoxes=$all_numvox; nt=$all_nts; vol:$volnorm_opt, time:$tnorm_opt; $MAXVOLSTOTAL/$concat_nvol/$nvols_nocen used/not-cen/total nvols; $cnt/${#GLOBFILES[@]} files; $gitver"
+   3dNotes -h "$note_msg" "$OUTPUT"
 
    [ $CLEAN -eq 1 ] && \
-      rm -r $TMPD ||\
+      rm -r "$TMPD" ||\
       echo "find temporary files in '$TMPD'; remove '-noclean' if not testing"
 
    return 0
