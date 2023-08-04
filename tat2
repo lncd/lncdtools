@@ -121,8 +121,6 @@ HEREDOC
 err() { echo -e "$@" >&2; exit 1; }
 msg() { echo -e "# [$(date)] $@"; }
 
-tat2_gitver(){ echo $(cd $(dirname $0); git log -1 --pretty=format:%as:%h -- tat2; git diff --shortstat -- tat2 |tr -d '[a-z ]';); }
-
 find_rel_file(){
   local input="$1"; shift
   local rel_str="$1"; shift
@@ -436,7 +434,7 @@ _tat2(){
    all_nts="$(3dinfo -nt $TMPD/*_tat2.nii.gz|tr '\n' ',')"
 
    [ $vox_scale -eq 0 ] && scale_msg="SCALE=NA" || scale_msg="SCALE=$SCALE"
-   3dNotes -h "$0 $allargs # $(pwd); $scale_msg, nvoxes=$all_numvox; nt=$all_nts; vol:$volnorm_opt, time:$tnorm_opt; $MAXVOLSTOTAL/$concat_nvol/$nvols_nocen used/not-cen/total nvols; $cnt/${#GLOBFILES[@]} files; $(tat2_gitver)" $OUTPUT
+   3dNotes -h "$0 $allargs # $(pwd); $scale_msg, nvoxes=$all_numvox; nt=$all_nts; vol:$volnorm_opt, time:$tnorm_opt; $MAXVOLSTOTAL/$concat_nvol/$nvols_nocen used/not-cen/total nvols; $cnt/${#GLOBFILES[@]} files; $(gitver $0||echo git:NA)" $OUTPUT
 
    [ $CLEAN -eq 1 ] && \
       rm -r $TMPD ||\
