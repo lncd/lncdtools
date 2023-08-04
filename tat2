@@ -434,7 +434,8 @@ _tat2(){
    all_nts="$(3dinfo -nt $TMPD/*_tat2.nii.gz|tr '\n' ',')"
 
    [ $vox_scale -eq 0 ] && scale_msg="SCALE=NA" || scale_msg="SCALE=$SCALE"
-   3dNotes -h "$0 $allargs # $(pwd); $scale_msg, nvoxes=$all_numvox; nt=$all_nts; vol:$volnorm_opt, time:$tnorm_opt; $MAXVOLSTOTAL/$concat_nvol/$nvols_nocen used/not-cen/total nvols; $cnt/${#GLOBFILES[@]} files; $(gitver $0||echo git:NA)" $OUTPUT
+   gitver="$(gitver "$0"||:)"
+   3dNotes -h "$0 $allargs # $(pwd); $scale_msg, nvoxes=$all_numvox; nt=$all_nts; vol:$volnorm_opt, time:$tnorm_opt; $MAXVOLSTOTAL/$concat_nvol/$nvols_nocen used/not-cen/total nvols; $cnt/${#GLOBFILES[@]} files; ${gitver:-git:NA}" $OUTPUT
 
    [ $CLEAN -eq 1 ] && \
       rm -r $TMPD ||\
