@@ -1,5 +1,5 @@
 # Time averaged T2*
-`tat2` wraps around `3dROIstats`, `3dcalc`, and `3dTstat` to average EPI BOLD data in a reasonable way.
+`tat2` wraps around `3dROIstats`, `3dcalc`, and `3dTstat` to reduce 4D EPI BOLD data to a per-voxel (3D) measure that is inversely related to iron concentration.
 
 * [Contributions of dopamine-related basal ganglia neurophysiology to the developmental effects of incentives on inhibitory control](https://www.sciencedirect.com/science/article/pii/S1878929322000445)
 * [In vivo evidence of neurophysiological maturation of the human adolescent striatum](https://www.sciencedirect.com/science/article/pii/S1878929314000863?via%3Dihub)
@@ -12,9 +12,36 @@ Initially from [Predicting Individuals' Learning Success from Patterns of Pre-Le
 
 also see ["Relative Concentration of Brain Iron (rcFe)"](https://www.biorxiv.org/content/biorxiv/early/2019/03/16/579763.full.pdf)
 
+## Usage
+see `tat2 --help`
+
+### Simple
+```
+tat2 -output derive/tat2.nii.gz func/*preproc_bold.nii.gz
+```
+
+### With options and relative paths
+```
+sub_ses="sub-01/ses-01"
+censor_regex='s/.*func\/(.*)-preproc_bold.nii.gz/censor_files\/\1\/preproc_censor-fd0.3.1D/'
+tat2 \
+    -output "deriv/$sub_ses/func/${sub_ses//\//_}_space-MNI152NLin2009cAsym_tat2.nii.gz" \
+    -mask_rel 's/preproc_bold.nii.gz/brain_mask.nii.gz/' \
+    -censor_rel "$censor_regex" \
+    -median_time \
+    -median_vol \
+    -no_voxscale \
+    -verbose \
+    deriv/$sub_ses/func/*space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz
+```
+
+## Preprocessing
+We slice-time and motion correction, skull strip, despiking (wavelet), and warp to MNI before running `tat2`.
+Notably, smoothing is not included in datasets input to `tat2`.
 
 ## Pipeline
 ![](/lncdtools/imgs/tat2.png)
+
 
 ## Example
 Example mean tat2 images [^loc]
