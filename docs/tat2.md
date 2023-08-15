@@ -11,6 +11,8 @@ Initially from [Predicting Individuals' Learning Success from Patterns of Pre-Le
 > e.g., 10000. The number doesn't really matter.
 
 also see ["Relative Concentration of Brain Iron (rcFe)"](https://www.biorxiv.org/content/biorxiv/early/2019/03/16/579763.full.pdf)
+## Setup
+see [setup](lncdtools_setup) instructions for all of lncdtools: clone and add to path
 
 ## Usage
 see `tat2 --help`

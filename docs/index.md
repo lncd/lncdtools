@@ -5,6 +5,7 @@ A suit of shell scripting, GNU Make, and general neuroimaging [^AFNI] companion 
 [^AFNI]: mostly via [AFNI](afni.nimh.nih.gov/)
 ## Highlights
 
+* "installing"/[setup](lncdtools_setup) - clone and add to path
 * [`tat2`](tat2) - calculate time averate T2* on 4D EPI
 * [shell scripting tools](shell) - `iffmain`,  `waitforjobs`, `dryrun`, `drytee`
 * `niinote` - warp a nifti creating command to append AFNI's note header (ad hoc provenance)

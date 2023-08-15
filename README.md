@@ -3,9 +3,12 @@ small scripts useful for data wrangling at the LNCD
 
 
 ## Install
+See the [docs](https://lncd.github.io/lncdtools/lncdtools_setup/)
+
+Briefly clone and add to path
 ```
-git clone https://github.com/LabNeuroCogDevel/lncdtools ~/lncdtools
-echo "export PATH=\$PATH:$HOME/lncdtools" >> $( [ "$(uname)" == Darwin ] && echo ~/.profile || echo ~/.bashrc)
+git clone https://github.com/lncd/lncdtools ~/lncdtools
+echo "export PATH=\$PATH:$HOME/lncdtools" >> ~/.bashrc
 ```
 
 ## Usage/cookbooks
@@ -18,10 +21,11 @@ echo "export PATH=\$PATH:$HOME/lncdtools" >> $( [ "$(uname)" == Darwin ] && echo
   * `img_bg_rm`  - use imagemagick's `convert` to set a background to alpha (remove). Taken from ["hackerb9" stack overflow solution](https://stackoverflow.com/questions/9155377/set-transparent-background-using-imagemagick-and-commandline-prompt). use on afni and suma screen captures
   * `mkmissing` - find missing patterns between two steps in a pipeline (file globs)
   * `r` - read dataframe from stdin and run R code with shortcuts and magic a la DataScienceToolkit's Rio
-  * `tat2`, `melanin_align`  - modality specific wrappers
+  * [`tat2`](https://lncd.github.io/lncdtools/tat2/), `melanin_align`  - modality specific wrappers
 
-### tat2
+### [tat2](https://lncd.github.io/lncdtools/tat2/)
 
+also see more detaied [docs](https://lncd.github.io/lncdtools/tat2/)
 [<img src="docs/imgs/tat2_example.png"     width=400 />](docs/imgs/tat2_examle.png)
 (`/Volumes/Hera/Datasets/ABCD/TAT2/tat2_avg3797_med_voldisc.nii.gz` and `/Volumes/Hera/Projects/7TBrainMech/scripts/mri/tat2/mean_176.nii.gz`)
 
