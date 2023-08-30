@@ -13,8 +13,8 @@ echo "export PATH=\$PATH:$HOME/lncdtools" >> ~/.bashrc
 ```
 
 ## Usage/cookbooks
-  * TODO: [Makefile sentinels](/docs/mksentinels) for `make` using `mkifdiff`, `mkls`, `mkmissing`, `mkstat`
-  * [BIDS](/docs/BIDS) with `dcmdirtab`, `dcmtab_bids`, and `mknii`
+  * TODO: [Makefile sentinels](/docs/mksentinels.md) for `make` using `mkifdiff`, `mkls`, `mkmissing`, `mkstat`
+  * [BIDS](/docs/BIDS.md) with `dcmdirtab`, `dcmtab_bids`, and `mknii`
 
 ## Tools
 
