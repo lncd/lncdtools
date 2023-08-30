@@ -1,5 +1,6 @@
 # LNCD Tools
 small scripts useful for data wrangling at the LNCD 
+[![DOI](https://zenodo.org/badge/152143120.svg)](https://zenodo.org/badge/latestdoi/152143120)
 
 
 ## Install
@@ -12,8 +13,8 @@ echo "export PATH=\$PATH:$HOME/lncdtools" >> ~/.bashrc
 ```
 
 ## Usage/cookbooks
-  * TODO: [Makefile sentinels](/doc/mksentinels) for `make` using `mkifdiff`, `mkls`, `mkmissing`, `mkstat`
-  * TODO: [BIDS](/doc/BIDS) with `dcmdirtab`, `dcmtab_bids`, and `mknii`
+  * TODO: [Makefile sentinels](/docs/mksentinels) for `make` using `mkifdiff`, `mkls`, `mkmissing`, `mkstat`
+  * [BIDS](/docs/BIDS) with `dcmdirtab`, `dcmtab_bids`, and `mknii`
 
 ## Tools
 
