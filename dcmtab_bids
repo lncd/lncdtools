@@ -6,12 +6,16 @@ no warnings 'experimental::signatures';
 use Carp;
 use Data::Dumper;
 
+# these are hard coded translations of modality label suffices to BIDS directory
+# can also pass e.g. anat/T1w
 my %mode_folder = (dwi=>'dwi',
    T1w=>'anat', T2w=>'anat',
    bold=>'func', sbref=>'func',
    epi=>'fmap',
    'magnitude'=>'fmap', 'magnitude1'=>'fmap', 'magnitude2'=>'fmap',
    'phase'=>'fmap', 'phase1'=>'fmap', 'phase2'=>'fmap', 'phasediff'=>'fmap');
+
+# https://bids-specification.readthedocs.io/en/stable/appendices/entities.html
 my @attributes_ordered = qw/task acq ce dir rec run echo mode/;
 
 sub combine_attr($attr, $val){
@@ -21,6 +25,10 @@ sub combine_attr($attr, $val){
    return "";
 }
 
+# BIDS->new() is only called once we have a protocol to match against a criteria
+# %opts is criteria->{bids} -- regex match group of mode, subj, maybe ses and other @attributes_ordered
+# NB most "entities" in attributes_ordered will not be provided here.
+# only a few are able to be expressed. see $cfgstring in criteria->dsl
 sub new($class, %opts){
    # to build out a bids, the very minimum info is subject and mode
    # and if mode == "task" we also need a task name
@@ -28,18 +36,32 @@ sub new($class, %opts){
    push @req, "task" if $opts{mode} eq "bold";
 
    for my $req (@req){
-      croak "BIDS: must have '$req'" if not $opts{$req};
+      croak "BIDS: must have '$req' in '".Dumper(%opts)."'" if not $opts{$req};
    }
-   croak "BIDS: bad mode in parsed criteria: ",
-          Dumper(\%opts),
-	  "\nmode='$opts{mode}'! not in @{[keys(%mode_folder)]}"
-     if not $mode_folder{$opts{mode}};
 
+   # given e.g. anat/T1w or perf/asl instead of hard coded suffix
+   # add to folder and update mode
+   if($opts{mode} =~ m:^(anat|func|fmap|dwi|perf)/([^/]+)$:){
+      $opts{folder}=$1;
+      $opts{mode}  =$2;
+   } else {
+      croak "BIDS: bad mode in parsed criteria: ",
+             Dumper(\%opts),
+        "\nmode='$opts{mode}'! not in @{[keys(%mode_folder)]}"
+        if not $mode_folder{$opts{mode}};
+
+      $opts{folder}=$mode_folder{$opts{mode}};
+   }
+
+   # check that we have attributes known to be in the BIDS standard
+   # e.g. don't try to make up 'mynewkey-value' to put in the file name
    for my $attr (keys(%opts)){
-      next if $attr =~ /^(mode|ses|subj)$/;
+      next if $attr =~ /^(mode|ses|subj|folder)$/;
       croak "BIDS: bad attribute '$attr' not in @attributes_ordered"
         if not grep(/^$attr$/, @attributes_ordered);
    }
+
+   # perl object
    my $self = \%opts;
    bless $self, $class;
    return $self;
@@ -49,12 +71,12 @@ sub path($self, $ext=".nii.gz") {
    # use BIDS object's subj and ses if they are provided
    my $subj=$self->{subj};
    my $ses =$self->{ses};
-   my $prefix="sub-$subj/$mode_folder{$self->{mode}}/sub-${subj}_";
-   $prefix = "sub-$subj/ses-$ses/$mode_folder{$self->{mode}}/sub-${subj}_ses-${ses}_" if $ses;
-   
+   my $prefix="sub-$subj/$self->{folder}/sub-${subj}_";
+   $prefix = "sub-$subj/ses-$ses/$self->{folder}/sub-${subj}_ses-${ses}_" if $ses;
+
    my $file = join "_",
       grep {!/^-?$/}
-      map {combine_attr($_, $self->{$_})} @attributes_ordered; 
+      map {combine_attr($_, $self->{$_})} @attributes_ordered;
    return "${prefix}$file$ext";
 }
 
@@ -65,6 +87,7 @@ use Carp;
 use Data::Dumper;
 no warnings 'experimental::signatures';
 
+# criteria->new
 sub new($class, %opts){
 #      (n_expect => 1,
 #       bids => {mode=>"T1w"},
@@ -84,26 +107,29 @@ sub dsl($class, $cfgstring) {
    # bold=rest;pname=rest,ndcm=180
    # T1w;pname=mprage,ndcm=176
    # epi;pname=spinecho,ndcm=4;dir=AP
-   
+
    # excpliclty check number of seps b/c ; and , is confusing and hard to debug
    # expect at most 2 ';' seps between 3 pieces: mode ; criteria ; #runs
    # but also can have acq= and dir=
-   my $help_msg="Want eg. bold=mytask;pname=MyTask,ndcm=180;3";
+   my $help_msg="Want eg. bold=mytask;pname=MyTask,ndcm=180;3;dir=AP;acq=mylabel";
    my $max_seps = 2;
    my $extra_colons = scalar(()=$cfgstring =~ m/(acq|dir)=/g);
    my $n_seps_seen  = scalar(()=$cfgstring =~ m/;/g);
    croak "bad separator: too many ';' in '$cfgstring'. $help_msg" if $n_seps_seen > ($max_seps + $extra_colons);
 
-   $cfgstring =~ m/^(?<mode>[^;=]+)=?(?<task>[^;]+)?;(?<matches>[^;]+);?(?<n_expect>\d+)?(;dir=(?<dir>[^;=]+))?(;acq=(?<acq>[^;=]+))?$/ or
+   # TODO: support more entities. do not force order (currently dir then acq)
+   # maybe write with a grammer
+   # consider (runs=)?(?<n_expect>\d+)
+   $cfgstring =~ m/^(?<mode>[^;=]+)=?(?<task>[^;]+)?;(?<matches>[^;]+);?(?<n_expect>\d+)?(;dir=(?<dir>[^;=]+))?(;acq=(?<acq>[^;=]+))?;?$/ or
      croak "criteria: failed to parse '$cfgstring'. $help_msg";
    my %bids = %+{qw/mode task dir acq/};
    my $n_expect = $+{n_expect};
    my %matches = map {split /=/} (split /,/, $+{matches});
    return new($class,
-              bids=>\%bids, 
+              bids=>\%bids,
               matches=>\%matches,
               n_expect=>$n_expect);
-   
+
 }
 
 sub match_seq($self, $seq) {
@@ -187,7 +213,7 @@ sub parse($sequences, $criteria){
 
 package main;
 use v5.26;
-use strict; use warnings; use autodie; 
+use strict; use warnings; use autodie;
 use feature qw/signatures/; no warnings qw(experimental::signatures);
 use File::Slurp; # read_file
 use Pod::Usage;
@@ -252,23 +278,65 @@ dcmtab_bids
 
 
 Generate commands from dicom info tsv and bids criteria.
-output ready for C<dcmnii>
 
 Input likely from C<dcmdirtab>. See C<--help> for more.
+
+output ready for C<mknii>. eg:
+   dcmtab_bids ... | parallel --colsep '\t' mknii bids/WPC7225_7tclz/"{1}" "{2}"
+
+=head1 OUTPUT
+
+one line per matching pattern with tab separated columns (1) BIDS name (2) matching dicom folder
+
+ sub-1/anat/sub-1_T1w.nii.gz /path/to/dicom/MP2RAGEPTX_TR6000_1MMISO_UNI-DEN_0025
+
+
+
+=head1 INPUT
+
+Tab separated fields are read from stdin. Input is expected to be from C<dcmdirtab>. The first row is assumed to be the column labels. Patterns match against these line by line. Matches are translated to BIDS output file names.
 
 =head1 OPTIONS
 
 =over 4
 
-=item 'mode;pattern,pattern[;runs][;acq=label][;dir=label]'
+=item -h --help:
 
-specification for data to BIDS.
-'runs' (number indicating number of repeats), acq (string label), and dir (string label) are optional. but when more than one is specified, they must be in order.
-Quote each as specification as a single argument and provide as many as needed.
+this message
+
+=item ENV
+
+Environmental variable 'DEBUG' can be used to see criteria comparisons
+
+=over 6
+
+=item DEBUG=HIT
+
+=item DEBUG=MISS
+
+=item DEBUG=HITMISS
+
+=back
+
+for example:
+
+  dcmdirtab -s 'E\d+' -d 'E07/scans/*/' |
+  DEBUG=HIT dcmtab_bids 'bold=rest;ndcm=574;pname=EYESFIXED' 'T1w;pname=mprage,ndcm=176'
+
+
+=item criteria
+
+'mode;pattern,pattern[;runs][;acq=label][;dir=label]'
+
+Each arguments is interpreted as a disticnt critera specification for parsing dicom metadata to BIDS file structure.
+
+Provide as many as criteria as needed.  Quote each as a single argument.
+
+Criteria components are separated by ';'
 
 Example criteria specifications
 
-=over 4 
+=over 4
 
    bold=mytask;pname=rest,ndcm=180;3
    bold=rest;pname=rest,ndcm=180
@@ -276,19 +344,76 @@ Example criteria specifications
    magnitude1;pname=FieldMap,ndcm=144
    phasediff;pname=FieldMap,ndcm=72
    epi;pname=SpinEchoAP,ndcm=4;dir=AP
+   perf/asl;pname=asl,ndcm=100
+   MTR;pname=MTR,ndcm=38;acq=NM
 
 =back
 
-=item -h --help:
 
-this message
+=over 6
 
-=item ENV
-use DEBUG=HIT, DEBUG=MISS, DEBUG=HITMISS to see criteria comparisons
-   dcmdirtab -s 'E\d+' -d 'E07/scans/*/' |
-    DEBUG=HIT dcmtab_bids 'bold=rest;ndcm=574;pname=EYESFIXED' 'T1w;pname=mprage,ndcm=176'
+=item mode
+
+mode can be like 'perf/asl' or just the modality ('T1w') for well known modality labels (T1w, bold)
+
+use 'bold=mytask' to add task-mytask to output filesnames
+
+=item pattern,pattern
+
+Patterns match against the dicom metadata streamin from the input.
+You can have as many patterns as needed. separate with a comma
+
+Despite the '=' syntax, the compareison is not strictly equal but "containing": the right side is used as a regular expression to match the field on the left side.
+
+some examples:
+
+=over 8
+
+=item pname=mprage
+
+matches all protocols that contain 'mprage'
+
+=item ndcm=180|246
+
+matches ndcm field containing 180 or 246
+
+=item dname=256x256
+
+matches dname (dicom directory name) containing FOV 256x256
+
+
+=item tr=1.5
+
+match revolution time of 1.5
 
 =back
+
+=back
+
+run, acq, and dir are optional criteria
+
+=over 6
+
+=item runs
+
+number indicating number of repeats
+digit to count the exptect number of matches. each will be enumerated like run-1, run-2, ... in the output filenames
+
+=item acq=label
+
+string label. freeform string to label files with information not inherent provided by the BIDS structure
+
+=item dir
+
+likely dir=AP or dir=PA. useful for 'epi' fmap
+
+=back
+
+When more than one runs, acq, or dir is specified, they must be provided in order: always 'acq=lowres;dir=AP' never 'dir=AP;acq=lowres'
+
+
+=back
+
 
 =head1 Testing
 
@@ -310,6 +435,7 @@ my $sequences = [{subj=>1, pname=>"rest",  ndcm=>180,fullpath=>'xxx/yyyy'  },
                 {subj=>2, pname=>"rest",ndcm=>76, fullpath=>'short2'},
                 {subj=>3,ses=>1,pname=>"rest",ndcm=>76, fullpath=>'short3'},
                 {subj=>3,ses=>2,pname=>"rest",ndcm=>76, fullpath=>'short4'},
+                {subj=>3,ses=>2,pname=>"asl",ndcm=>180, fullpath=>'short4'},
                 {subj=>3, pname=>"mprage",ndcm=>176,fullpath=>'y/x'       }];
 
 my %c=(n_expect=>1, matches=>{pname => qr/rest/, ndcm=>180}, bids=>{mode=>"bold",task=>"rest"});
@@ -352,14 +478,22 @@ is scalar(grep {$_->[0] =~ /run-1/} @res), 3, "2 run 1s";
 
 $cdsl = criteria->dsl('epi;pname=rest,ndcm=180;dir=AP');
 is $cdsl->{n_expect}, 1, "criteria dsl nexpect omited but have dir";
-is $cdsl->{bids}->{dir}, "AP", "criteria dsl: direction";
+is $cdsl->{bids}->{dir}, "AP", "criteria dsl: direction AP";
+is $cdsl->{bids}->{mode}, "epi", "criteria dsl: mode epi";
 
-$cdsl = criteria->dsl('bold;pname=rest,ndcm=180;acq=xyz;dir=PA');
+$cdsl = criteria->dsl('bold=mytask;pname=rest,ndcm=180;dir=PA;acq=xyz;');
 is $cdsl->{n_expect}, 1, "criteria dsl nexpect omited but have dir";
-is $cdsl->{bids}->{acq}, "xyz", "criteria dsl: direction";
-is $cdsl->{bids}->{dir}, "PA", "criteria dsl: direction";
-@res=heuristic::parse($sequences->[0], [$cdsl]);
-ok $res[0][0] =~ m:sub-1/.*func_acq-xyz_dir-PA_bold.nii.gz:,
+is $cdsl->{bids}->{acq}, "xyz", "criteria dsl: acquisition";
+is $cdsl->{bids}->{dir}, "PA", "criteria dsl: direction PA";
+is $cdsl->{bids}->{mode}, "bold", "criteria dsl: mode bold";
+
+@res = heuristic::parse([$sequences->[0]], [$cdsl]);
+is $res[0][0], "sub-1/func/sub-1_task-mytask_acq-xyz_dir-PA_bold.nii.gz",
    "output is sub-1 rest xxx/yyyy with acq and dir";
 
+
+$cdsl = criteria->dsl('perf/asl;pname=asl,ndcm=180');
+is $cdsl->{bids}->{mode}, "perf/asl", "criteria dsl: mode from folder/mode";
+@res = heuristic::parse($sequences,[$cdsl]);
+is $res[0][0],  "sub-3/ses-2/perf/sub-3_ses-2_asl.nii.gz", "output is sub-3/perf/.*asl";
 done_testing;
