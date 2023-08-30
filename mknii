@@ -5,6 +5,13 @@ env | grep ^DRYRUN= && DRYRUN=echo || DRYRUN=""
 [ ! -v VERBOSE ] && VERBOSE=""
 verbose(){ [ -n "$VERBOSE" ] && echo "$*" >&2 || :; }
 
+set_dcm2niix(){
+  DCM2NIIX="${DCM2NII:-dcm2niix}"
+  command -v "$DCM2NIIX" >/dev/null || DCM2NIIX=dcm2niix_afni
+  ! command -v "$DCM2NIIX" >/dev/null && warn "cannot find dcm2niix or dcm2niix_afni; try export DCM2NIIX=..." && exit 2
+  return 0
+ }
+
 
 #
 #run dcm2niix with 3dNotes wrapper. check for existing file
@@ -107,6 +114,8 @@ add_json_task(){
 
 main(){
   set -euo pipefail
+  set_dcm2niix # DCM2NIIX might be dcm2niix_afni or given by user
+
   [ $# -ne 2 ] && usage
   nii_out="$1"; shift
   dcm_folder="$*"; shift
@@ -125,7 +134,7 @@ main(){
 
   #pretimestamp=$(mktemp /tmp/dcmnii_XXXXXX) # -newercm $pretimestamp
   # TODO: add trap to cleanup file?
-  $DRYRUN dcm2niix -z y -b y -f "$outname" -o "$outdir" "$dcm_folder"
+  $DRYRUN $DCM2NIIX -z y -b y -f "$outname" -o "$outdir" "$dcm_folder"
   [ -n "$DRYRUN" ] && exit 0
   # if above failed, script would bail (set -e)
   # so if we don't have the file it's probably has multiple echos

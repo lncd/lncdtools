@@ -9,7 +9,7 @@ use Data::Dumper;
 # these are hard coded translations of modality label suffices to BIDS directory
 # can also pass e.g. anat/T1w
 my %mode_folder = (dwi=>'dwi',
-   T1w=>'anat', T2w=>'anat',
+   T1w=>'anat', T2w=>'anat', MTR=>'anat',
    bold=>'func', sbref=>'func',
    epi=>'fmap',
    'magnitude'=>'fmap', 'magnitude1'=>'fmap', 'magnitude2'=>'fmap',
