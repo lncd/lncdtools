@@ -59,13 +59,22 @@ def img_dcm(image2d, PatientName="World^Hello", ID="123456"):
 
     # 20230315 - failing test b/c of missing field warnings?
     #            maybe b/c only 2D? and warns about being mirrored
-    ds[0x0018, 0x1030] = pydicom.DataElement((0x0018, 0x1030), 'PN',
+    # VR https://dicom.nema.org/medical/dicom/current/output/chtml/part05/sect_6.2.html
+    # UT unlimted text, ST short text, PN person name, LO Long String
+    # https://imagej.nih.gov/nih-image/download/nih-image_spin-offs/NucMed_Image/DICOM%20Dictionary
+    # Protocol Name is LO long string
+    ds[0x0018, 0x1030] = pydicom.DataElement((0x0018, 0x1030), 'LO',
                                              'FakeProtcol')
     ds.Manufacturer = 'Siemens'
+
+    # 20230907 - TR for dcmdirtab test
+    # VR=FL - floating single
+    ds.RepetitionTime = 2000
 
     pydicom.dataset.validate_file_meta(ds.file_meta, enforce_standard=True)
 
     ds.PixelData = image2d.tobytes()
+
     return ds
 
 
