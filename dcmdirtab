@@ -3,7 +3,6 @@ package dcmdirtab;
 use v5.26;
 use strict; use warnings; use autodie; 
 use feature qw/signatures/; no warnings qw(experimental::signatures);
-use File::Slurp; # read_file
 use Getopt::Long;
 use Pod::Usage;
 use Data::Dumper;
@@ -42,7 +41,7 @@ sub get_config(){
       'no-header|H','short|x',
       'list|l', 'help|?') or pod2usage(2);
 
-   pod2usage(1) if $opts{help};
+   pod2usage({-exit=>0, -verbose=>3}) if $opts{help};
 
    my %conf=();
    $conf{subpat} = qr/$opts{subpat}/;
@@ -110,7 +109,9 @@ sub get_config(){
    # TODO: test isfile, test exists convert
    #      while at it, test each tag_order  in tags
    if(exists $opts{config}){
-      eval read_file($opts{config}) or croak "config eval failed $@ $!";
+      # read_file from slurp for the lazy programmer, file handle antagonist
+      require File::Slurp;
+      eval File::Slurp::read_file($opts{config}) or croak "config eval failed $@ $!";
    }
    if($opts{eval}){
       eval "$opts{eval}" or croak "custom eval code failed! $@ $!";
@@ -300,6 +301,21 @@ see C<dcmdirtab -l> for list.
 
 =head1 NOTES
 
- use look ahead in patterns. to match 3 digits that start a directory name
+ use look ahead in patterns. 
+ For example, to match only 3 digits that start a directory name
+ but not capture the directory's leading slash, use
     -s '(?<=/)\d{3}' 
 
+=head1 SETUP
+
+As of 2023-09-07 on Pitt's CRC HPC cluster, get a new enough perl and afni like:
+
+   module load gcc/8.2.0 perl/5.28.0 afni
+
+
+File::Slurp is used for config reading in a perl configuration file.
+You probably don't need it. And if you do, you likely already have perl setup the way you want.
+But in case you do need it and don't have e.g cpanm handy, a quick install looks like:
+
+   cpan install File::Slurp # interative choices. use defaults, esp local::lib
+   eval $(PERL5LIB="$HOME/perl5/lib/perl5" perl -Mlocal::lib)

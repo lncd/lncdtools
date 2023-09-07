@@ -139,3 +139,30 @@ see `dcmtab_bids --help`
 It recklessly makes whatever folder it's told is needed, uses `dcm2niix` to write `*.nii.gz`+`.json` pairs, and renames them to the given output name.
 
 `3dNotes` is used to record the command within the nifti file for posterity as provenance. **NB. if you have PHI/PII in the dicom folder name, this will be pushed into header of the `.nii.gz` file** 
+
+## lncdtools with perl and afni on HPC
+`dcmdirtab` uses requires a perl >=5.26 in addition to `dicom_hinfo` form AFNI. For advance usage (evaluating perl configuration file), a library from CPAN `File::Slurp` is also used.
+
+Unfortunately this can complicate setup.  Here's an example script to `source`, used on Pitt's CRC HPC cluster.
+
+```bash
+# use newer perl. as of 2023-09-07, newest on CRC loaded like
+module load gcc/8.2.0 perl/5.28.0
+
+# and we need afni
+module load afni
+
+export PATH="$PATH:/path/to/cloned/lncdtools"
+
+# ---
+# this is only need if using `-e config.pl` option of dcmdirtab (unlikley)
+# ---
+#
+# File::Slurp (and implicitly local::lib) only need to be install once
+# cpan is interactive, must pick lib::local (i.e. dont change the defaults)
+! test -d $HOME/perl5/lib/perl5 &&
+        cpan install File::Slurp
+
+# export the environment perl needs to know where lib::local stuff lives
+eval $(PERL5LIB="$HOME/perl5/lib/perl5" perl -Mlocal::lib)
+```
