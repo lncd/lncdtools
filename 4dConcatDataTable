@@ -6,34 +6,74 @@ trap 'e=$?; [ $e -ne 0 ] && echo "$0 exited in error"' EXIT
 # extract a subbrick from a list of nifti 
 # label with luna ids
 # 20200430 - like 4dConcatSubBriks but for a datatable file
+# 20231016 - add stdin option
 #
-# Useful for quality checking many structurals, subject masks,  or individual contrasts
+usage(){
+   cat <<HEREDOC
+use 3dMVM/3dLME datatable to create 4d concat image
+Useful for quality checking many structurals, subject masks, or individual contrasts.
+Wraps (1) 3dbucket InputFile column (2) 3drefit w/ Subj column
 
-# input:
-#   1) prefix
-#   2) datatable txt file
-# env
+ USAGE:
+  $(basename "$0") output.nii.gz datatable.tsv [extraidcol]
 
-[ $# -lt 2 -o $# -gt 3 ] && 
-  echo -e "look at files referenced in a datatable\nUSAGE: $0 output.nii.gz datatable [extra_id_col]" >&2 &&
-  exit 1
+ OPTIONS:
+  output.nii.gz   the file to create
+                  will not overwrite (must rm to rerun)
+
+  datatable.tsv   input file as used by AFNI's 3dMVM or 3dLME
+                  tab separated.
+                  must have header w/ 'Subj' and 'InputFile' columns
+                  can be '-' to read from stdin
+
+  extraidcol      optional extra column(s) to add to 3drefit ids (regexp)
+                  '|' to seprate multiples: 'Sess|Sex' (id is combined Subj,Sess,Sex)
+
+ EXAMPLES:
+  4dConcatDataTable /tmp/all.nii.gz r2p.tsv
+
+  4dConcatDataTable /tmp/all.nii.gz r2p.tsv 'session|shapes'
+
+  mlr --tsv filter '\$InputFile =~ "ses-01"' r2p.tsv| 4dConcatDataTable /tmp/ses1.nii.gz -
+
+HEREDOC
+}
+
+[ $# -lt 2 -o $# -gt 3 ] && usage >&2 && exit 1
 
 prefix="$1"; shift
 datatable="$1"; shift
 
-! [[ $prefix =~ .nii$|.nii.gz$|.HEAD$ ]] && echo "prefix '$prefix' must end in .nii, .nii.gz, or .HEAD" && exit 1
-[ ! -r "$datatable" ] && echo "$datatable file doesn't exist!" && exit 1
+! [[ $prefix =~ .nii$|.nii.gz$|.HEAD$ ]] &&
+   echo "prefix '$prefix' must end in .nii, .nii.gz, or .HEAD" && exit 1
+
+[ -r "$prefix" ] &&
+   echo "rm $prefix # to regenerate; skipping 3dbucket and 3drefit" &&
+   exit 0
+
+if [ "$datatable" = "-" ]; then
+   tty >/dev/null  &&
+      echo -e "ERROR: using '$datatable' as datatable requires pipe;\n\t grep thing | $(basename "$0") $prefix $datatable $*" &&
+      exit 1
+   datatable=$(mktemp "${TMPDIR:-/tmp}/4dConcatTable_XXXX.tsv")
+   cat > "$datatable"
+   # TODO: this disables original exit in error trap
+   trap 'echo "# removing $datatable" && rm "$datatable"; exit' EXIT
+fi
+
+[ ! -r "$datatable" ] &&
+   echo "$datatable file doesn't exist!" && exit 1
 #read ididx fileidx <<< $(sed 1q $datatable | sed 's/[ \t]\+/\n/g' | perl -lne 'print $. if m/(Subj|InputFile)/i')
 
 # if we want to use an extra id
 extraid=""; extraidpatt=""; awkextra="" 
 [ $# -eq 1 ] && extraid="$1" && extraidpatt="|$extraid" 
 
-idxs=($(sed 1q $datatable | sed 's/[ \t]\+/\n/g' | perl -lne "print $. if m/(Subj$extraidpatt|InputFile)/i"))
+mapfile -t idxs < <(sed 1q "$datatable" | sed 's/[ \t]\+/\n/g' | perl -lne "print $. if m/(Subj$extraidpatt|InputFile)/i")
 # index of the file index is last item
 # but 0-based. so minus 1
 fii=${#idxs[@]}
-let fii--
+! let fii-- && echo "ERROR: no files in $datatable!? Does input have a header?"  && exit 1
 
 # TODO: test only 2 if not $3, 3 otherwise?
 
@@ -42,14 +82,14 @@ fileidx=${idxs[$fii]}
 [ ${#idxs[@]} -eq 3 ] && awkextra=' "_"'"\$${idxs[1]}"
 
 [ -z "$fileidx" ] && echo "no InputFile in '$datatable' header?! (idxs '$ididx' '$fileidx')" && exit 1
-ids=($(awk "(NR>1) { print \$$ididx$awkextra}" $datatable))
-files=($(awk "(NR>1){ print \$$fileidx}" $datatable))
-[ ${#ids[@]} -ne ${#files[@]} ] && echo "error parsing '$datatable'. have different number of ids and files!" && exit 1
+mapfile -t ids < <(awk "(NR>1) { print \$$ididx$awkextra}" "$datatable")
+mapfile -t files < <(awk "(NR>1){ print \$$fileidx}" "$datatable")
+[ ${#ids[@]} -ne "${#files[@]}" ] &&
+   echo "error parsing '$datatable'. have different number of ids and files!" &&
+   exit 1
 
-
-[ -r "$prefix" ] && echo "rm $prefix # to regenerate; skipping 3dbucket and 3drefit" && exit 0
 
 echo "3dbucket: combine"
-3dbucket -prefix "$prefix" ${files[@]}
+dryrun 3dbucket -prefix "$prefix" "${files[@]}"
 echo "3drefit: relabel"
-3drefit -relabel_all_str "${ids[*]}" "$prefix"
+dryrun 3drefit -relabel_all_str "${ids[*]}" "$prefix"
