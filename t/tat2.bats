@@ -1,5 +1,6 @@
 #!/usr/bin/env bats
 setup(){
+export PATH="$(pwd):$PATH"
 mkdir -p $BATS_TMPDIR/tat2-test
 cd $BATS_TMPDIR/tat2-test
 echo "
@@ -408,4 +409,11 @@ x_cmp_y(){
 
    o=$(echo 1,1,1 | collapse_seq_idx)
    [[ "$o" =~ 1,1,1 ]]
+}
+
+@test catch_bad_input {
+   # try to run on a 1D file
+   run tat2 c.1D t.nii.gz -output fails.nii.gz -mask m.nii.gz
+   [[ $status -ne 0 ]]
+   [[ $output =~ 'must end in nii' ]]
 }
