@@ -259,6 +259,12 @@ one_ta(){
    local cnt="$1"; shift
    local input="$1"; shift
    local tmpd="$1"; shift
+
+   # 20231207 - getting bash quoting right is hard
+   ! [[ $input =~ .nii.gz$|.nii$|.HEAD$ ]] &&
+       err "4D EPI input file '$input' must end in nii, nii.gz, or HEAD
+   Do you have a bad glob for eg -censor_rel? try putting 'echo' in front of your command to debug"
+
    [ -n "$MASK" ] && mask="$MASK" || mask=$(find_rel_file "$input" "$MASK_REL")
    [ ! -f $mask ] && err "mask '$mask' DNE; add -mkmask to create"
    # add _tat2.nii.gz to the end

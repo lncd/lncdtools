@@ -13,6 +13,20 @@ capture_waitforjobs(){
  waitforjobs -j $j
 }
 
+test_afterhours { # @test
+   source waitforjobs
+   run is_after_hours 07
+   [ $status -eq 0 ]
+
+   run is_after_hours 23
+   [ $status -eq 0 ]
+
+   run is_after_hours 10
+   [ $status -eq 1 ]
+
+   run is_after_hours 16
+   [ $status -eq 1 ]
+}
 function test_nowaiting { # @test
   sleep 3 &
   tic=$(date +%s)

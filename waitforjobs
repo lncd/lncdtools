@@ -25,6 +25,7 @@ OPTIONS:
   -j --maxjobs    set number of threads before waiting
   -s --sleeptime  set time for 'sleep' command
   -c/--config     config file that can be resourced to update jobs and sleep
+  --nightjobs     set njobs to run after work hours
                   if "auto", uses /tmp/host-user-basename.jobcfg
   -h --help       this message
 
@@ -45,12 +46,11 @@ EXAMPLES
 
     MAXJOBS=2 waitforjobs
 
-TODO:
-  --nightjobs    jobs to run after work hours
 HERE
 }
 initial_config(){
   echo "maxjobs=${maxjobs:-2}"
+  echo "nightjobs=${nightjobs:-2}"
   echo "sleeptime=${sleeptime:-60s}"
 }
 reload_config(){
@@ -68,11 +68,17 @@ reload_config(){
    fi
    # only grab lines that look like things we care about
    # in case file has something accidentally malicious
-   grep -P '^(maxjobs|sleeptime)=' "$config"
+   grep -P '^(maxjobs|sleeptime|nightjobs)=' "$config"
+}
+is_after_hours() {
+   # after 6 or before 8
+   [ $# -gt 0 ] && hour="${1}" || hour=$(date +%H)
+   test "$hour" -gt 18 -o "$hour" -lt 8
 }
 waiting(){
    sleeptime=${SLEEPTIME:-60s}
    maxjobs=${MAXJOBS:-2}
+   nightjobs=${maxjobs}
    config=""
 
    while [ $# -gt 0 ]; do
@@ -80,6 +86,7 @@ waiting(){
          -j|--maxjobs) maxjobs=$2; shift 2;;
          -s|--sleeptime) sleeptime=$2; shift 2;;
          -c|--config) config="$2"; shift 2;;
+         --nightjobs) nightjobs="$2"; shift 2;;
          -h|--help) waitforjobs_usage; exit 0;;
          *) warn "'$1' is bad option! see 'waitforjobs --help'";  exit 1;;
       esac
@@ -90,7 +97,13 @@ waiting(){
       # min $#procs is 1
       nproc=${#procs[@]}
       [ -n "$config" ] && eval "$(reload_config "$config")"
-      [ "$nproc" -gt "$maxjobs" ]; do
+
+      # job limit based on time of day
+      # nightjobs default to maxjobs when not expliclty set
+      njoblimit="$maxjobs"
+      is_after_hours && njoblimit="$nightjobs"
+
+      [ "$nproc" -gt "$njoblimit" ]; do
          max_disp=$(("$nproc" - 1))
          # assume last is always parent
          dt_msg "sleep $sleeptime on ${nproc}/$max_disp procs: $(printf "%s; " "${procs[@]::$nproc-1}")"
