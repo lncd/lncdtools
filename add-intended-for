@@ -2,32 +2,58 @@
 #
 # 20221020WF - init. lncd "habit" project
 # 20231110WF - into lncdtools
+# 20231221WF - takes multiple patterns
 #
-# add fieldmap annotations to task where fmriprep can find them
 
 usage(){
    cat <<HEREDOC
+'add-intended-for' adds an element like
+  'IntendedFor': ['sub-1/ses-1/func/sub-1_ses-1_task-rest_bold.nii.gz']
+ to the json files matching \`-fmap 'pattern.json'\`
+
+ IntendedFor is used by fmriprep's susceptibility distortion correction (SDC).
 
 USAGE:
-  $(basename "$0") -fmap '*PA_run-1_epi.json' subj-1/ses-1/ [subj-2/ses-1/ ...]
+  $(basename "$0") -fmap '*PA_run-1_epi.json' [-for '*_bold.nii.gz'] [-for '*dwi.nii.gz']  subj-1/ses-1/ [subj-2/ses-1/ ...]
 
 OPTIONS:
-  -fmap   pattern to find fmap json file. where to insert IntendedFor
-  -bold   pattern to find bold file. default '*_bold.nii.gz' (can be *dwi.nii.gz)
-  sesdir  any number of session dirs (dir that contains fmap/ and func/ or dwi/)
+  -help    this message
+
+  -fmap    pattern to find fmap json file. where to insert IntendedFor
+
+  -for     pattern to find bold or dwi file(s).
+           default is '*_bold.nii.gz'. An alternative: '*dwi.nii.gz'
+           Can repeat "-for 'pattern.nii.gz'" 
+           to put multiple patterns into the 'IntendedFor' array
+
+  -me_okay include multiecho files in search.
+           default is to exclude all files matching '*echo-*'
+
+  sesdir   any number of session dirs 
+           each should be session root dir with fmap/, func/ +/- dwi/
+           repeat for as many sessions as needed. Consider using a glob
+
+NOTE:
+  * skips files where 'IntendedFor' already exists
+  * test with 'DRYRUN=1 add-intended-for ...'
 
 HEREDOC
 }
 
-csv_bolds(){
+#shellcheck disable=SC2089 # intentionally not an array
+FIND_EXCLUDE=" -not -name *echo-*"
+
+csv_niifiles(){
    local sesdir="$1"; shift
-   local boldpat="${1}"
+   #local boldpat="${1:?need at least one bold or dwi file pattern}"
+   local find_names
+   # build a list of acceptable names
+   find_names=$(printf " -iname %s -or" "$@"|sed 's/-or$//')
+   # shellcheck disable=SC2086,SC2090 # sending multiple args in ea. var
    (cd "$sesdir" &&
-   find func/ dwi/\
-      -name "$boldpat" \
-      -not -name '*echo-*'|
-     sed 's/^\|$/"/g'|
-     paste -sd,)
+    find func/ dwi/ \( $find_names \) $FIND_EXCLUDE ) |
+    sed 's/^\|$/"/g'|
+    paste -sd,
 }
 find_se_file(){
    local sesdir="${1:?find_se_file requires session dir}"
@@ -42,31 +68,32 @@ find_se_file(){
 }
 
 add_intended_for(){
-   local sefile boldfile str
+   local sefile forfilescsv str
    sefile="$1"; shift
-   boldfile="$1"; shift
+   forfilescsv="$1"; shift
    # (DANGER) inline replace on
    # matching files without an 'IntendedFor' line
-   str="\"IntendedFor\": [$boldfile],"
+   str="\"IntendedFor\": [$forfilescsv],"
    grep -L IntendedFor "$sefile" |
       xargs -r dryrun sed "s;{;{\n$str;" -i || :
    return 0
 }
 
 _intendedFor() {
-  warn "# WARNING: $0 is untested"
-  local boldpatt='*_bold.nii.gz'
+  local boldpatt=()
   local sepatt=""
-  sesdirs=()
+  local sesdirs=()
   [ $# -eq 0 ] && usage && exit 1
   while [ $# -gt 0 ]; do
      case "$1" in
-        -bold) boldpatt="$2"; shift 2;;
+        -for|-bold|-dwi) boldpatt=("${boldpatt[@]}" "$2"); shift 2;;
         -fmap) sepatt="$2"; shift 2;;
+        -me_okay) FIND_EXCLUDE=""; shift 1;;
         -help) usage; exit 0;;
         *) sesdirs+=("$1"); shift 1;;
      esac
   done
+  [ -z "${boldpatt[*]}" ] && boldpatt=('*_bold.nii.gz')
 
   # check inputs
   [ -z "$sepatt" ] &&
@@ -79,9 +106,10 @@ _intendedFor() {
   for sesdir in "${sesdirs[@]}"; do
      mapfile -t sefiles < <(find_se_file "$sesdir" "$sepatt")
      for sefile in "${sefiles[@]}"; do
-        boldfile=$(csv_bolds "$sesdir" "$boldpatt")
-        [ -z "$boldpatt" ] && warn "no bold in $sesdir/func matching $boldpatt" && return 1
-        add_intended_for "$sefile" "$boldfile" || :
+        forfilescsv=$(csv_niifiles "$sesdir" "${boldpatt[@]}")
+        [ -z "$forfilescsv" ] &&
+           warn "no matching files in $sesdir/{func,dwi}/ matching ${boldpatt[*]}" && return 1
+        add_intended_for "$sefile" "$forfilescsv" || :
      done
   done
   return 0
