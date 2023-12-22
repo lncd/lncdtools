@@ -24,6 +24,7 @@ while(<DATA>){
   print
 }
 
+# also see  $(caller); $BASH_COMMAND:$LINENO ($BASH_LINENO)
 __DATA__
 if [[ "$(caller)" == "0 "* ]]; then
   set -euo pipefail
