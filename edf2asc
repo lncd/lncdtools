@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+EDFBIN="${EDFBIN:-$HOME/scratch/EyeLink_LinuxDevKit_1.11_x64_debs/usr/bin/EdfConverter}"
+! test -d "$EDFBIN" && warn "BAD EYELINK SETTINGS, fix: export EDFBIN='$EDFBIN'" && exit 1
+LD_LIBRARY_PATH=$EDFBIN java -jar "$EDFBIN/edfconverter.jar" "$@" || : # echo "always exits with error" 
+for f in "$@"; do
+   test -r "${f/.edf/.asc}" && gzip "$_"
+done
