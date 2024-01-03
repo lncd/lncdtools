@@ -39,4 +39,12 @@ teardown() {
   [[ $output =~ "id-12345	" ]]
   [[ $output =~ "	2000.0	" ]]
 }
+@test dcmdirtab-warn {
+  cd $THISTESTDIR
+  mv 001.dcm 'Image (001)'
+  run dcmdirtab -s 'id-\d{5}' -p '.*Image.*' -d $(pwd)/DNE
+  [ $status -eq 0 ]
+  [[ $output =~ "does not exist" ]]
+}
+
 

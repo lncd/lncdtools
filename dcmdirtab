@@ -160,7 +160,9 @@ sub dcmdir_info(%conf) {
 
    # could give many globs. expand all
    foreach my $optd (@{$conf{opts}->{dirs}}) {
-    foreach my $d (glob("$optd"))  {
+    my @dcmdirs = glob("$optd");
+    foreach my $d (@dcmdirs)  {
+       warn("ERROR: directory '$d' (input glob '$optd')  does not exist?") if ! -d $d;
        print("d: $d; @path_cols};\n") if $DEBUG>2;
 
        my %acq = ();
