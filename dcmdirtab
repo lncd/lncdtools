@@ -32,10 +32,13 @@ sub firstdcm($p, $dcmpat){
 
 
 sub get_config(){
-   my %opts=(subpat=>'\d+', sespat=>'', help=>0, list=>0);
+   my %opts=(subpat=>'\d+', sespat=>'',
+      'dcmpat'=>'.*MR.*\|.*dcm$\|.*IMA$',
+      help=>0, list=>0);
    GetOptions(\%opts,
       'dirs|d=s@',
       'subpat|s=s', 'sespat|b=s',
+      'dcmpat|p=s',
       'cols=s','add_cols|a=s',
       'config|c=s', 'eval|e=s',
       'no-header|H','short|x',
@@ -46,7 +49,7 @@ sub get_config(){
    my %conf=();
    $conf{subpat} = qr/$opts{subpat}/;
    $conf{sespat} = qr/$opts{sespat}/;
-   $conf{dcmpat} = '.*MR.*\|.*dcm$\|.*IMA$';
+   $conf{dcmpat} = $opts{dcmpat};
    # default file info things to grab
 
    $conf{columns}={
@@ -197,6 +200,7 @@ dcmdirtab - get tab delm. dicom directory info
    dcmdirtab -h   # more info
    dcmdirtab -l   # list built in column options (enable with -a
    dcmdirtab -s 'E\d+' -d 'E07_MR3/scans/*/'
+   dcmdirtab -p '.*dcm$' -d 'E07_MR3/scans/*/'
    dcmdirtab -s 'E\d+' -d 'E07_MR3/scans/*/' --cols pname,ndcm,fullpath
    dcmdirtab -s 'E\d+' -d 'E07_MR3/scans/*/' -x -a acqdir_alt # Short (no fullpath column), add acqdir_alt column
    dcmdirtab -s 'E\d+' -d 'E07_MR3/scans/*/' -a acqdir_alt,sex -e '$conf{columns}->{sex}="0010,0040"' # add and use a sex column from dcm header
@@ -217,6 +221,11 @@ regexp describes how to find session info
 dir glob pattern to dicom folders. e.g. C</path/1*_2*/*/*/>
 mulitple C<-d '/path/*/'> accepted.
 IMPORTANT: quote the glob in shell
+
+=item -p --dcmpat:
+Pattern for dicom files. case-insenstive. used by C<find -iregexp>
+defaults to anything with MR, ending in dcm, or ending in IMA.
+  C<'.*MR.*\|.*dcm$\|.*IMA$'>
 
 =item -c --config:
 path to config script. e.g. C<config.pl>.

@@ -31,3 +31,12 @@ teardown() {
   [ $status -ne 0 ]
   [[ ! $output =~ "SETUP" ]]
 }
+@test dcmdirtab-with-custom-dcm-suffix {
+  cd $THISTESTDIR
+  mv 001.dcm 'Image (001)'
+  run dcmdirtab -s 'id-\d{5}' -p '.*Image.*' -d $(pwd)
+  [ $status -eq 0 ]
+  [[ $output =~ "id-12345	" ]]
+  [[ $output =~ "	2000.0	" ]]
+}
+
