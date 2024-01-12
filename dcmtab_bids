@@ -33,7 +33,7 @@ sub new($class, %opts){
    # to build out a bids, the very minimum info is subject and mode
    # and if mode == "task" we also need a task name
    my @req = qw/mode subj/;
-   push @req, "task" if $opts{mode} eq "bold";
+   push @req, "task" if $opts{mode} =~ m/bold|sbref/;
 
    for my $req (@req){
       croak "BIDS: must have '$req' in '".Dumper(%opts)."'" if not $opts{$req};
@@ -340,6 +340,7 @@ Example criteria specifications
 
    bold=mytask;pname=rest,ndcm=180;3
    bold=rest;pname=rest,ndcm=180
+   sbref=rest;dname=rest.*sbref,ndcm=1
    T1w;pname=mprage,ndcm=176
    magnitude1;pname=FieldMap,ndcm=144
    phasediff;pname=FieldMap,ndcm=72
@@ -481,6 +482,10 @@ is $cdsl->{n_expect}, 1, "criteria dsl nexpect omited but have dir";
 is $cdsl->{bids}->{dir}, "AP", "criteria dsl: direction AP";
 is $cdsl->{bids}->{mode}, "epi", "criteria dsl: mode epi";
 
+$cdsl = criteria->dsl('sbref=mytask;pname=rest.*SBRef,ndcm=1');
+is $cdsl->{bids}->{mode}, "sbref", "criteria dsl: mode sbref";
+is $cdsl->{bids}->{task}, "mytask", "criteria dsl: single band task name";
+
 $cdsl = criteria->dsl('bold=mytask;pname=rest,ndcm=180;dir=PA;acq=xyz;');
 is $cdsl->{n_expect}, 1, "criteria dsl nexpect omited but have dir";
 is $cdsl->{bids}->{acq}, "xyz", "criteria dsl: acquisition";
@@ -490,7 +495,6 @@ is $cdsl->{bids}->{mode}, "bold", "criteria dsl: mode bold";
 @res = heuristic::parse([$sequences->[0]], [$cdsl]);
 is $res[0][0], "sub-1/func/sub-1_task-mytask_acq-xyz_dir-PA_bold.nii.gz",
    "output is sub-1 rest xxx/yyyy with acq and dir";
-
 
 $cdsl = criteria->dsl('perf/asl;pname=asl,ndcm=180');
 is $cdsl->{bids}->{mode}, "perf/asl", "criteria dsl: mode from folder/mode";
