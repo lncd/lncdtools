@@ -347,6 +347,7 @@ Example criteria specifications
    epi;pname=SpinEchoAP,ndcm=4;dir=AP
    perf/asl;pname=asl,ndcm=100
    MTR;pname=MTR,ndcm=38;acq=NM
+   anat/UNIT1;ndcm=172,dname=UNI-DEN
 
 =back
 
