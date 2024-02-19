@@ -13,6 +13,12 @@ teardown(){
  return 0
 }
 
+mkifdiff_help() { #@test
+  run mkifdiff -h
+  [ $status -eq 0 ]
+  [[ "$output" =~ USAGE ]]
+}
+
 batmsg(){ echo "$*"|sed 's/: /:\t/' >&2; }
 modtime_unchanged() {
   mod_date="$(stat -c"%.10y" $MKIFDIFFFILE)"

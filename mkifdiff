@@ -8,10 +8,10 @@ set -euo pipefail
 #  20230718WF  add NOEMPTY (-n or --noempty)
 
 # need a file and needs to be in a pipe
-tty >/dev/null  && echo "need to pipe to $0; cmd | $0 output.txt" && exit 1
 usage(){ echo "USAGE: cmd | $0 [-n|--noempty] output.txt"; }
 [ $# -eq 0 -o $# -gt 2 ] && usage >&2 && exit 1
 [ "$1" == "-h" ] && usage && exit 0
+tty >/dev/null  && echo "need to pipe to $0; cmd | $0 output.txt" && exit 1
 
 # might want to avoid overwritting with an empty file
 NOEMPTY=
