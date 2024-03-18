@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-set -euo pipefail
 #
 # 0.for a given mask
 # 1.iterate over subject image volumes, extracting roi average values
@@ -43,6 +42,8 @@ $(basename $0) -csv dlpfc.csv -mask "mask.nii.gz" -- paths/to/1*_2*/inputs.nii.g
   -pattern PAT          use PAT to extract id (default: '$ID_PATT')
   -inputext PAT         perl 's///' to extract input name (default: '$IN_PATT')
   -njobs   CORES        run with NCORES (>1 requires gnu parallel)
+  -roistats 1           enable 3dROIstats instead of maskave. also try: -roistats -nzvoxels,-nzsigma
+                        NOTE!! header will be order you provide BUT 3dROIstats does not respect that order!!!
   -v|-verbose           print when not writting b/c already exists in csv
   -h|-usage             this text
 
@@ -72,6 +73,7 @@ HEREDOC
 parse_args(){
    MASK=()
    REDO=0
+   USEROISTATS=""
    CFILES=()
    while [ $# -gt 0 ]; do
      case "$1" in
@@ -85,6 +87,7 @@ parse_args(){
         -v|-verbose) VERBOSE=1; shift;;
         -datatable) DATATABLE="$2"; shift 2;;
         -label_col) DATACOL="$2"; shift 2;;
+        -roistats) USEROISTATS="$2"; shift 2;;
         -njobs) NJOBS="$2"; shift 2;;
         *) warn "UNKNOWN ARG: '$1'"; usage; exit 1;;
      esac
@@ -94,6 +97,11 @@ parse_args(){
    # only name out same as mask if only one mask
    [ -z "${OUTNAME:-}" -a ${#MASK[@]} -eq 1 ] && OUTNAME="$(niibasename "${MASK[0]}").csv"
    [ -z "${OUTNAME:-}" ] && warn "ERROR: need -csv OUTNAME" && return 3
+
+   # USEROISTATS to array. default to nonzero mean and nzvoxel count
+   [ -n "$USEROISTATS" ] && USEROISTATS=(${USEROISTATS//,/ }) 
+   [[ ${USEROISTATS[*]} == 1 ]] && USEROISTATS=(-nomeanout -nzmean -nzvoxels)
+
    return 0
 }
 
@@ -118,12 +126,44 @@ id_patt_test() { #@test
 }
 
 maskave_NA() {
+   # maskave or NA
    local mask_file="$1";shift
    local cfile="$1";shift
    cmd="3dmaskave -quiet -mask '$mask_file' $cfile"
    [ -n "${VERBOSE:-}" ] && warn "$cmd"
    eval "$cmd" || echo NA
 }
+
+# hyperfine  "3dROIstats -nzmean -nzvoxels -mask atlas/13MP-MNI_GMgt0.5-mask.nii.gz'<1>' hurst_nii/10129_20180917/py_dencrct_brnaswdkm_hurst_rs.nii.gz | perl -slane 'print qq/@F[2..\$#F]/ if $.==2'"
+#  Time (mean ± σ):      37.6 ms ±   6.8 ms    [User: 25.7 ms, System: 9.2 ms]
+# 
+# hyperfine "3dmaskave -mask atlas/13MP-MNI_GMgt0.5-mask.nii.gz'<1>' hurst_nii/10129_20180917/py_dencrct_brnaswdkm_hurst_rs.nii.gz"
+#  Time (mean ± σ):      33.5 ms ±   6.2 ms    [User: 23.4 ms, System: 5.9 ms]
+roistats_header_opts(){ 
+   ! [[ $* =~ nomeanout ]] && x="mean,$*" || x="$*"
+   #remove nomeanout, replace all other switches with their value, and remove the trailing comma
+   perl -pe 's/-nomeanout//;s/-([^-]+)/$1,/g;s/\s*//g;s/,$//' <<< "$x"
+}
+repna_roistats_opts(){ roistats_header_opts "$@"| perl -pe 's/[^,]+/NA/g'; }
+roistats_extract(){ perl -slane 'print join ",", @F;'; }
+
+roistats_NA() {
+   # 3droistast. default to usising nomeanout, nzmean, and nzvoxels
+   local opts NA mask_file cfile
+   mask_file="$1";shift
+   cfile="$1";shift
+   if [ $# -gt 0 ]; then
+      opts=("$@")
+      NA=$(repna_roistats_opts "$@")
+   else 
+      opts=(-nomeanout -nzmean -nzvoxels)
+      NA="NA,NA"
+   fi
+   cmd="3dROIstats ${opts[*]} -quiet -mask '$mask_file' $cfile | roistats_extract"
+   [ -n "${VERBOSE:-}" ] && warn "$cmd"
+   eval "$cmd" || echo "$NA"
+}
+
 already_exists() {
    if [[ $REDO -eq 0 ]] && grep -q "$*" "$OUTNAME"; then
       [ -n "${VERBOSE:-}" ] && warn "# '$*' already in $OUTNAME"
@@ -278,15 +318,23 @@ main() {
 
   # don't need to check file for maskave if file is empty.
   # run will be the same as REDO anyway
+  extrahdr="beta"
+  if [ -n "${USEROISTATS[*]}" ]; then 
+     extrahdr="$(roistats_header_opts "${USEROISTATS[@]}")"
+     maskave_NA() { roistats_NA "$@" "${USEROISTATS[@]}"; }
+  fi
   if [ ! -e "$OUTNAME" ] || [ "$(wc -l < "$OUTNAME" 2>/dev/null||echo 0)" -le 1 ]; then
-     echo "roi,subj,input,beta" > "$OUTNAME"
+     echo "roi,subj,input,$extrahdr" > "$OUTNAME"
      REDO=1
   fi
 
   # export functions and pattern vars for gnu parallel
   export -f check_all_masks cnt_test maskave_csv \
             name_in_file id_in_file maskave_NA \
-            already_exists maskave_filename_info
+            already_exists maskave_filename_info \
+            roistats_NA roistats_header_opts repna_roistats_opts \
+            roistats_extract
+
   export IN_PATT ID_PATT OUTNAME REDO VERBOSE
 
   for name_mask in "${MASK[@]}"; do
