@@ -33,7 +33,9 @@ sub new($class, %opts){
    # to build out a bids, the very minimum info is subject and mode
    # and if mode == "task" we also need a task name
    my @req = qw/mode subj/;
-   push @req, "task" if $opts{mode} =~ m/bold|sbref/;
+   push @req, "task" if $opts{mode} =~ m/bold/;
+   # only sbref for func needs a task
+   push @req, "task" if ($opts{mode} =~ /sbref/ and $opts{folder} =~ /func/);
 
    for my $req (@req){
       croak "BIDS: must have '$req' in '".Dumper(%opts)."'" if not $opts{$req};
@@ -111,7 +113,7 @@ sub dsl($class, $cfgstring) {
    # excpliclty check number of seps b/c ; and , is confusing and hard to debug
    # expect at most 2 ';' seps between 3 pieces: mode ; criteria ; #runs
    # but also can have acq= and dir=
-   my $help_msg="Want eg. bold=mytask;pname=MyTask,ndcm=180;3;dir=AP;acq=mylabel";
+   my $help_msg="Want eg. bold=mytask;pname=MyTask,ndcm=180;3;dir=AP;acq=mylabel;run=2";
    my $max_seps = 2;
    my $extra_colons = scalar(()=$cfgstring =~ m/(acq|dir)=/g);
    my $n_seps_seen  = scalar(()=$cfgstring =~ m/;/g);
@@ -120,9 +122,9 @@ sub dsl($class, $cfgstring) {
    # TODO: support more entities. do not force order (currently dir then acq)
    # maybe write with a grammer
    # consider (runs=)?(?<n_expect>\d+)
-   $cfgstring =~ m/^(?<mode>[^;=]+)=?(?<task>[^;]+)?;(?<matches>[^;]+);?(?<n_expect>\d+)?(;dir=(?<dir>[^;=]+))?(;acq=(?<acq>[^;=]+))?;?$/ or
+   $cfgstring =~ m/^(?<mode>[^;=]+)=?(?<task>[^;]+)?;(?<matches>[^;]+);?(?<n_expect>\d+)?(;dir=(?<dir>[^;=]+))?(;acq=(?<acq>[^;=]+))?(;fixrun=(?<run>\d+))?;?$/ or
      croak "criteria: failed to parse '$cfgstring'. $help_msg";
-   my %bids = %+{qw/mode task dir acq/};
+   my %bids = %+{qw/mode task dir acq run/};
    my $n_expect = $+{n_expect};
    my %matches = map {split /=/} (split /,/, $+{matches});
    return new($class,
@@ -169,7 +171,9 @@ sub bids_out($sequences, @criteria){
       my $run;
       for my $seq (@$sequences) {
         my $sesid = join "_", map {$_||""} @{$seq}{qw/subj ses/};
-        $run = 0 if $prevsesid ne $sesid;
+
+        # 20240401 - if given 'fixrun' will start with run at non-0
+        $run = ($crt->{bids}->{run}||0) if $prevsesid ne $sesid;
         $prevsesid = $sesid;
 
         #print "seq: ", Dumper($seq), "\n";
@@ -494,8 +498,12 @@ is $cdsl->{bids}->{dir}, "PA", "criteria dsl: direction PA";
 is $cdsl->{bids}->{mode}, "bold", "criteria dsl: mode bold";
 
 @res = heuristic::parse([$sequences->[0]], [$cdsl]);
+#print("$res[0][0]");
 is $res[0][0], "sub-1/func/sub-1_task-mytask_acq-xyz_dir-PA_bold.nii.gz",
    "output is sub-1 rest xxx/yyyy with acq and dir";
+
+$cdsl = criteria->dsl('bold=mytask;pname=rest,ndcm=180;dir=PA;fixrun=3');
+is $cdsl->{bids}->{run}, "3", "criteria dsl: hardcode run";
 
 $cdsl = criteria->dsl('perf/asl;pname=asl,ndcm=180');
 is $cdsl->{bids}->{mode}, "perf/asl", "criteria dsl: mode from folder/mode";
