@@ -454,13 +454,6 @@ x_cmp_y(){
   [[ $output == "(x/m)*1" ]]
 }
 
-@test gen_calc_nonorm {
-  # TODO: THIS IS WRONG?
-  source tat2
-  parse_args -no_vol
-  run args_to_3dcalc_expr
-  [[ $output == "(x/m)*x*1" ]]
-}
 @test gen_calc_zscore {
   # TODO: this should error?
   source tat2
@@ -482,3 +475,18 @@ x_cmp_y(){
   run args_to_3dcalc_expr
   [[ $output == "-1*log(x/m)*1" ]]
 }
+
+@test gen_calc_no_vol_noscale {
+  source tat2
+  parse_args -no_vol -no_voxscale
+  run args_to_3dcalc_expr
+  [[ $output == "(x/m)*m*1" ]]
+}
+@test gen_calc_no_vol {
+  source tat2
+  parse_args -no_vol
+  numvox="NVOX"
+  run args_to_3dcalc_expr
+  [[ $output == "(x/m)*m*$SCALE/NVOX" ]]
+}
+

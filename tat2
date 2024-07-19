@@ -30,7 +30,7 @@ declare -a GLOBFILES
 
 filedesc_whichvol=""
 
-TAT2_VER="20240719-calc_ln"
+TAT2_VER="20240719-calc_ln+BUGFIX-no_vol"
 # 20201116
 #  back to mean default
 # add
@@ -58,9 +58,9 @@ USAGE
 SYNOPSIS
   calculates time averaged T2* like:
      1) 3dROIstats > volnorm.1D
-        # tune with -{median,mean,zscor}_vol, and -mask, -mkmask, or -mask_rel
+        # tune with -{median,mean,no}_vol, and -mask, -mkmask, or -mask_rel
      2) 3dcalc -x input_1  -m volnorm_1.1D -expr "(x/m)*SCALE/numvox #rep. f.ea. input
-        # tune with -no_voxscale, -scale
+        # tune with -no_voxscale, -scale, -calc_zscore, -calc_ln
         # numvox derived from mask (but output not masked)
      3) 3dTstat allnormed_concated.nii.gz
         # tune with -{median,mean}_time
@@ -106,7 +106,7 @@ OPTIONS (in order of relevance)
   -median_vol or -mean_vol or -no_vol
         set value used to scale across volume (each TR, 3dROIstats)
         vol norm default: '$volnorm_opt'
-        (history: median [20210302],  mean [20201116], median [20201016]. no_vol added 20210921)
+        (history: median [20210302],  mean [20201116], median [20201016]. no_vol added 20210921 but *x instead of *m. fixed 20240719)
 
   -calc_zscore or -calc_log
     for 3dcalc per volume voxelwise normalization:
@@ -323,9 +323,11 @@ args_to_3dcalc_expr(){
    [ $vox_scale -eq 0 ] && calc_scale="1"
 
    # 20210921 - BL measure effect of volume normalization
-   [ $volnorm_opt == "none" ] && calc_scale="x*1"
-   # TODO BUG? should calc_scale = m*1 ?
-   # TODO BUG? should '$vox_scale -ne 0' => calc_scale "x*$SCALE/$numvox"
+   # 20240719 - BUGFIX
+   #     1. had 'x*1' but want to undo x/m. is now (x/m)*m
+   #     2. did not respect scaling
+   #        now can do: x/m*m * scale/nvox (but thats a bad idea?)
+   [ $volnorm_opt == "none" ] && calc_scale="m*$calc_scale" 
 
 
    # normalize each voxel by the volume average or median
