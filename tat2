@@ -22,9 +22,12 @@ OUTPUT=tat2star.nii.gz
 TMPLOCATION=/tmp
 CLEAN=1
 TMPD="" # will be folder specific to single invocation of tat2. removed at the end
+WRITE_JSON_LOG=1
 
 # all the inputs (possibly globs) we want to work on
 declare -a GLOBFILES
+
+filedesc_whichvol=""
 
 TAT2_VER="20230804-withver"
 # 20201116
@@ -248,6 +251,43 @@ args_are_sane(){
    return 0
 }
 
+update_with_censor(){
+   declare -g input filedesc_whichvol
+   filedesc_whichvol=""
+   readonly censor_rel
+   local censor_file idxs nkeep tat2inputfile
+   # update 'input' and 'runoutput'
+   # censor input
+   if [ -n "$censor_rel" ]; then
+      censor_file=$(find_rel_file "$input" "$censor_rel")
+      # if MAXVOLS is default "-1", firstn_cvs does nothing
+      idxs=$(where1csv $censor_file| idx_shuffle $IDX_SAMPLE_METHOD | firstn_csv $MAXVOLS)
+      nkeep=$(echo $idxs| tr ',' '\n' |wc -l)
+      filedesc_whichvol=_keep-${nkeep}
+      msg "censor: using $nkeep/$(3dinfo -nt $input) timepoints. (last vol: ${idxs/*,}) [$censor_file]"
+      if [ $MAXVOLS -gt 0 ]; then
+         [ $nkeep -ne $MAXVOLS ]  &&
+            msg "WARNING:run$cnt: have $nkeep != maxvols ($MAXVOLS). censored more volumes than min required?!"
+         # nkeep next used for file names.
+         filedesc_whichvol=_lastidx-${idxs/*,/}
+      fi
+      # truncate input
+      # previous used 3dTcat to truncation. but 3dROIstats and 3dcalc understand '[$index]' notation
+      # so no need to make another (potentially large) file
+      tat2inputfile=$input
+      input="$input[$idxs]"
+
+      # > ** ERROR: (The longest filename allowed in AFNI is 5095 characters)
+      # NB will be weird (do nothing?) when IDX_SAMPLE_METHOD is not "first"
+      #
+      # should remove conditional (>5k) so if this caues a bug
+      #   it will show up everywhere and will be tested (?)
+      [ ${#input} -ge 5095 ] &&
+         input="$tat2inputfile[$(echo $idxs | collapse_seq_idx)]"
+   fi
+
+   return 0
+}
 
 one_ta(){
    # GLOBALS:
@@ -267,48 +307,23 @@ one_ta(){
 
    [ -n "$MASK" ] && mask="$MASK" || mask=$(find_rel_file "$input" "$MASK_REL")
    [ ! -f $mask ] && err "mask '$mask' DNE; add -mkmask to create"
-   # add _tat2.nii.gz to the end
-   runoutput="$tmpd/${cnt}_tat2.nii.gz"
+
+   local filedesc_volnorm=_volnorm-${volnorm_opt//[- ]/}
+
+   # change $input and $filedesc_whichvol if $cesnor_rel exist
+   update_with_censor
+
+   # must match *_tat2.nii.gz to be picked up by 3dTstat at the end
+   runoutput="$tmpd/${cnt}${filedesc_whichvol}${filedesc_volnorm}_tat2.nii.gz"
 
    # calc number of voxels
    numvox=$(3dBrickStat -count -non-zero $mask|sed 's/[\t ]//g')
 
    # verbose
    msg "tat2: $input -> $runoutput"
-   volnorm_1D=$tmpd/${cnt}_volnorm.1D
+   volnorm_1D=$tmpd/${cnt}${filedesc_volnorm}.1D
    vol_sd=$tmpd/${cnt}_sd.1D
 
-   # censor input
-   if [ -n "$censor_rel" ]; then
-      censor_file=$(find_rel_file "$input" "$censor_rel")
-      # if MAXVOLS is default "-1", firstn_cvs does nothing
-      idxs=$(where1csv $censor_file| idx_shuffle $IDX_SAMPLE_METHOD | firstn_csv $MAXVOLS)
-      nkeep=$(echo $idxs| tr ',' '\n' |wc -l)
-      file_volnote=keep${nkeep}
-      msg "censor: using $nkeep/$(3dinfo -nt $input) timepoints. (last vol: ${idxs/*,}) [$censor_file]"
-      if [ $MAXVOLS -gt 0 ]; then
-         [ $nkeep -ne $MAXVOLS ]  &&
-            msg "WARNING:run$cnt: have $nkeep != maxvols ($MAXVOLS). censored more volumes than min required?!"
-         # nkeep next used for file names.
-         file_volnote=lastidx${idxs/*,/}
-      fi
-      # truncate input
-      # previous used 3dTcat to truncation. but 3dROIstats and 3dcalc understand '[$index]' notation
-      # so no need to make another (potentially large) file
-      local tat2inputfile=$input
-      input="$input[$idxs]"
-
-      # > ** ERROR: (The longest filename allowed in AFNI is 5095 characters)   
-      # NB will be weird (do nothing?) when IDX_SAMPLE_METHOD is not "first"
-      #
-      # should remove conditional (>5k) so if this caues a bug
-      #   it will show up everywhere and will be tested (?)
-      [ ${#input} -ge 5095 ] &&
-         input="$tat2inputfile[$(echo $idxs | collapse_seq_idx)]"
-
-      # must match *_tat2.nii.gz to be picked up by 3dTstat at the end
-      runoutput="$tmpd/${cnt}_${file_volnote}_tat2.nii.gz"
-   fi
 
    # if we want 1/t2*, switch up input to that
    if [ $t2_inv -eq 1 ]; then
@@ -320,13 +335,13 @@ one_ta(){
    # calc sum of each volume. output is normalize value per TR
    # as long as we want to do some volume normalization
    [ $volnorm_opt != "none" ] &&
-      3dROIstats -nomeanout $volnorm_opt -mask $mask -1Dformat $input > $volnorm_1D ||
-      perl -se 'print "1\n"x$nt' -- -nt=$(3dinfo -nt $input) > $volnorm_1D
+      3dROIstats -nomeanout $volnorm_opt -mask $mask -1Dformat "$input" > "$volnorm_1D" ||
+      perl -se 'print "1\n"x$nt' -- -nt=$(3dinfo -nt "$input") > "$volnorm_1D"
       # this is redundant with later calc_expr change. but here for constancy
 
    # do the same for stddev (sigma) if zscoring
    [ $use_zscore -eq 1 ] &&
-     3dROIstats -nomeanout -nzsigma -mask $mask -1Dformat $input > $vol_sd
+     3dROIstats -nomeanout -nzsigma -mask $mask -1Dformat "$input" > "$vol_sd"
 
    ## what does 3dcalc's expression look like
    # default is x/m*$SCALE/$numvox
@@ -343,7 +358,7 @@ one_ta(){
    fi
    [ $vox_scale -eq 0 ] && calc_scale="1"
 
-   # 20210921 - BL measure effect of  volume normalization
+   # 20210921 - BL measure effect of volume normalization
    [ $volnorm_opt == "none" ] && calc_scale="x*1"
 
 
@@ -354,14 +369,21 @@ one_ta(){
    #     s.t.
    #          v=(x/mean(x))*(1000/length(x))
    #          sum(v) = 1000
+   full_expr="$calc_expr*$calc_scale"
    3dcalc \
      -x $input \
      -m $volnorm_1D \
      $sd_input \
      -datum float -overwrite \
-     -expr "$calc_expr*$calc_scale"\
+     -expr "$full_expr"\
      -prefix $runoutput
    all_numvox="$all_numvox$numvox,"
+}
+
+# make list of input arguments formated as json
+json_list(){
+   local list=$(paste -sd, <<<$(printf '"%s"\n' "$@"))
+   echo -n "[${list}]"
 }
 
 _tat2(){
@@ -448,6 +470,30 @@ _tat2(){
 
    note_msg="$0 $allargs # $(pwd); $scale_msg, nvoxes=$all_numvox; nt=$all_nts; vol:$volnorm_opt, time:$tnorm_opt; $MAXVOLSTOTAL/$concat_nvol/$nvols_nocen used/not-cen/total nvols; $cnt/${#GLOBFILES[@]} files; $gitver"
    3dNotes -h "$note_msg" "$OUTPUT"
+
+   # computer-friendly output for parsing when running many option permutations
+   [ "${WRITE_JSON_LOG:-1}" -eq 1 ] &&
+     cat <<- HEREDOC > "${OUTPUT/.nii.gz/.log.json}"
+	{
+	 "volume_norm_3dROIstats": "${volnorm_opt//-/}",
+	 "time_norm_3dcalc": "${tnorm_opt//-/}",
+	 "nvox": [${all_numvox::-1}],
+	 "nt": [${all_nts::-1}],
+	 "expr": "$full_expr",
+	 "tat2_input": $(json_list $TMPD/*_tat2.nii.gz),
+	 "raw_inputs": $(json_list ${GLOBFILES[@]}),
+	 "n_raw_used": $cnt,
+	 "output": "$OUTPUT",
+	 "concat_nvol": $concat_nvol,
+	 "nvolx_nocen": $nvols_nocen,
+	 "scale": "$SCALE",
+	 "git": "$gitver",
+	 "tat2_ver": "$TAT2_VER",
+	 "use_inverse": "$t2_inv",
+	 "use_scale": "$vox_scale",
+	 "maxvols": $MAXVOLSTOTAL
+	}
+	HEREDOC
 
    [ $CLEAN -eq 1 ] && \
       rm -r "$TMPD" ||\

@@ -170,6 +170,15 @@ x_cmp_y(){
    [[ $output =~ nvoxes=4,4 ]]
 }
 
+@test json_log {
+   run tat2 t.nii.gz -output tat2.nii.gz -mask m.nii.gz
+   [ -r tat2.log.json ]
+   # for debugging
+   cat tat2.log.json; jq < tat2.log.json; jq .nt < tat2.log.json
+
+   [ $(jq -r '.nt[0]'< tat2.log.json) -eq 3 ]
+}
+
 @test cen_multiple {
    #  censor applies to each input separately
    mkdir -p x y out
@@ -178,15 +187,22 @@ x_cmp_y(){
    echo -e "1\n1\n1" > y/c.1D
    tat2 {x,y}/t.nii.gz -output mean.nii.gz -censor_rel c.1D -mask m.nii.gz -mean_time -tmp out -noclean
 
-   head -n99 out/*/*_volnorm.1D >&2
+   head -n99 out/*/*_volnorm*.1D >&2
+   find out/ -iname '*1D' -or -iname '*nii.gz' >&2
+   #  out/tat2star_MfK2/0_volnorm-nzmedian.1D
+   #  out/tat2star_MfK2/tat2_all.nii.gz
+   #  out/tat2star_MfK2/0_keep-2_volnorm-nzmedian_tat2.nii.gz
+   #  out/tat2star_MfK2/1_keep-3_volnorm-nzmedian_tat2.nii.gz
+   #  out/tat2star_MfK2/1_volnorm-nzmedian.1D
+   #
    # 2 in the first
-   [ -r out/*/0_keep2_tat2.nii.gz ]
-   [ $(3dinfo -nt out/*/0_keep2_tat2.nii.gz) -eq 2 ]
-   [ $(grep -cPv '^\s*#' out/*/0_volnorm.1D)  -eq 2 ]
+   [ -r out/*/0_keep-2_volnorm-nzmedian_tat2.nii.gz ]
+   [ $(3dinfo -nt out/*/0_keep-2_volnorm-nzmedian_tat2.nii.gz) -eq 2 ]
+   [ $(grep -cPv '^\s*#' out/*/0_volnorm-nzmedian.1D)  -eq 2 ]
    # 3 in the second
-   [ -r out/*/1_keep3_tat2.nii.gz ]
-   [ $(3dinfo -nt out/*/1_keep3_tat2.nii.gz) -eq 3 ]
-   [ $(grep -cPv '^\s*#' out/*/1_volnorm.1D)  -eq 3 ]
+   [ -r out/*/1_keep-3_volnorm-nzmedian_tat2.nii.gz ]
+   [ $(3dinfo -nt out/*/1_keep-3_volnorm-nzmedian_tat2.nii.gz) -eq 3 ]
+   [ $(grep -cPv '^\s*#' out/*/1_volnorm-nzmedian.1D)  -eq 3 ]
    # tat2_all has all 5 volumes
    [ -r out/*/tat2_all.nii.gz ]
    [ $(3dinfo -nt out/*/tat2_all.nii.gz) -eq 5 ]
@@ -199,7 +215,7 @@ x_cmp_y(){
    #  censor < mean
    tat2 t.nii.gz -output mean.nii.gz -mask m.nii.gz -mean_time
    tat2 t.nii.gz -output cen.nii.gz  -mask m.nii.gz -mean_time  -censor_rel c.1D
-   3dNotes cen.nii.gz |grep -q keep2
+   3dNotes cen.nii.gz |grep -q keep-2
    x_cmp_y cen.nii.gz '<' mean.nii.gz
 }
 
@@ -209,7 +225,7 @@ x_cmp_y(){
    #  censor == mean
    tat2 t.nii.gz -output mean.nii.gz -mask m.nii.gz -median_time
    tat2 t.nii.gz -output cen.nii.gz  -mask m.nii.gz -median_time  -censor_rel c.1D
-   3dNotes cen.nii.gz |grep -q keep2
+   3dNotes cen.nii.gz |grep -q keep-2
    x_cmp_y mean.nii.gz = cen.nii.gz
 }
 
@@ -220,7 +236,7 @@ x_cmp_y(){
    (echo 1; cat c.1D) > d.1D # add another value so we know we actually stopped at 2
    tat2 t.nii.gz -output cen.nii.gz  -mask m.nii.gz -median_time  -censor_rel d.1D -maxvols 2
    3dNotes cen.nii.gz >&2
-   3dNotes cen.nii.gz |grep -q lastidx1
+   3dNotes cen.nii.gz |grep -q lastidx-1
 }
 
 @test maxvolstotal_stop w/enough {
@@ -330,8 +346,8 @@ x_cmp_y(){
    #  mean: 356.314       cen: 285.714
    tat2 t.nii.gz -output mean.nii.gz -mask m.nii.gz -mean_time -inverse
    tat2 t.nii.gz -output cen.nii.gz  -mask m.nii.gz -mean_time -censor_rel c.1D -inverse
-   3dNotes cen.nii.gz |grep -q keep2
-
+   3dNotes cen.nii.gz >&2
+   3dNotes cen.nii.gz |grep -q keep-2
    x_cmp_y cen.nii.gz '<' mean.nii.gz
 }
 
@@ -355,7 +371,7 @@ x_cmp_y(){
    # censor using absolute path (introduced 20210809)
    echo -e "1\n1\n1" > $(pwd)/cen1.1D
    tat2 t.nii.gz -output cen.nii.gz  -mask m.nii.gz -mean_time  -censor_rel $(pwd)/cen1.1D
-   3dNotes cen.nii.gz |grep -q keep3
+   3dNotes cen.nii.gz |grep -q keep-3
 }
 
 @test saneargs_samplemethod {
