@@ -12,6 +12,7 @@ volnorm_opt="-nzmedian"        # 3dcalc: run_tat2.nii.gz (vol normalized)
 SCALE=1000                     #  "
 vox_scale=1                    #  "
 use_zscore=0                   #  "
+use_ln=0                       #  "      (added 20240719)
 MAXVOLS=-1                     #  "      truncate how many volumes are in run_tat2.nii.gz
 censor_rel=""                  # 3dTcat: truncate input
 MAXVOLSTOTAL=-1                #  "      truncate how many volumes are ultimately averaged.
@@ -29,7 +30,7 @@ declare -a GLOBFILES
 
 filedesc_whichvol=""
 
-TAT2_VER="20230804-withver"
+TAT2_VER="20240719-calc_ln"
 # 20201116
 #  back to mean default
 # add
@@ -52,7 +53,7 @@ TAT2_VER="20230804-withver"
 usage(){
   cat <<-HEREDOC
 USAGE
-    tat2 '/paths/to/*/t2.nii.gz' [ -mask_rel $MASK_REL | -mask_rel s/_bold.nii.gz/_bold_mask.nii.gz/ | -mask /the/only/mask.nii.gz | -mkmask]  [-output $OUTPUT] [-scale $SCALE]  [-censor_rel relative/censor.1D | -censor_rel s/epi/censor/] [-median_time|-mean_time]  [-median_vol|-mean_vol|-zscore_vol] [-no_voxscale] [-inverse] [-noclean] [-verbose] [-tmp $TMPLOCATION]
+    tat2 '/paths/to/*/t2.nii.gz' [ -mask_rel $MASK_REL | -mask_rel s/_bold.nii.gz/_bold_mask.nii.gz/ | -mask /the/only/mask.nii.gz | -mkmask]  [-output $OUTPUT] [-scale $SCALE]  [-censor_rel relative/censor.1D | -censor_rel s/epi/censor/] [-median_time|-mean_time]  [-median_vol|-mean_vol|-no_vol] [-calc_zscore|-calc_ln] [-no_voxscale] [-inverse] [-noclean] [-verbose] [-tmp $TMPLOCATION]
 
 SYNOPSIS
   calculates time averaged T2* like:
@@ -107,10 +108,13 @@ OPTIONS (in order of relevance)
         vol norm default: '$volnorm_opt'
         (history: median [20210302],  mean [20201116], median [20201016]. no_vol added 20210921)
 
-  -inverse     create 1/t2* and use as initial input
-  -zscore_vol  changes expression to '(x-m)/s' instead of 'x/m' for 3dcalc vol norm
+  -calc_zscore or -calc_log
+    for 3dcalc per volume voxelwise normalization:
+    instead of 'x/m' 
+       -calc_zscore '(x-m)/s'
+       -calc_log    '-ln(x/m)'
   -no_voxscale disables scaling. (SCALE=1, not normalized by number of nzvoxels)
-
+  -inverse     create 1/t2* and use as initial input
 
   -noclean     keeps tmp folder around, useful for debugging
   -tmp DIR     sets the directory to use for temporary calculations to DIR.
@@ -212,7 +216,8 @@ parse_args(){
      -median_vol) volnorm_opt="-nzmedian"; shift;;
      -mean_vol)   volnorm_opt="-nzmean"; shift;;
      -no_vol)     volnorm_opt="none"; shift;;
-     -zscore_vol) use_zscore=1; shift;;
+     -calc_zscore|-zscore_vol) use_zscore=1; shift;;
+     -calc_ln)     use_ln=1; shift;; # added 20240719
      -mean_time)  tnorm_opt="-nzmean"; shift;;
      -median_time)tnorm_opt="-nzmedian"; shift;;
      -inverse)    t2_inv=1; shift;;
@@ -224,6 +229,7 @@ parse_args(){
      *)           GLOBFILES+=("$1"); shift;;
     esac
    done
+
    return 0
 }
 
@@ -235,6 +241,15 @@ args_are_sane(){
       err "-sample_method must be first, last, or random; not '$IDX_SAMPLE_METHOD'"
    [ "$IDX_SAMPLE_METHOD" != first -a $MAXVOLSTOTAL = -1 -a $MAXVOLS = -1 ] &&
       err "'-sample_method $IDX_SAMPLE_METHOD' doesn't makes sense without -maxvols*"
+
+   local no_vol=0
+   [[ $volnorm_opt == "none" ]] && no_vol=1
+   if [[ "$use_zscore$use_ln$no_vol" =~ 1.*1 ]]; then
+      err "cannot combine -calc_zscore or -calc_ln or -no_vol"
+   fi
+   if [[ $use_zscore$use_ln =~ 1 && $vox_scale -eq 1 ]]; then
+      err "must use -no_voxscale with -calc_zscore or -calc_ln"
+   fi
 
    echo "#files/globs: ${#GLOBFILES[@]}"
    # need to have at least one file to average
@@ -289,6 +304,40 @@ update_with_censor(){
    return 0
 }
 
+args_to_3dcalc_expr(){
+   readonly use_zscore use_ln vox_scale volnorm_opt numvox
+   ## what does 3dcalc's expression look like
+   # default is x/m*$SCALE/$numvox
+   # 4 possibilities. product of
+   # '(x-m)/s' vs 'x/m' AND '$SCALE/$numvox' vs '1'
+   #  zscore   vs  not   *   vox_scale       vs  not
+   calc_expr="(x/m)"
+   calc_scale="$SCALE/$numvox"
+
+   if [ $use_zscore -eq 1 ]; then
+    #sd_input="-s $vol_sd" # handled elsehwere to avoid sideffects here
+    calc_expr="(x-m)/s"
+   elif [ $use_ln -eq 1 ]; then
+    calc_expr="-1*log(x/m)"
+   fi
+   [ $vox_scale -eq 0 ] && calc_scale="1"
+
+   # 20210921 - BL measure effect of volume normalization
+   [ $volnorm_opt == "none" ] && calc_scale="x*1"
+   # TODO BUG? should calc_scale = m*1 ?
+   # TODO BUG? should '$vox_scale -ne 0' => calc_scale "x*$SCALE/$numvox"
+
+
+   # normalize each voxel by the volume average or median
+   # scale by SCALE and number of good (within mask) voxels in the run
+   # sd_input is only non-empty when '-zscore'
+   # '$calc_expr*$calc_scale' defaults to (x/m)*$SCALE/$numvox
+   #     s.t.
+   #          v=(x/mean(x))*(1000/length(x))
+   #          sum(v) = 1000
+   echo "$calc_expr*$calc_scale"
+}
+
 one_ta(){
    # GLOBALS:
    #  MASK, MASK_REL, censor_rel, MAXVOLS,
@@ -340,45 +389,23 @@ one_ta(){
       # this is redundant with later calc_expr change. but here for constancy
 
    # do the same for stddev (sigma) if zscoring
-   [ $use_zscore -eq 1 ] &&
-     3dROIstats -nomeanout -nzsigma -mask $mask -1Dformat "$input" > "$vol_sd"
-
-   ## what does 3dcalc's expression look like
-   # default is x/m*$SCALE/$numvox
-   # 4 possibilities. product of
-   # '(x-m)/s' vs 'x/m' AND '$SCALE/$numvox' vs '1'
-   #  zscore   vs  not   *   vox_scale       vs  not
-   sd_input=""
-   calc_expr="(x/m)"
-   calc_scale="$SCALE/$numvox"
-
+   local calc_sd_input=""
    if [ $use_zscore -eq 1 ]; then
-    sd_input="-s $vol_sd"
-    calc_expr="(x-m)/s"
+     3dROIstats -nomeanout -nzsigma -mask $mask -1Dformat "$input" > "$vol_sd" &&
+     calc_sd_input="-s $vol_sd"
    fi
-   [ $vox_scale -eq 0 ] && calc_scale="1"
 
-   # 20210921 - BL measure effect of volume normalization
-   [ $volnorm_opt == "none" ] && calc_scale="x*1"
-
-
-   # normalize each voxel by the volume average or median
-   # scale by SCALE and number of good (within mask) voxels in the run
-   # sd_input is only non-empty when '-zscore'
-   # '$calc_expr*$calc_scale' defaults to (x/m)*$SCALE/$numvox
-   #     s.t.
-   #          v=(x/mean(x))*(1000/length(x))
-   #          sum(v) = 1000
-   full_expr="$calc_expr*$calc_scale"
+   full_expr="$(args_to_3dcalc_expr)" # side-effect
    3dcalc \
      -x $input \
      -m $volnorm_1D \
-     $sd_input \
+     $calc_sd_input \
      -datum float -overwrite \
      -expr "$full_expr"\
      -prefix $runoutput
    all_numvox="$all_numvox$numvox,"
 }
+
 
 # make list of input arguments formated as json
 json_list(){

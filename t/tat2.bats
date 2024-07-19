@@ -362,10 +362,17 @@ x_cmp_y(){
 }
 
 @test zscore {
-   # zscore:433.012       mean:400
-   tat2 t.nii.gz -median_time -mean_vol -output mean.nii.gz -mask m.nii.gz
-   tat2 t.nii.gz  -zscore_vol -output zscore.nii.gz -mask m.nii.gz
+   # zscore:2.3094        mean:1.6
+   tat2 t.nii.gz -median_time -mean_vol -no_voxscale -output mean.nii.gz -mask m.nii.gz
+   tat2 t.nii.gz  -calc_zscore -no_voxscale -output zscore.nii.gz -mask m.nii.gz
    x_cmp_y zscore.nii.gz '>' mean.nii.gz
+}
+@test calc_ln {
+   # ln:173.287       mean:1.6
+   tat2 t.nii.gz -median_time -no_voxscale -mean_vol -output mean.nii.gz -mask m.nii.gz
+   tat2 t.nii.gz -no_voxscale -calc_ln -output ln.nii.gz -mask m.nii.gz
+   3dBrickStat ln.nii.gz >&2
+   x_cmp_y ln.nii.gz '<' mean.nii.gz
 }
 @test cen_abspath {
    # censor using absolute path (introduced 20210809)
@@ -432,4 +439,46 @@ x_cmp_y(){
    run tat2 c.1D t.nii.gz -output fails.nii.gz -mask m.nii.gz
    [[ $status -ne 0 ]]
    [[ $output =~ 'must end in nii' ]]
+}
+
+@test gen_calc {
+  source tat2; parse_args
+  numvox="NVOX"
+  run args_to_3dcalc_expr
+  [[ $output == "(x/m)*$SCALE/NVOX" ]]
+}
+@test gen_calc_novox {
+  source tat2
+  parse_args -no_voxscale
+  run args_to_3dcalc_expr
+  [[ $output == "(x/m)*1" ]]
+}
+
+@test gen_calc_nonorm {
+  # TODO: THIS IS WRONG?
+  source tat2
+  parse_args -no_vol
+  run args_to_3dcalc_expr
+  [[ $output == "(x/m)*x*1" ]]
+}
+@test gen_calc_zscore {
+  # TODO: this should error?
+  source tat2
+  parse_args -calc_zscore
+  numvox="NVOX"
+  run args_to_3dcalc_expr
+  [[ $output == "(x-m)/s*$SCALE/NVOX" ]]
+}
+
+@test gen_calc_zscore_noscale {
+  source tat2
+  parse_args -calc_zscore -no_voxscale
+  run args_to_3dcalc_expr
+  [[ $output == "(x-m)/s*1" ]]
+}
+@test gen_calc_ln_noscale {
+  source tat2
+  parse_args -calc_ln -no_voxscale
+  run args_to_3dcalc_expr
+  [[ $output == "-1*log(x/m)*1" ]]
 }
