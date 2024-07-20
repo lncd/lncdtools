@@ -520,7 +520,8 @@ _tat2(){
 	 "tat2_ver": "$TAT2_VER",
 	 "use_inverse": "$t2_inv",
 	 "use_scale": "$vox_scale",
-	 "maxvols": $MAXVOLSTOTAL
+	 "maxvols": $MAXVOLSTOTAL,
+    "cmd": "$0 $allargs"
 	}
 	HEREDOC
 
