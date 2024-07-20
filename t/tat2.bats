@@ -170,6 +170,14 @@ x_cmp_y(){
    [[ $output =~ nvoxes=4,4 ]]
 }
 
+@test roistats_cmd_log {
+   run tat2 t.nii.gz -output tat2.nii.gz -mask m.nii.gz
+   3dNotes tat2.nii.gz
+   3dNotes tat2.nii.gz| grep 3dROIstats
+   jq < tat2.log.json
+   jq .roistats_cmds < tat2.log.json |grep 3dROIstats
+}
+
 @test json_log {
    run tat2 t.nii.gz -output tat2.nii.gz -mask m.nii.gz
    [ -r tat2.log.json ]
@@ -178,6 +186,16 @@ x_cmp_y(){
 
    [ $(jq -r '.nt[0]'< tat2.log.json) -eq 3 ]
 }
+
+@test json_log_censor {
+   run tat2 t.nii.gz -output tat2.nii.gz -mask m.nii.gz -censor_rel c.1D
+   3dNotes tat2.nii.gz
+   3dNotes tat2.nii.gz| grep c.1D
+   cat tat2.log.json
+   jq .censor_files < tat2.log.json |grep c.1D
+}
+
+
 
 @test cen_multiple {
    #  censor applies to each input separately

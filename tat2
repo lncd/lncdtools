@@ -110,7 +110,7 @@ OPTIONS (in order of relevance)
 
   -calc_zscore or -calc_log
     for 3dcalc per volume voxelwise normalization:
-    instead of 'x/m' 
+    instead of 'x/m'
        -calc_zscore '(x-m)/s'
        -calc_log    '-ln(x/m)'
   -no_voxscale disables scaling. (SCALE=1, not normalized by number of nzvoxels)
@@ -267,10 +267,10 @@ args_are_sane(){
 }
 
 update_with_censor(){
-   declare -g input filedesc_whichvol
+   declare -g input filedesc_whichvol censor_file
    filedesc_whichvol=""
    readonly censor_rel
-   local censor_file idxs nkeep tat2inputfile
+   local idxs nkeep tat2inputfile
    # update 'input' and 'runoutput'
    # censor input
    if [ -n "$censor_rel" ]; then
@@ -327,7 +327,7 @@ args_to_3dcalc_expr(){
    #     1. had 'x*1' but want to undo x/m. is now (x/m)*m
    #     2. did not respect scaling
    #        now can do: x/m*m * scale/nvox (but thats a bad idea?)
-   [ $volnorm_opt == "none" ] && calc_scale="m*$calc_scale" 
+   [ $volnorm_opt == "none" ] && calc_scale="m*$calc_scale"
 
 
    # normalize each voxel by the volume average or median
@@ -350,6 +350,7 @@ one_ta(){
    local cnt="$1"; shift
    local input="$1"; shift
    local tmpd="$1"; shift
+   local ROIstats_cmd;
 
    # 20231207 - getting bash quoting right is hard
    ! [[ $input =~ .nii.gz$|.nii$|.HEAD$ ]] &&
@@ -362,6 +363,7 @@ one_ta(){
    local filedesc_volnorm=_volnorm-${volnorm_opt//[- ]/}
 
    # change $input and $filedesc_whichvol if $cesnor_rel exist
+   censor_file="" # updated version of '$censor_rel' if used
    update_with_censor
 
    # must match *_tat2.nii.gz to be picked up by 3dTstat at the end
@@ -385,27 +387,40 @@ one_ta(){
 
    # calc sum of each volume. output is normalize value per TR
    # as long as we want to do some volume normalization
-   [ $volnorm_opt != "none" ] &&
-      3dROIstats -nomeanout $volnorm_opt -mask $mask -1Dformat "$input" > "$volnorm_1D" ||
-      perl -se 'print "1\n"x$nt' -- -nt=$(3dinfo -nt "$input") > "$volnorm_1D"
+   if [ $volnorm_opt != "none" ]; then
+      ROIstats_cmd="3dROIstats -nomeanout $volnorm_opt -mask $mask -1Dformat '$input' > '$volnorm_1D';"
+      eval "$ROIstats_cmd"
+   else
+      ROIstats_cmd="# no vol norm cmd;"
       # this is redundant with later calc_expr change. but here for constancy
+      perl -se 'print "1\n"x$nt' -- -nt=$(3dinfo -nt "$input") > "$volnorm_1D"
+   fi
 
    # do the same for stddev (sigma) if zscoring
    local calc_sd_input=""
    if [ $use_zscore -eq 1 ]; then
-     3dROIstats -nomeanout -nzsigma -mask $mask -1Dformat "$input" > "$vol_sd" &&
+     local sd_cmd="3dROIstats -nomeanout -nzsigma -mask '$mask' -1Dformat '$input' > '$vol_sd';"
+     ROIstats_cmd="$ROIstats_cmd$sd_cmd"
+     eval "$sd_cmd"
      calc_sd_input="-s $vol_sd"
    fi
 
    full_expr="$(args_to_3dcalc_expr)" # side-effect
-   3dcalc \
+   calc_cmd="3dcalc \
      -x $input \
      -m $volnorm_1D \
      $calc_sd_input \
      -datum float -overwrite \
-     -expr "$full_expr"\
-     -prefix $runoutput
+     -expr '$full_expr'\
+     -prefix $runoutput;"
+   eval "$calc_cmd"
+
+   # for logging we store the total number of voxels used
+   # and the list of censor files
    all_numvox="$all_numvox$numvox,"
+   all_censors="$all_censors\"$censor_file\","
+   all_roistats="$all_roistats$ROIstats_cmd"
+   all_calc_cmd="$all_calc_cmd$calc_cmd"
 }
 
 
@@ -419,7 +434,10 @@ _tat2(){
    TMPD=$(mktemp -d $TMPLOCATION/tat2star_XXXX)
    cnt=0
    volcount=0
-   all_numvox="" # will be populated with each subjectmask
+   all_numvox=""  # will be populated with each subjectmask (csv)
+   all_censors="" # appened list of all censor files used (csv)
+   all_roistats="" # all 3dROIStats volume normalization commands
+   all_calc_cmd="" # 3dcalc commands
    local nvols_nocen=0
 
    if [ $MKMASK -eq 1 ]; then
@@ -486,7 +504,13 @@ _tat2(){
    fi
 
    # time norm
-   3dTstat -prefix $OUTPUT -overwrite $tnorm_opt $concated_file$maxvolsubset
+   local Tstat_cmd="3dTstat -prefix $OUTPUT -overwrite $tnorm_opt $concated_file$maxvolsubset"
+   eval "$Tstat_cmd"
+
+   ### HISTORY/PROVENANCE
+   # 1D create file provenance is not tracked and tmp files will be remove.
+   # put final tat2 file. also in log.json
+   3dNotes -h "$all_roistats" "$OUTPUT"
 
    all_nts="$(3dinfo -nt $TMPD/*_tat2.nii.gz|tr '\n' ',')"
 
@@ -497,18 +521,24 @@ _tat2(){
    gitver="$(gitver "$0"||:)"
    [[ -z "$gitver" || "$gitver" =~ :NA$ ]] && gitver=$TAT2_VER
 
-   note_msg="$0 $allargs # $(pwd); $scale_msg, nvoxes=$all_numvox; nt=$all_nts; vol:$volnorm_opt, time:$tnorm_opt; $MAXVOLSTOTAL/$concat_nvol/$nvols_nocen used/not-cen/total nvols; $cnt/${#GLOBFILES[@]} files; $gitver"
+   note_msg="$0 $allargs # $(pwd); $scale_msg, nvoxes=$all_numvox, censors=$all_censors; nt=$all_nts; vol:$volnorm_opt, time:$tnorm_opt; $MAXVOLSTOTAL/$concat_nvol/$nvols_nocen used/not-cen/total nvols; $cnt/${#GLOBFILES[@]} files; $gitver"
    3dNotes -h "$note_msg" "$OUTPUT"
 
    # computer-friendly output for parsing when running many option permutations
    [ "${WRITE_JSON_LOG:-1}" -eq 1 ] &&
      cat <<- HEREDOC > "${OUTPUT/.nii.gz/.log.json}"
 	{
+	 "cmd": "$0 $allargs",
+	 "roistats_cmds": "${all_roistats}",
+	 "volume_norm_cmds": "${all_calc_cmd}",
+	 "collapse_cmd": "${Tstat_cmd}",
+	 "expr": "$full_expr",
 	 "volume_norm_3dROIstats": "${volnorm_opt//-/}",
 	 "time_norm_3dcalc": "${tnorm_opt//-/}",
-	 "nvox": [${all_numvox::-1}],
+	 "ref_mask": "$mask",
+	 "nvox": [${all_numvox::-1}],`# -1 to remove trailing comma`
+	 "censor_files": [${all_censors::-1}],
 	 "nt": [${all_nts::-1}],
-	 "expr": "$full_expr",
 	 "tat2_input": $(json_list $TMPD/*_tat2.nii.gz),
 	 "raw_inputs": $(json_list ${GLOBFILES[@]}),
 	 "n_raw_used": $cnt,
@@ -520,8 +550,7 @@ _tat2(){
 	 "tat2_ver": "$TAT2_VER",
 	 "use_inverse": "$t2_inv",
 	 "use_scale": "$vox_scale",
-	 "maxvols": $MAXVOLSTOTAL,
-    "cmd": "$0 $allargs"
+	 "maxvols": $MAXVOLSTOTAL
 	}
 	HEREDOC
 
