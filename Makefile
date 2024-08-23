@@ -60,3 +60,7 @@ install: $(BIN)
 install-make: $(addprefix $(DESTDIR)/usr/bin/,$(EXECS_MAKE))
 install-shell: $(addprefix $(DESTDIR)/usr/bin/,$(EXECS_SHELL))
 install-neuro: $(addprefix $(DESTDIR)/usr/bin/,$(EXECS_NEURO))
+
+
+check-zenodo:
+	 npx zenodraft metadata validate .zenodo.json
