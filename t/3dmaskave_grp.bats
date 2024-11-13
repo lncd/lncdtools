@@ -63,7 +63,39 @@ function test_maskave { # @test
  run 3dmaskave_grp \
    -pattern data -csv $BATS_TEST_TMPDIR/test.csv \
    -m roi1=$BATS_TEST_TMPDIR/roi1.nii.gz'<1>'\
-   -m roi2=$BATS_TEST_TMPDIR/roi1.nii.gz -- /tmp/data.nii.gz
+   -m roi2=$BATS_TEST_TMPDIR/roi1.nii.gz -- $BATS_TEST_TMPDIR/data.nii.gz
+ [[ $status -eq 0 ]]
+ run tail -n1 $BATS_TEST_TMPDIR/test.csv
+ [[ "$output"  == "roi2,data,data,1" ]]
+}
+
+function test_isregexp { # @test
+   run name_is_regex "s:a:b:"
+   [ "$status" -eq 0 ]
+   run name_is_regex "s/a/b/"
+   [ "$status" -eq 0 ]
+   run name_is_regex "s/a/b/i"
+   [ "$status" -eq 0 ]
+   run name_is_regex "s/path/to/i.nii.gz<1>"
+   [ "$status" -eq 1 ]
+}
+
+function test_isroi { # @test
+   run check_roi $BATS_TEST_TMPDIR/roi1.nii.gz
+   [ "$status" -eq 0 ]
+
+   run check_roi $BATS_TEST_TMPDIR/roi1.nii.gz'<1>'
+   [ "$status" -eq 0 ]
+
+   run check_roi $BATS_TEST_TMPDIR/roi1.nii.gz'<2>'
+   [ "$status" -ne 0 ]
+}
+
+function test_maskrelregexp { # @test
+ run 3dmaskave_grp \
+   -pattern data -csv $BATS_TEST_TMPDIR/test.csv \
+   -m roi1='s:data.nii.gz:roi1.nii.gz<1>:'\
+   -m roi2=$BATS_TEST_TMPDIR/roi1.nii.gz -- $BATS_TEST_TMPDIR/data.nii.gz
  [[ $status -eq 0 ]]
  run tail -n1 $BATS_TEST_TMPDIR/test.csv
  [[ "$output"  == "roi2,data,data,1" ]]
