@@ -21,9 +21,9 @@ CMPFILE="$1"; shift
 
 # write list to TMPFILE - either have a pattern to ls or piping from e.g. find
 if [ $# -ge 1 ]; then
-   ls -d $@ | mkifdiff $CMPFILE
+   ls -d "$@" | mkifdiff "$CMPFILE"
 else
    echo "DEPRECATED: use mkifdiff for pipe compare" >&2
    tty >/dev/null  && echo "need to pipe to $0; cmd | $0 $1" && exit 1
-   cat | mkifdiff $CMPFILE
+   cat | mkifdiff "$CMPFILE"
 fi
