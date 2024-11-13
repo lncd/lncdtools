@@ -72,6 +72,7 @@ sub get_config(){
       "bandwidth"=>"0018,0095", # echospacing = 1/(bandwith*matrixsize[0]) 
       "imagetime"=>"0008,0033",
       "seriesdesc"=>"0008,103e",
+      "seriesdate"=>"0008,0021", # SeriesDate, 22 is SeriesTime. also see acqdate
       # 20230510 -- for identifing the scanner. at some point we should just use the DICOM cpan module to get names
       "station"=>"0008,1010",  # ID Station Name//MRC18914
       "model"=>"0008,1090",    # ID Manufacturer Model Name//Investigational_Device_7T
