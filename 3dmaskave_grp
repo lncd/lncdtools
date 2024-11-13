@@ -34,7 +34,7 @@ $(basename $0) -csv dlpfc.csv -mask "mask.nii.gz" -- paths/to/1*_2*/inputs.nii.g
 
   -m|-mask NAME=MASK    input mask optionally with afni selector
                         MASK can also be a perl regular expression like 's:search:replace:'
-                        -m tian_nacc.core='s:[^/]*:warps/tian_nacc_rs.nii.gz<1>:'
+                        -m tian_nacc.core='s:[^/]*.nii.gz$:warps/tian_nacc_rs.nii.gz<1>:'
 
   -csv  FILE            save csv as FILE (defaults to NAME.csv)
   -datatable FILE       use datatable as input. req Subj is first and InputFile last col
