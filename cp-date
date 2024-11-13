@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+usage() { echo -e "Make copy of file with last change date at end.\nUSAGE: $0 myfile # makes myfile.YYYY-MM-DD"; }
+[[ $# -eq 0  || $* =~ ^-+h ]] && usage && exit 1
+while [ $# -gt 0 ]; do
+infile="${1:?file to copy}"; shift
+[ ! -r "$infile" ] && warn "Bad file: '$infile'" && continue
+
+newname=$infile.$(find "$infile" -printf '%CF')
+[ -r "$newname" ] && warn "$newname aleady exists!. remove and rerun to replace" && continue
+
+dryrun cp "$infile" "$newname"
+done
