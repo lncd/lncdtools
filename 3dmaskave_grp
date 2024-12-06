@@ -35,6 +35,7 @@ $(basename $0) -csv dlpfc.csv -mask "mask.nii.gz" -- paths/to/1*_2*/inputs.nii.g
   -m|-mask NAME=MASK    input mask optionally with afni selector
   -csv  FILE            save csv as FILE (defaults to NAME.csv)
   -datatable FILE       use datatable as input. req Subj is first and InputFile last col
+  -stdinfiles           read files from stdin
   -label_col IDX        req. for datatable. what col index to use for labels
                         csv for multiple: -label_col "3,4"
   -redo                 rerun, overwritting old
@@ -42,7 +43,7 @@ $(basename $0) -csv dlpfc.csv -mask "mask.nii.gz" -- paths/to/1*_2*/inputs.nii.g
   -pattern PAT          use PAT to extract id (default: '$ID_PATT')
   -inputext PAT         perl 's///' to extract input name (default: '$IN_PATT')
   -njobs   CORES        run with NCORES (>1 requires gnu parallel)
-  -roistats 1           enable 3dROIstats instead of maskave. also try: -roistats -nzvoxels,-nzsigma
+  -roistats 1           enable 3dROIstats instead of maskave. also try: -roistats -nzmean,-nzvoxels,-nzsigma
                         NOTE!! header will be order you provide BUT 3dROIstats does not respect that order!!!
   -v|-verbose           print when not writting b/c already exists in csv
   -h|-usage             this text
@@ -77,7 +78,8 @@ parse_args(){
    CFILES=()
    while [ $# -gt 0 ]; do
      case "$1" in
-        --) shift; CFILES=("$@"); break;;
+        --) shift; CFILES=("${CFILES[@]}" "$@"); break;;
+	-stdinfiles) mapfile -t CFILES; shift;;
         -m|-mask) MASK+=("$2"); shift 2;;
         -csv) OUTNAME="$2"; shift 2;; # def to basename of mask.csv
         -pattern) ID_PATT="$2"; shift 2;;
@@ -93,7 +95,7 @@ parse_args(){
      esac
    done
    [ -z "${MASK[*]}" ] && warn "ERROR: need -mask 'mask.nii.gz' to be specified" && return 1
-   [ -z "$DATATABLE" -a -z "${CFILES[*]}" ] && warn "ERROR: must specify subject/to-mask input files! use -datatable file.txt  or  -- file1.nii.gz file2.nii.gz ..." && return 2
+   [ -z "$DATATABLE" -a -z "${CFILES[*]}" ] && warn "ERROR: must specify subject/to-mask input files! use '-datatable file.txt'  or ' -- file1.nii.gz file2.nii.gz ...' or 'find | ... -stdinfiles' " && return 2
    # only name out same as mask if only one mask
    [ -z "${OUTNAME:-}" -a ${#MASK[@]} -eq 1 ] && OUTNAME="$(niibasename "${MASK[0]}").csv"
    [ -z "${OUTNAME:-}" ] && warn "ERROR: need -csv OUTNAME" && return 3
