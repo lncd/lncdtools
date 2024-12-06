@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-env|grep -q ^DRYRUN=.&&DRYRUN=echo||DRYRUN=
+[ -z "${DRYRUN:-}" ] && DRYRUN= || DRYRUN="echo"
 
 # 20210317WF - add user
 #
@@ -31,39 +31,38 @@ add_rhea_user(){
 }
 set_passwd(){
    local user="$1"; shift
-   local pass
-   [ $# -gt 0 ] && pass="$1" || pass=$(mkpass)
-   echo -e "$pass\n$pass" | $DRYRUN passwd $user
+   local pass="${1:-}"
+   [ -z "$pass" ] && pass=$(mkpass)
+   echo -e "$pass\n$pass" | $DRYRUN passwd "$user"
    echo "# using '$pass'"
 }
 add_rc(){
    # add default ni settings: env (path, python, fsl, afni, ...) and bash prompt, aliases, etc
    local user="$1"
    echo "source /opt/ni_tools/dotfiles/bash/.bashrc" |
-      sudo -u $user tee -a /home/$user/.bashrc >/dev/null
+      sudo -u "$user" $DRYRUN tee -a "/home/$user/.bashrc" >/dev/null
 
    # R config file: make sure we look to ni_tools for packages
-   sudo -u $user ln -s /opt/ni_tools/dotfiles/Rprofile/.Rprofile /home/$user/
+   $DRYRUN sudo -u "$user" ln -s /opt/ni_tools/dotfiles/Rprofile/.Rprofile "/home/$user/"
 }
 
 # if running (not sourcing)
-if [[ "$(caller)" == "0 "* ]]; then 
+if [[ "$(caller)" == "0 "* ]]; then
    # run as root
-   if [ $(id -u ) -ne 0 ]; then
-     sudo $0 "$@" 
+   if [ "$(id -u)" -ne 0 ]; then
+     sudo --preserve-env=DRYRUN,USERPASS "$0" "$@"
      exit $?
    fi
 
    # parse args
-   [ $# -lt 2 ] && echo "USAGE: $0 user full name" && exit 1
-   user="$1"; shift
+   [ $# -lt 2 ] && echo "USAGE: USERPASS=xxx $0 user full name # if no userpass, makes one up" && exit 1
+   user="${1//@*/}"; shift
    fullname="$*";
 
-
    # already have user
-   user_dne $user || exit
+   user_dne "$user" || exit
 
    add_rhea_user "$user" "$fullname"
-   set_passwd "$user"
+   set_passwd "$user" "${USERPASS:-}"
    add_rc "$user"
 fi

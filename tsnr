@@ -11,6 +11,8 @@ $0 input.nii.gz tsnr_out.nii.gz
  * input can specify subricks like input.nii.gz'[4..$]'
  * output is tsnr calculation file to be made
  * NOCLEANUP=1 tsnr in.nii.gz out.nii.gz - save temporary file
+ * MEAN_FROM=nswudktm_func_5.nii.gz tsnr bnswudktm*.nii.gz out.nii.gz 
+   use mean from a different input set (e.g. b/c current has bandpassing)
  also see 'ppf_tsnr' for tsnr w/mask, bandpass undo, and warping
 HEREDOC
 
@@ -19,12 +21,20 @@ exit
 [ $# -ne 2 ] && usage
 input="$1"; shift
 output="$1"; shift
-nt=$(3dinfo -nt $input || echo 0)
-[ "$nt" -lt 3 ] && echo "ERROR: too few timepoints ($nt) in '$input'" && exit 1
+nt=$(3dinfo -nt "$input" || echo 0)
+[ "$nt" -lt 3 ] &&
+   echo "ERROR: too few timepoints ($nt) in '$input'" >&2 && exit 1
 
-tmp=$(mktemp -d /tmp/tsnr-XXXX)
+tmp=$(mktemp -d "${TMP:-/tmp}/tsnr-XXXX")
 echo "# files in temporary directory: $tmp"
-3dTstat -mean -prefix $tmp/tmean.nii.gz $input
-3dDetrend -prefix $tmp/det.nii.gz -polort 4 $input
-3dTstat -stdev -prefix $tmp/det.stdev.nii.gz $tmp/det.nii.gz
-3dcalc -overwrite -m $tmp/tmean.nii.gz -s $tmp/det.stdev.nii.gz -expr 'm/s' -float -prefix $output
+
+# get mean. either from input or an alternate file (e.g. if input is already bandpassed)
+3dTstat -mean -prefix "$tmp/tmean.nii.gz" "${MEAN_FROM:-$input}"
+#remove drift that otherwise inflates SD
+3dDetrend -prefix "$tmp/det.nii.gz" -polort 4 "$input"
+#calcualte SD on detrended data
+3dTstat -stdev -prefix "$tmp/det.stdev.nii.gz" "$tmp/det.nii.gz"
+# tsnr = mean/stdev
+3dcalc -overwrite \
+   -m "$tmp/tmean.nii.gz" -s "$tmp/det.stdev.nii.gz" \
+   -expr 'm/s' -float -prefix "$output"
