@@ -1,0 +1,113 @@
+#!/usr/bin/env perl
+# take an input file that has an framewise_displacement column 
+# create a 1D file 
+use warnings; use strict;
+use feature 'signatures';
+use Getopt::Long;
+
+our ($FD_THRES, $COLNAME, $SEP) = (0.3, "framewise_displacement", "\t");
+my ($help);
+GetOptions(
+    "thres=f" => \$FD_THRES,
+    "colname=s"  => \$COLNAME,
+    "sep=s"  => \$SEP,
+    "help"   => \$help,
+) or die "Bad arguments to $0. see --help\n";
+
+if($help){
+   print <<HERE;
+SYNOPSIS
+  Write new file with AFNI style censoring based on fd threshold.
+  Input files have '-confounds_timeseries.tsv' removed from the name and repalced with '-fd0.3_censor.1D'
+  These are ready for use with 
+     tat2 -censor_rel s/_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz/_desc-fd0.3_censor.1D/
+
+  Values are a single value per line (each volume) either
+     '1' for keep: fd at or below threshold OR
+     '0' for discard: fd above threshold
+
+USAGE
+   $0 --thres .3 --colname framewise_displacement --sep '\\t' fmriprep/sub*/ses*/*confounds_timeseries.tsv
+
+   --thres    fd threshold. above this will be 0. below will be 1 (default==0.3)
+   --colname  column name to look for in input data.
+   --sep      field separator. (default = tab '\\t')
+               NOTE: is not smart about quotes
+                --sep , with a line like "a,b",.3 will be problematic
+   FILES      any other argument should be a file.
+              a new '_censor-0.3fd.1D' will be made reative to the input
+
+NOTES
+  * this tool will not overwite files that already exist
+  * use a glob for FILES like fmriprep/sub*/ses*/*confuounds.tsv
+    to write many files in one go
+  * set the environment variable DRYRUN to demo output
+     DRYRUN=1 $0 ...
+  * for more control over naming use as a pipe with STDIN and STDOUT
+    $0 < inputfile > outputfile
+  * pay attention to warnigns! if column name isn't found or column is wrong,
+    this will still give you ouput.
+    But it'll also complain.
+
+HERE
+   exit 0;
+}
+
+sub censor_fh($tsv){ 
+  my $ci=-1;
+  my @res=();
+  my $fd;
+  while(my $l=<$tsv>){
+     chomp($l);
+     my @line = split /$SEP/, $l;
+     # first row is header?
+     if($. == 1 and $ci == -1) {
+        # find matching column
+        while(my ($i, $v) = each @line){
+           next unless $v =~ /$COLNAME/;
+           $ci = $i;
+           last;
+        }
+        next if($ci > -1);
+        # NB. use first line of data if no matching column
+        warn "no $COLNAME; assuming no header and using first column and first data point";
+        $ci=0;
+     }
+  
+     $fd=$line[$ci];
+     # not a number? warn unless it's the known 'n/a' value in fmriprep's first volume fd
+     if($fd !~ m/^[0-9.]+$/){
+        warn "fd value ('$fd' on column $ci) is not numeric?! setting to 0" unless $fd eq "n/a";
+        $fd=0;
+     }
+  
+     push @res, $fd>$FD_THRES?0:1;
+  }
+  return @res;
+}
+
+if(-p STDIN) {
+     warn "reading and writtig pipe but have extra args" if $#ARGV > -1;
+     print join("\n", censor_fh(*STDIN)), "\n";
+     exit 0;
+}
+for my $tsvin (@ARGV){
+   my $newfile = ($tsvin =~ s/(-confounds_timeseries)?\.(csv|tsv|txt|1D)/-fd${FD_THRES}_censor.1D/r);
+   if($newfile eq $tsvin) {
+      warn "# ERROR: cannot find good name for $newfile. consider '$0 < $tsvin > \$outfile' for more control over naming";
+      next;
+   }
+   if( -e $newfile ) {
+      warn "# have '$newfile'; skipping. rm to redo"; 
+      next;
+   }
+   open my $tsv, '<',  $tsvin or die "cannot read input file '$tsvin'";
+   my @cen = censor_fh($tsv);
+   if($ENV{DRYRUN}) {
+      warn "# [DRYRUN] would write ",$#cen+1, " censor lines (" ,scalar(grep /0/, @cen), " censored) at $FD_THRES to $newfile";
+      next;
+   }
+   open my $c1d, '>', $newfile or die "cannot write output censor file '$newfile'";
+   print $c1d join("\n", @cen), "\n";
+}
+
