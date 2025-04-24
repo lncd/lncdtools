@@ -40,7 +40,7 @@ sub get_config(){
       'subpat|s=s', 'sespat|b=s',
       'dcmpat|p=s',
       'cols=s','add_cols|a=s',
-      'config|c=s', 'eval|e=s',
+      'config|c=s', 'eval|e=s@',
       'no-header|H','short|x',
       'list|l', 'help|?') or pod2usage(2);
 
@@ -84,14 +84,6 @@ sub get_config(){
       "accel"=>sub($p){return dcmstring(firstdcm($p, $conf{dcmpat}),'sPat.lAccelFactPE.*')},
    };
 
-   if($opts{list}){
-      my @cols = (keys %{$conf{columns}});
-      my @list = map {"$_ => ".$conf{columns}->{$_}} @cols;
-      print "Built in columns:\n\t", join("\n\t", @list), "\n";
-      exit(0);
-   }
-
-
    $conf{col_order} ||= [qw/subj ses seqno ndcm pname tr matrix acqdir dname fullpath/];
    # output columns change if 1) we have a specification. 2) we dont have ses 3) we dont want to run dcm2niix
    if($opts{cols}){
@@ -117,9 +109,18 @@ sub get_config(){
       require File::Slurp;
       eval File::Slurp::read_file($opts{config}) or croak "config eval failed $@ $!";
    }
-   if($opts{eval}){
-      eval "$opts{eval}" or croak "custom eval code failed! $@ $!";
+   for my $estr (@{$opts{eval}}){
+      eval "$estr" or croak "custom eval code failed! $@ $!";
    }
+
+   if($opts{list}){
+      my @cols = (keys %{$conf{columns}});
+      my @list = map {"$_ => ".$conf{columns}->{$_}} @cols;
+      print "Built in columns:\n\t", join("\n\t", @list), "\n";
+      exit(0);
+   }
+
+
    pod2usage(1) if $#{$opts{dirs}} <0;
 
    $conf{opts} = \%opts;

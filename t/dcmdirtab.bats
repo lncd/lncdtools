@@ -39,6 +39,17 @@ teardown() {
   [[ $output =~ "id-12345	" ]]
   [[ $output =~ "	2000.0	" ]]
 }
+
+@test dcmdirtab-multieval {
+  cd $THISTESTDIR
+  run dcmdirtab \
+    -e '$conf{columns}->{subj} = sub { return "xxxx";}' \
+    -e '$conf{columns}->{ses} = sub { return "yyy";}' \
+    --cols subj,ses \
+    -d $(pwd)
+  [ $status -eq 0 ]
+  [[ $output =~ "xxxx	yyy" ]]
+}
 @test dcmdirtab-warn {
   cd $THISTESTDIR
   mv 001.dcm 'Image (001)'
