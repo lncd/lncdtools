@@ -14,7 +14,9 @@ case $1 in
 esac
 
 [ ! -r "${1:?roi file to report mask volume}" ] &&
+   ! 3dinfo -nt "${1}" >/dev/null &&
    warn "ERROR: cannot read $1" && exit 1
+
 [ $# -gt 1 ] &&
    warn "ERROR: $0 given more than one input ($# != 1)" && exit 1;
 
