@@ -113,7 +113,7 @@ sub dsl($class, $cfgstring) {
    # excpliclty check number of seps b/c ; and , is confusing and hard to debug
    # expect at most 2 ';' seps between 3 pieces: mode ; criteria ; #runs
    # but also can have acq= and dir=
-   my $help_msg="Want eg. bold=mytask;pname=MyTask,ndcm=180;3;dir=AP;acq=mylabel;run=2";
+   my $help_msg="Want eg. bold=mytask;pname=MyTask,ndcm=180;3;dir=AP;acq=mylabel;fixrun=2";
    my $max_seps = 2;
    my $extra_colons = scalar(()=$cfgstring =~ m/(acq|dir)=/g);
    my $n_seps_seen  = scalar(()=$cfgstring =~ m/;/g);
