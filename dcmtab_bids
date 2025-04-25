@@ -233,6 +233,19 @@ sub get_criteria(){
    return map {criteria->dsl($_)} @ARGV;
 }
 
+# session and subject might be numbers or text
+# sort so numbers are first
+# qw/100 x 1 1a b 3 2a / => 1 3 100 1a 2a b x
+sub isnum($n) { return $n=~/^-?\d*\.?\d*$/?1:0; }
+sub numsfirst($a, $b){
+   my $an=isnum($a);
+   my $bn=isnum($b);
+   my $n_nn = $bn <=> $an;
+   return $n_nn if $n_nn;
+   return $a <=> $b if $an; # both numeric
+   return $a cmp $b;
+}
+
 sub read_tsv(){
    my @header;
    my @all;
@@ -252,8 +265,8 @@ sub read_tsv(){
 
    return sort {
       #($a->{subj} cmp $b->{sub} || $a->{subj} <=> $b->{subj}) ||
-      $a->{subj} cmp $b->{subj} ||
-      ($a->{ses}||0)   <=> ($b->{ses}||0) ||
+      numsfirst($a->{subj},$b->{subj}) ||
+      numsfirst(($a->{ses}||0),($b->{ses}||0)) ||
       ($b->{seqno}||0) <=> ($b->{seqno}||0) } @all
 }
 
@@ -434,6 +447,7 @@ use Data::Dumper;
 use Test2::V0;
 use Test::Exception;
 is(BIDS::combine_attr("anything",""), "", "combine_attr empty");
+is([sort({numsfirst($a,$b)} qw/100 x 1 1a b 3 2a /)], [1,3,100,"1a","2a","b", "x"], "num first sort");
 is(BIDS::combine_attr("run","1"), "run-1", "combine_attr normal");
 is(BIDS::combine_attr("mode","bold"), "bold", "combine_attr mode");
 my $sequences = [{subj=>1, pname=>"rest",  ndcm=>180,fullpath=>'xxx/yyyy'  },
