@@ -1,9 +1,19 @@
 #!/usr/bin/env bash
-[ $# -ne 1 ] && warn "ERROR: $0 needs exactly 1 argument. given $# ($*)" && exit 1
+#
+# write to a file unless DRYRUN is set
+# then show what would be written and to what file
+#
+# 20250514WF - added '-a' append option
+write=">"
+if [ $# -eq 2 ] && [ "$1" = "-a" ]; then
+   write=">>"
+   shift;
+fi
+[ $# -ne 1 ] && warn "ERROR: bad usage. USAGE: $0 [-a] output_filepath. ($# args like '$*')" && exit 1
 tty >/dev/null  && warn "need to pipe to $0; cmd | $0 output.txt" && exit 1
 if [ -v DRYRUN ] && [ -n "$DRYRUN" ]; then
  sed "s/^/#\t/;5q" >&2;
  warn "# would be written to $1"
 else
- cat > "$1"
+   eval cat $write "$(printf "%q" "$1")"
 fi

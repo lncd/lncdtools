@@ -32,9 +32,21 @@ function testdrytee_on { # @test
 
 function testdrytee_off { # @test 
   export DRYRUN=""
-  run drytee $BATS_TEST_TMPDIR/dne.txt < <(echo hi)
-  [ -r $BATS_TEST_TMPDIR/dne.txt ]
-  [[ $(cat $BATS_TEST_TMPDIR/dne.txt) == "hi" ]]
+  run drytee $BATS_TEST_TMPDIR/out.txt < <(echo hi)
+  [ -r $BATS_TEST_TMPDIR/out.txt ]
+  [[ $(cat $BATS_TEST_TMPDIR/out.txt) == "hi" ]]
   [[ $output =~ ^$ ]]
   [ $status -eq 0 ]
+}
+
+function testdrytee_append { # @test 
+  export DRYRUN=""
+  run drytee    $BATS_TEST_TMPDIR/out.txt < <(echo hi)
+  run drytee -a $BATS_TEST_TMPDIR/out.txt < <(echo bye)
+  [[ $output =~ ^$ ]]
+  [ $status -eq 0 ]
+  
+  run cat $BATS_TEST_TMPDIR/out.txt
+  [[ $output =~ "hi" ]]
+  [[ $output =~ "bye" ]]
 }
