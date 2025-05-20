@@ -23,17 +23,27 @@ cat <<HEREDOC
 USAGE:
    $(basename "$0") output.nii.gz path/to/dcm/
 
-   output.nii.gz - 1st argument is the output nifti. must end in .nii.gz
-   path/to/dcm   - 2nd arg must be a folder or single dicom
-                   escape spaces in input
-
-
    will
      * recursively make directories. be careful.
      * skip if already exists
      * add annotation with source directory to nifti. careful not to spill participant information
      * try to deal with gre fieldmap naming weirdness (if output matches magnitude[12] or phase)
+       remove dcm2niix output name's '_ph' if name also has part-phase
    use DRYRUN=1 $(basename $0) ...  to test
+
+ARGUMENTS:
+   output.nii.gz  - 1st argument is the output nifti. must end in .nii.gz
+   path/to/dcm    - 2nd arg must be a folder or single dicom
+                    escape spaces in input
+
+ENVIRONMENT:
+  DRYRUN=1        - show commands but dont create (testing command)
+  NOECHOCHECK=1   - write new files even if there is a '_e1.nii.gz' version
+  MEPATT=mGRE     - additional output file name pattern that will have mutliecho output
+  DCM2NIIX=/p/dcm - alternative path to dcm2niix binary
+  VERBOSE=1       - show more of the process
+
+
 HEREDOC
    exit 1
 }
@@ -52,24 +62,33 @@ rename-mag(){
   local outdir="$1";shift
   # if input is magnitude.nii.gz and maginguted_e2.nii.gz
   # make first look like magnitude_e1 for later rename
-  find $outdir -maxdepth 1 -mtime -1 -name '*magnitude*e2*.nii.gz' | grep -q magnitude &&
-     _rename-recent 's/magnitude(.nii.gz|.json)$/magnitude_e1$1/' $outdir "*magnitude.*"
+  find "$outdir" -maxdepth 1 -mtime -1 -name '*magnitude*e2*.nii.gz' | grep -q magnitude &&
+     _rename-recent 's/magnitude(.nii.gz|.json)$/magnitude_e1$1/' "$outdir" "*magnitude.*"
   _rename-recent "$pattern" "$outdir" "$@"
 }
 rename-phase(){
-  local pattern='s/_e\d+(_ph)?(.nii.gz|.json)$/$2/'
-  _rename-recent "$pattern" "$@"
+  local outdir="$1"; shift
+  local fileslike="$1"; shift
+  local pattern
+  # if only one phase output, remve the echo '_e1' part
+  # but if many, hope that MEPATT will catch
+  [ $(ls "$outdir"/$fileslike | wc -l) -le 1 ] &&
+     pattern='s/_e\d+(_ph)?(.nii.gz|.json)$/$2/' ||
+     pattern='s/(_ph)?(.nii.gz|.json)$/$2/'
+  
+  _rename-recent "$pattern" "$outdir" "$fileslike"
 }
 rename-epi-multiecho(){
   local outdir="$1"; shift
   local outname="$1"; shift
+  local rename_patt='s/([^_-]+)_e(\d+).(json|nii.gz)/echo-$2_$1.$3/'
   if [ -r "$outdir/${outname}_e1.nii.gz" ]; then
      echo "# trying to rename multiecho seq $outname";
-     _rename-recent 's/(sbref|bold)_e(\d+).(json|nii.gz)/echo-$2_$1.$3/' "$outdir" "${outname}_e*"
+     _rename-recent "$rename_patt" "$outdir" "${outname}_e*"
   fi
 }
 
-add_echo_name(){ perl -pe 's/_(bold|sbref).nii.gz/_echo-1_$1.nii.gz/' <<< "$*"; }
+add_echo_name(){ perl -pe 's/_([^_-]+).nii.gz/_echo-1_$1.nii.gz/' <<< "$*"; }
 multiecho_exists(){
   # okay to flag nii_out as mutliecho even if it's not
   # will have been caught earlier
@@ -89,7 +108,7 @@ find_multiechos(){
    local outdir="$1"; shift
    local outname="$1"; shift
    local ext="$1"; shift
-   me_name=$(perl -pe 's/_(bold|sbref)$/_echo-*_$1/' <<< "$outname");
+   me_name=$(perl -pe 's/_([^_-]*)$/_echo-*_$1/' <<< "$outname");
    find "$outdir" -maxdepth 1 -type f \
       \( -name "$outname$ext" -or -name "$me_name$ext" \)
 }
@@ -153,14 +172,20 @@ main(){
        # update output for 3dNotes and final check
        [[ $outname =~ magnitude$ ]] && nii_out="$outdir/${outname}1.nii.gz"
      ;;
-     *phase|*phasediff)
-       rename-recent have? || exit 1 # dont convert if we have the wrong rename
-       rename-recent 's/_e\d+(_ph)?(.nii.gz|.json)$/$2/' "$outdir" "$outname*"
+     *phase|*phasediff|*part-phase*)
+       rename-phase "$outdir" "$outname*"
+       #rename-recent 's/_e\d+(_ph)?(.nii.gz|.json)$/$2/' "$outdir" "$outname*"
      ;;
      *bold|*sbref)
         rename-epi-multiecho "$outdir" "$outname"
      ;;
   esac
+
+  # TODO: integrate with case above for *bold|*sbref
+  if [[ -n ${MEPATT:-} ]] &&[[ $outname =~ ${MEPATT:-} ]]; then
+     echo "# '$outname' matches MEPATT '$MEPATT'" >&2
+     rename-epi-multiecho "$outdir" "$outname"
+  fi
 
   # add rest taskname to json sidecar
 
@@ -172,7 +197,8 @@ main(){
 
   if [ ${#nii_outs[@]} -le 0 ]; then
      echo -e "ERROR: did not create '$nii_out'.\n\t'$dcm_folder' has a multi echo sequence??!"
-     echo "NOTE: $0 can deal with this if the output name ends with 'magnitude1.nii.gz' or 'phase.nii.gz'"
+     echo "NOTE: $0 can deal with this! Set mutliecho file output name pattern like 'export MEPATT=mGRE'."
+     echo "Or if the output name ends with 'magnitude1.nii.gz' or 'phase.nii.gz'"
      echo "     or for _bold and _sbref files"
      exit 1
   fi
