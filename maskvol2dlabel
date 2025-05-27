@@ -1,0 +1,92 @@
+#!/usr/bin/env python3
+"""
+Convert a nifti mask into a cifti dlabel.
+
+ * I suspect there is already a better tool for this somewhere else.
+ * Using VS's EEG electorde atlas code as a base
+https://github.com/LabNeuroCogDevel/corticalmyelin_maturation/tree/main/surface_metrics/EEGelectrode_atlas
+"""
+
+import os
+import re
+import nibabel as nib
+import numpy as np
+import matplotlib.cm as cm
+from tempfile import TemporaryDirectory
+from neuromaps.transforms import mni152_to_fsaverage, mni152_to_fslr, mni152_to_civet, _vol_to_surf
+
+def nii_to_dlabel(mask_fname, density='91k', space='fsLR', outname=None):
+
+    # check input and output
+    if not re.search(r'\.nii(\.gz)$', mask_fname):
+        raise Exception(f"Input must be volumetric nifti (nii.gz) got {mask_fname}")
+
+    if not os.path.isfile(mask_fname):
+        raise Exception(f"Input mask '{mask_fname}' does not exist!")
+     
+    if outname is None:
+        outname = re.sub(r'\.nii(\.gz)?','.dlabel.nii', mask_fname)
+        if outname == mask_fname:
+            raise Exception(f"Failed to generate a unique dlabel.nii output name from {mask_fname}")
+
+    if not re.search(r'\.dlabel\.nii', outname):
+        raise Exception(f"Output filename should end in '.dlabel.nii', have '{outname}'")
+
+    # both need to be abs path b/c we enter tempdir to make gii files
+    mask_fname =  os.path.abspath(mask_fname)
+    outname =  os.path.abspath(outname)
+
+    mask = nib.load(mask_fname)
+    trans = _vol_to_surf(mask, space, density, method='nearest')
+
+    rois = np.unique(mask.get_fdata())
+    if len(rois) > 50000:
+        raise Exception(f"Too many unique values in '{mask_fname}'. Is this actually a mask!?")
+    rois = [int(r) for r in rois if r != 0]
+
+    # fix? needed only for fsaverage?
+    lh, rh = trans
+    lh.meta['AnatomicalStructurePrimary'] = 'CortexLeft'
+    rh.meta['AnatomicalStructurePrimary'] = 'CortexRight'
+
+    #Save out giftis
+    with TemporaryDirectory() as tmpdirname:
+        nib.save(lh, "L.shape.gii")
+        nib.save(rh, "R.shape.gii")
+        with open('labels.txt','w') as f:
+            f.write(gen_label(rois))
+
+        ## Merge EEG atlas fsaverage giftis into a cifti
+        os.system(f"wb_command -cifti-create-dense-scalar -left-metric L.shape.gii -right-metric R.shape.gii {outname}")
+
+        ## Turn the metric data into a valid cifti label file
+        os.system(f"wb_command -cifti-label-import {outname} labels.txt {outname} -discard-others -unlabeled-value 0")
+
+        ## Dilate the cifti labels
+        #nearest neighborhood ROI dilation using surface geometry
+        #os.system("wb_command -cifti-dilate {outname} COLUMN 4 0 {outname} -left-surface tpl-fsaverage/tpl-fsaverage_hemi-L_den-164k_midthickness.surf.gii -right-surface tpl-fsaverage_hemi-R_den-164k_midthickness.surf.gii -nearest")
+
+
+def gen_label(rois, cmap='hsv') -> str:
+    nroi = len(rois)
+    colors = cm.get_cmap(cmap,nroi)
+    colors = [[int(c*255) for c in colors(i)] for i in range(nroi)]
+    return "\n".join([f"roi_{rois[i]}\n{rois[i]} {colors[i][0]} {colors[i][1]} {colors[i][2]} 255"
+                      for i in range(nroi)])
+
+
+def properties_from_filename(fname):
+    res = {'den': None, 'space': None}
+    while m := re.search('(den|space)-([^-_/]+)',fname):
+        res[m.group(1)] = m.group(2)
+
+    # 91k cifti is 32k x2 + subcort
+    if res.get('den') == '91k' and res.get('space') == 'fsLR':
+        res['den'] = '32k'
+    return res
+
+if __name__ == "__main__":
+    import sys
+    # TODO: use argparser. optionally determin density and space from filename
+    nii_to_dlabel(sys.argv[1], density='32k', space='fsLR', outname=None)
+
