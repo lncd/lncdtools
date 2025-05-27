@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Convert a nifti mask into a cifti dscalar.
+Convert a nifti mask into a cifti dlabel.
 
  * I suspect there is already a better tool for this somewhere else.
  * Using VS's EEG electorde atlas code as a base
@@ -15,7 +15,7 @@ import matplotlib.cm as cm
 from tempfile import TemporaryDirectory
 from neuromaps.transforms import mni152_to_fsaverage, mni152_to_fslr, mni152_to_civet, _vol_to_surf
 
-def nii_to_dscalar(mask_fname, density='91k', space='fsLR', outname=None):
+def nii_to_dlabel(mask_fname, density='91k', space='fsLR', outname=None):
 
     # check input and output
     if not re.search(r'\.nii(\.gz)$', mask_fname):
@@ -25,12 +25,12 @@ def nii_to_dscalar(mask_fname, density='91k', space='fsLR', outname=None):
         raise Exception(f"Input mask '{mask_fname}' does not exist!")
      
     if outname is None:
-        outname = re.sub(r'\.nii(\.gz)?','.dscalar.nii', mask_fname)
+        outname = re.sub(r'\.nii(\.gz)?','.dlabel.nii', mask_fname)
         if outname == mask_fname:
-            raise Exception(f"Failed to generate a unique dscalar.nii output name from {mask_fname}")
+            raise Exception(f"Failed to generate a unique dlabel.nii output name from {mask_fname}")
 
-    if not re.search(r'\.dscalar\.nii', outname):
-        raise Exception(f"Output filename should end in '.dscalar.nii', have '{outname}'")
+    if not re.search(r'\.dlabel\.nii', outname):
+        raise Exception(f"Output filename should end in '.dlabel.nii', have '{outname}'")
 
     # both need to be abs path b/c we enter tempdir to make gii files
     mask_fname =  os.path.abspath(mask_fname)
@@ -88,5 +88,5 @@ def properties_from_filename(fname):
 if __name__ == "__main__":
     import sys
     # TODO: use argparser. optionally determin density and space from filename
-    nii_to_dscalar(sys.argv[1], density='32k', space='fsLR', outname=None)
+    nii_to_dlabel(sys.argv[1], density='32k', space='fsLR', outname=None)
 
