@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-#!/usr/bin/env bash
+#
+# 20250630: add MASK env option
 set -euo pipefail
 tmp=""
 ! env|grep -q NOCLEANUP &&
@@ -13,6 +14,7 @@ $0 input.nii.gz tsnr_out.nii.gz
  * NOCLEANUP=1 tsnr in.nii.gz out.nii.gz - save temporary file
  * MEAN_FROM=nswudktm_func_5.nii.gz tsnr bnswudktm*.nii.gz out.nii.gz 
    use mean from a different input set (e.g. b/c current has bandpassing)
+ * MASK=maskfile.nii.gz to apply a mask
  also see 'ppf_tsnr' for tsnr w/mask, bandpass undo, and warping
 HEREDOC
 
@@ -27,9 +29,10 @@ nt=$(3dinfo -nt "$input" || echo 0)
 
 tmp=$(mktemp -d "${TMP:-/tmp}/tsnr-XXXX")
 echo "# files in temporary directory: $tmp"
+[[ -n "${MASK:-}" && -r  "$MASK" ]] && mask_args=(-mask "$MASK") || mask_args=()
 
 # get mean. either from input or an alternate file (e.g. if input is already bandpassed)
-3dTstat -mean -prefix "$tmp/tmean.nii.gz" "${MEAN_FROM:-$input}"
+3dTstat -mean "${mask_args[@]}" -prefix "$tmp/tmean.nii.gz" "${MEAN_FROM:-$input}"
 #remove drift that otherwise inflates SD
 3dDetrend -prefix "$tmp/det.nii.gz" -polort 4 "$input"
 #calcualte SD on detrended data
