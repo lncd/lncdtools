@@ -4,7 +4,9 @@
 # 3dNotes alone will only work on one file
 #
 # 20220308WF - init
+# 20250710WF - no oblique warn. no need for just notes?
 #
+export AFNI_NO_OBLIQUE_WARNING=YES
 [ -v DRYRUN ] && DRYRUN=echo || DRYRUN=
 warn(){ echo "$@" >&2; }
 
