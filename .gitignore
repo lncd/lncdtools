@@ -2,3 +2,4 @@
 *ini
 *.swp
 t/coverage
+doc_compile/doxygen
