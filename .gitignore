@@ -3,3 +3,8 @@
 *.swp
 t/coverage
 doc_compile/doxygen
+doc_compile/src
+doc_compile/_build
+doc_compile/doxygen-bash.sed
+doc_compile/other
+doc_compile/.*

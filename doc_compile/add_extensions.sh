@@ -17,7 +17,7 @@ find .. -maxdepth 1 -type f | xargs grep '^#!' -m1 |
                  Rscript R);
  }
  $keys=join("|", keys %ext);
- print if s;(.+):#!.*($keys).*;"${1} $ENV{OUTPUT}/".basename(${1}).".".$ext{$2};ei'  |
+ print if s;(.+):#!.*($keys) ?.*;"${1} $ENV{OUTPUT}/".basename(${1}).".".$ext{$2};ei'  |
 while read bin w_ext; do
    cat "$bin" | dryrun mkifdiff "$w_ext"
 done

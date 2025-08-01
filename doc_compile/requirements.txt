@@ -1,2 +1,12 @@
-piccolo-theme
+# doc
+#piccolo-theme
+sphinx-immaterial
 breathe
+exhale
+
+# imports. consider autodoc_mock_imports = ['oauth2client', 'google-api-python-client'] in config.py
+setuptools
+matplotlib
+nibabel
+oauth2client
+google-api-python-client
