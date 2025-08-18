@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
-# inspiration from https://github.com/nw-duncan/MRS-voxel-plot/
+"""
+Use nilearn glass brain to visualize slice position.
+
+Inspiration from https://github.com/nw-duncan/MRS-voxel-plot/
+colors from https://matplotlib.org/3.5.1/tutorials/colors/colormaps.html
+Display options are
+
+    'ortho', 'x', 'y', 'z', 'xz', 'yx', 'yz', 'l', 'r',
+    'lr', 'lzr', 'lyr', 'lzry', 'lyrz'.
+"""
 # 20220324WF - init
-#  use nilearn glass brain to visualize slice position
-# colors from
-# https://matplotlib.org/3.5.1/tutorials/colors/colormaps.html
-# glass_brain
-# 'ortho', 'x', 'y', 'z', 'xz', 'yx', 'yz', 'l', 'r', 'lr', 'lzr', 'lyr', 'lzry', 'lyrz'.
+# 20230734WF - optoin unique mask values instead of actual value
+# 20250731WF - docstrings
 
 import sys
 import numpy as np
@@ -18,16 +24,24 @@ from nilearn import plotting, image
 
 
 def read_coords(fname='/Volumes/Hera/Projects/7TBrainMech/scripts/mri/MRSI_roi/roi_locations/labels_13MP20200207.txt'):
+    """
+    Read coordinate file from 3dCM and convert from LPI to RAS+
+
+        ROI Label:\tx y z
+
+    Coordinates are expected to be space separated LPI x,y,z in second column of a tsv
+    :param fname: path to coordinate file
+    :return: list of x,y,z coordinates in RAI+
+    """
     labels = pd.read_csv(fname, sep="\t", header=None)
-    # convert from LPI to "RAS+"
+    # second column is space sep. x, y, z
     centers = [[float(y) for y in x.split(" ")] for x in labels.iloc[:, 1]]
-    # LPI to RAS+
-    centers_ras = [(c[0], -1*c[1], c[2]) for c in centers]
+    centers_ras = [(c[0], -1*c[1], c[2]) for c in centers] #: LPI to RAS+
     return centers_ras
 
 
 def roi_colors(n_roi=13):
-    "here incase we want to change what roi gets what color"
+    "Given each ROI a unique color"
     return plt.cm.get_cmap('tab20').colors[0:n_roi]
 
 

@@ -1,6 +1,149 @@
 #!/usr/bin/env perl
-package dcmdirtab;
+#**
+# @file
+# @brief make db to be used by \ref dcmtab_bids.pl
+# also see \inlinerst :ref:`other::classBIDS` \endrst
+#*
 use v5.26;
+package dcmdirtab;
+=head1 NAME
+
+dcmdirtab - generate tab delm. dicom info database from directories
+
+=head1 SYNOPSIS
+
+   dcmdirtab -h   # more info
+   dcmdirtab -l   # list built in column options (enable with -a
+   dcmdirtab -s 'E\d+' -d 'E07_MR3/scans/*/'
+   dcmdirtab -p '.*dcm$' -d 'E07_MR3/scans/*/'
+   dcmdirtab -s 'E\d+' -d 'E07_MR3/scans/*/' --cols pname,ndcm,fullpath
+   dcmdirtab -s 'E\d+' -d 'E07_MR3/scans/*/' -x -a acqdir_alt # Short (no fullpath column), add acqdir_alt column
+   dcmdirtab -s 'E\d+' -d 'E07_MR3/scans/*/' -a acqdir_alt,sex -e '$conf{columns}->{sex}="0010,0040"' # add and use a sex column from dcm header
+
+extract tsv of dicom info using AFNI's C<dicom_hinfo>. extract subj and session. Use as input to C<dcmtab_bids>.
+
+=head1 OPTIONS
+
+=over 4
+
+=item -s --subpat:
+regexp describes how to find subjects
+
+=item -b --sespat:
+regexp describes how to find session info
+
+=item -d --dirs:
+dir glob pattern to dicom folders. e.g. C</path/1*_2*/*/*/>
+mulitple C<-d '/path/*/'> accepted.
+IMPORTANT: quote the glob in shell
+
+=item -p --dcmpat:
+Pattern for dicom files. case-insenstive. used by C<find -iregexp>
+defaults to anything with MR, ending in dcm, or ending in IMA.
+  C<'.*MR.*\|.*dcm$\|.*IMA$'>
+
+=item -c --config:
+path to config script. e.g. C<config.pl>.
+
+see L<CONFIG> in C<perldoc $(which dcmdirtab)>
+
+=item -e --eval:
+inline perl code. useful for quick modifications.
+
+Quick debugging
+
+   -e 'say Dumper(\%conf); exit'
+
+add a column to the output (but use C<-a acqdir_alt> instead!):
+
+   -e 'push @{$conf{col_order}}, "acqdir_alt"'
+
+add a new function and use it (but use C<-b PATTERN> if you can)
+
+   -e '$conf{columns}->{ses} = sub($p){return  $p=~/Time (\d|Rescan)/i?$1:0}' -a ses
+same as
+
+   -b '(?<=Time )(\d|Rescan)'
+
+see output of afni's C<dicom_hdr> for header tags (like sex="0010,0040")
+
+=item -l --list
+list built in columns
+
+=item --cols
+display (only) columns listed
+
+  --cols pname,ndcm
+
+=item -a --add_cols
+add a column to the list
+
+  -a patname,acqdir_alt
+
+=item -x --short
+dont include longer columns (for quick looks). excludes C<acqdir,matrix,fullpath>
+
+=item -h --help
+this message
+
+=back
+
+Example:
+
+   # find subjects like E07 with config
+   dcmtabdir -s 'E\d+' -d 'E07_MR3/scans/*/'
+
+=head1 CONFIG
+
+conf is a hash with keys
+
+=over 4
+
+
+=item subpat    - same as -s. config wins if both provided
+
+=item col_order - order of output columns (array ref)
+
+=item columns - hash ref of afni dcminfo colname=>'xxxx,yyyy' or colname=>sub($path){} path function
+
+=back
+
+=head2 Default
+
+see C<dcmdirtab -l> for list.
+
+    $conf{columns}={
+       "seqno" =>"0020,0011",
+       "tr"    =>"0018,0080",
+       # ...
+       "subj" => sub($p){return($p=~m/$conf{subpat}/?$&:"NOSUBJ");},
+       "ndcm" => sub($p){return(split /\n/, `find -L "$p" -maxdepth 2 -type f,l` +1);}
+    };
+       
+
+=head1 NOTES
+
+ use look ahead in patterns. 
+ For example, to match only 3 digits that start a directory name
+ but not capture the directory's leading slash, use
+    -s '(?<=/)\d{3}' 
+
+=head1 SETUP
+
+As of 2023-09-07 on Pitt's CRC HPC cluster, get a new enough perl and afni like:
+
+   module load gcc/8.2.0 perl/5.28.0 afni
+
+
+File::Slurp is used for config reading in a perl configuration file.
+You probably don't need it. And if you do, you likely already have perl setup the way you want.
+But in case you do need it and don't have e.g cpanm handy, a quick install looks like:
+
+   cpan install File::Slurp # interative choices. use defaults, esp local::lib
+   eval $(PERL5LIB="$HOME/perl5/lib/perl5" perl -Mlocal::lib)
+
+=cut
+
 use strict; use warnings; use autodie; 
 use feature qw/signatures/; no warnings qw(experimental::signatures);
 use Getopt::Long;
@@ -30,8 +173,9 @@ sub firstdcm($p, $dcmpat){
  return($x)
 }
 
-
 sub get_config(){
+
+
    my %opts=(subpat=>'\d+', sespat=>'',
       'dcmpat'=>'.*MR.*\|.*dcm$\|.*IMA$',
       help=>0, list=>0);
@@ -193,142 +337,3 @@ if(not caller){
    print Dumper(@all),"\n" if $DEBUG>2;
 }
 1;
-
-__END__
-=head1 NAME
-
-dcmdirtab - get tab delm. dicom directory info 
-
-=head1 SYNOPSIS
-
-   dcmdirtab -h   # more info
-   dcmdirtab -l   # list built in column options (enable with -a
-   dcmdirtab -s 'E\d+' -d 'E07_MR3/scans/*/'
-   dcmdirtab -p '.*dcm$' -d 'E07_MR3/scans/*/'
-   dcmdirtab -s 'E\d+' -d 'E07_MR3/scans/*/' --cols pname,ndcm,fullpath
-   dcmdirtab -s 'E\d+' -d 'E07_MR3/scans/*/' -x -a acqdir_alt # Short (no fullpath column), add acqdir_alt column
-   dcmdirtab -s 'E\d+' -d 'E07_MR3/scans/*/' -a acqdir_alt,sex -e '$conf{columns}->{sex}="0010,0040"' # add and use a sex column from dcm header
-
-extract tsv of dicom info using AFNI's C<dicom_hinfo>. extract subj and session. Use as input to C<dcmtab_bids>.
-
-=head1 OPTIONS
-
-=over 4
-
-=item -s --subpat:
-regexp describes how to find subjects
-
-=item -b --sespat:
-regexp describes how to find session info
-
-=item -d --dirs:
-dir glob pattern to dicom folders. e.g. C</path/1*_2*/*/*/>
-mulitple C<-d '/path/*/'> accepted.
-IMPORTANT: quote the glob in shell
-
-=item -p --dcmpat:
-Pattern for dicom files. case-insenstive. used by C<find -iregexp>
-defaults to anything with MR, ending in dcm, or ending in IMA.
-  C<'.*MR.*\|.*dcm$\|.*IMA$'>
-
-=item -c --config:
-path to config script. e.g. C<config.pl>.
-
-see L<CONFIG> in C<perldoc $(which dcmdirtab)>
-
-=item -e --eval:
-inline perl code. useful for quick modifications.
-
-Quick debugging
-
-   -e 'say Dumper(\%conf); exit'
-
-add a column to the output (but use C<-a acqdir_alt> instead!):
-
-   -e 'push @{$conf{col_order}}, "acqdir_alt"'
-
-add a new function and use it (but use C<-b PATTERN> if you can)
-
-   -e '$conf{columns}->{ses} = sub($p){return  $p=~/Time (\d|Rescan)/i?$1:0}' -a ses
-same as
-
-   -b '(?<=Time )(\d|Rescan)'
-
-see output of afni's C<dicom_hdr> for header tags (like sex="0010,0040")
-
-=item -l --list
-list built in columns
-
-=item --cols
-display (only) columns listed
-
-  --cols pname,ndcm
-
-=item -a --add_cols
-add a column to the list
-
-  -a patname,acqdir_alt
-
-=item -x --short
-dont include longer columns (for quick looks). excludes C<acqdir,matrix,fullpath>
-
-=item -h --help
-this message
-
-=back
-
-Example:
-
-   # find subjects like E07 with config
-   dcmtabdir -s 'E\d+' -d 'E07_MR3/scans/*/'
-
-
-
-=head1 CONFIG
-
-conf is a hash with keys
-
-=over 4
-
-
-=item subpat    - same as -s. config wins if both provided
-
-=item col_order - order of output columns (array ref)
-
-=item columns - hash ref of afni dcminfo colname=>'xxxx,yyyy' or colname=>sub($path){} path function
-
-=back
-
-=head2 Default
-
-see C<dcmdirtab -l> for list.
-
-    $conf{columns}={
-       "seqno" =>"0020,0011",
-       "tr"    =>"0018,0080",
-       # ...
-       "subj" => sub($p){return($p=~m/$conf{subpat}/?$&:"NOSUBJ");},
-       "ndcm" => sub($p){return(split /\n/, `find -L "$p" -maxdepth 2 -type f,l` +1);}
-    };
-       
-
-=head1 NOTES
-
- use look ahead in patterns. 
- For example, to match only 3 digits that start a directory name
- but not capture the directory's leading slash, use
-    -s '(?<=/)\d{3}' 
-
-=head1 SETUP
-
-As of 2023-09-07 on Pitt's CRC HPC cluster, get a new enough perl and afni like:
-
-   module load gcc/8.2.0 perl/5.28.0 afni
-
-
-File::Slurp is used for config reading in a perl configuration file.
-You probably don't need it. And if you do, you likely already have perl setup the way you want.
-But in case you do need it and don't have e.g cpanm handy, a quick install looks like:
-
-   cpan install File::Slurp # interative choices. use defaults, esp local::lib
-   eval $(PERL5LIB="$HOME/perl5/lib/perl5" perl -Mlocal::lib)

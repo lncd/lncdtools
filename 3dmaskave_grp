@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-#
-# 0.for a given mask
-# 1.iterate over subject image volumes, extracting roi average values
-# 2.saves to ld8+roi+mask single row comma seprated value
-#     "${maskname},${subj},${roi},${val}"
-#
+## @file
+## @brief 3dmaskave over many files in parallel into single csv
+## @note
+##  0. for a given mask
+##  1. iterate over subject image volumes, extracting roi average values
+##  2. saves to ld8+roi+mask single row comma seprated value
+##      "${maskname},${subj},${roi},${val}"
+## 
 # 20221108WF - extracted from various 07* scripts
 #
 
@@ -172,8 +174,11 @@ roistats_header_opts(){
 repna_roistats_opts(){ roistats_header_opts "$@"| perl -pe 's/[^,]+/NA/g'; }
 roistats_extract(){ perl -slane 'print join ",", @F;'; }
 
+## @fn
+## @brief 3dROIstast wrapper with 'NA's for missing data
+## @param options flags forwarded to 3droistats. Default to using -nomeanout, -nzmean, and -nzvoxels
+## @return results of 3dROIstats or string of NAs
 roistats_NA() {
-   # 3droistast. default to usising nomeanout, nzmean, and nzvoxels
    local opts NA mask_file cfile
    mask_file="$1";shift
    cfile="$1";shift
