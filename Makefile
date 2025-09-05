@@ -20,7 +20,7 @@ dryrun.exe: src/dryrun.c
 	bats --tap t/ | tee $@
 	command -v perl-run-end && perl-run-end dcmtab_bids |tee -a $@ || :
 
-.make/docker: Dockerfile | .make/
+.make/docker: Dockerfile .dockerignore | .make/
 	docker build -t lncd/tools . 
 	date > $@ 
 
