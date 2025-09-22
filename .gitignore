@@ -2,3 +2,5 @@
 *ini
 *.swp
 t/coverage
+.make
+*.gii

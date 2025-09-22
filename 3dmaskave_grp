@@ -173,7 +173,7 @@ repna_roistats_opts(){ roistats_header_opts "$@"| perl -pe 's/[^,]+/NA/g'; }
 roistats_extract(){ perl -slane 'print join ",", @F;'; }
 
 roistats_NA() {
-   # 3droistast. default to usising nomeanout, nzmean, and nzvoxels
+   # 3dROIstats. default to usising nomeanout, nzmean, and nzvoxels
    local opts NA mask_file cfile
    mask_file="$1";shift
    cfile="$1";shift

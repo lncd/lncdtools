@@ -1,0 +1,23 @@
+dist/
+src/
+
+# lab specific
+lncdid
+get_ld8_age.R
+pet_scan_age.R
+
+# dont want to package
+r
+
+# afni gui not in docker
+afni_picker
+afni_atlas_jump
+
+.make/
+Makefile
+Dockerfile
+
+*.gii
+labels.txt
+mkdocs.yml
+README.md
