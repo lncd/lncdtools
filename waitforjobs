@@ -56,12 +56,16 @@ initial_config(){
 reload_config(){
    config="$1"
    if [[ $config = "auto" ]]; then
-      parent_name=$(ps -cq $PPID -o command=|sed 's/[^a-zA-Z0-9@_-]//')
+      parent_name=$(ps -cq $PPID -o command=|sed 's/[^a-zA-Z0-9@_-]//')_$PPID
       config="${TMPDIR:-/tmp}/$HOSTNAME-$USER-$parent_name.jobcfg"
-      [ ! -r "$config" ] &&
-         initial_config > "$config" &&
-         warn "# wrote waitforjobs config to $config"
    fi
+
+   # never want to error if config file does'nt exist
+   [ ! -r "$config" ] &&
+      initial_config > "$config" &&
+      warn "# wrote waitforjobs config to $config"
+
+   # kill whole script of config file fails
    if [ ! -r "$config" ]; then
      echo "warn 'watiforjobs config $config does not exist!' && exit 2"
      return 2
