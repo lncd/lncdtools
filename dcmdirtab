@@ -11,7 +11,12 @@ use File::Glob ":bsd_glob"; # glob is now using bsd_glob which handles spaces
 use Carp;
 
 my $sep="\t";
-my $DEBUG=0;
+my $DEBUG=$ENV{'DEBUG'}//0;
+
+# how to use 'find' to get example dicom in acq directory
+# slower to list all and sort, but might give more consistant time vals across acqs
+my $FIND_SORT_CMD="-quit";
+my $FIND_SORT_CMD_SLOW=" | sort -zn | sed -z 1q";
 
 # TODO: if more than just 'accel' use this, the stucture will be a bottle neck
 #  -- run find and strings every time!? better to cache?
@@ -46,6 +51,12 @@ sub get_config(){
 
    pod2usage({-exit=>0, -verbose=>3}) if $opts{help};
 
+   # any left over cli options should be directories
+   for my $extradir (@ARGV){
+      -d $extradir or die "Extra argument '$extradir' is not a directory!";
+      push @{$opts{dirs}}, $extradir;
+   }
+
    my %conf=();
    $conf{subpat} = qr/$opts{subpat}/;
    $conf{sespat} = qr/$opts{sespat}/;
@@ -79,6 +90,7 @@ sub get_config(){
       "seqname"=>"0018,0024",  # ACQ Sequence Name//*fl2d1
       "strength"=>"0018,0087", # ACQ Magnetic Field Strength//6.98
       "software"=>"0018,1020", # ACQ Software Version//syngo MR B17
+      "imagetype"=>"0051,1016",# Image Type
 
       "example"=>sub($p){firstdcm($p, $conf{dcmpat})},
       "accel"=>sub($p){return dcmstring(firstdcm($p, $conf{dcmpat}),'sPat.lAccelFactPE.*')},
@@ -120,7 +132,11 @@ sub get_config(){
       exit(0);
    }
 
-
+   # 20250922 - update how pick example dicom
+   if(grep {/imagetime/} @{$conf{col_order}}){
+     $FIND_SORT_CMD=$FIND_SORT_CMD_SLOW;
+     warn("Updating dcm finder to slower method for consistant image time: $FIND_SORT_CMD");
+   }
    pod2usage(1) if $#{$opts{dirs}} <0;
 
    $conf{opts} = \%opts;
@@ -130,9 +146,14 @@ sub get_config(){
 sub first_dcm_info($dir, $patt, @tags){
     # use dicom_hinfo to get tag_order (via cmd_tags)
     # N.B. globals '$sep' and '$cmd_tags'
-   my $cmd_tags = join " ", map {"-tag $_"} @tags;
+    #
+    # BUG?! if we want acq time
+    #  we should sort instead of taking the first file
+    #  best would be to sort on ImageTime but could settle for name sort 
+    #  that might not be first acq first, but is likely more consistant than find
+    my $cmd_tags = join " ", map {"-tag $_"} @tags;
     my $first_dcm_cmd = qq/
-      find -L "$dir" -maxdepth 2 \\( -type f -or -type l \\) -regextype sed -iregex '$patt' -print0 -quit |
+      find -L "$dir" -maxdepth 2 \\( -type f -or -type l \\) -regextype sed -iregex '$patt' -print0 $FIND_SORT_CMD |
       xargs -0rI{} dicom_hinfo -full_entry -no_name -sepstr '$sep' $cmd_tags "{}"/;
     print "$first_dcm_cmd\n" if $DEBUG>=2;
     chomp(my $out = qx/$first_dcm_cmd/);
