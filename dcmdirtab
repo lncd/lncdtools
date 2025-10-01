@@ -47,6 +47,7 @@ sub get_config(){
       'cols=s','add_cols|a=s',
       'config|c=s', 'eval|e=s@',
       'no-header|H','short|x',
+      'fast-find',
       'list|l', 'help|?') or pod2usage(2);
 
    pod2usage({-exit=>0, -verbose=>3}) if $opts{help};
@@ -134,8 +135,12 @@ sub get_config(){
 
    # 20250922 - update how pick example dicom
    if(grep {/imagetime/} @{$conf{col_order}}){
-     $FIND_SORT_CMD=$FIND_SORT_CMD_SLOW;
-     warn("Updating dcm finder to slower method for consistant image time: $FIND_SORT_CMD");
+     if($opts{"fast-find"}){
+        warn("Asking for imagetime, but using 'fast-find'. imagetime will not be first image. Time will still sort between acqs.");
+     } else {
+        $FIND_SORT_CMD=$FIND_SORT_CMD_SLOW;
+        warn("Updating dcm finder to slower method for consistant 'imagetime': '$FIND_SORT_CMD'");
+     }
    }
    pod2usage(1) if $#{$opts{dirs}} <0;
 
