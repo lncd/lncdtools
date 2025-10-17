@@ -104,13 +104,20 @@ multiecho_exists(){
  return 1
 }
 
+# find all outputs. default '$outname', but also look also for _echo-
 find_multiechos(){
    local outdir="$1"; shift
    local outname="$1"; shift
    local ext="$1"; shift
+
+   # added 20251017
+   # GRE fmap magnitude mutliecho doesn't have _echo-, but the echo number appended directly to the suffix
+   local fmap_mag=()
+   [[ $outname =~ magnitude ]] && fmap_mag=(-or -name "$outname[12]$ext")
+
    me_name=$(perl -pe 's/_([^_-]*)$/_echo-*_$1/' <<< "$outname");
    find "$outdir" -maxdepth 1 -type f \
-      \( -name "$outname$ext" -or -name "$me_name$ext" \)
+      \( -name "$outname$ext" -or -name "$me_name$ext" "${fmap_mag[@]}" \)
 }
 
 add_json_task(){
@@ -157,8 +164,11 @@ main(){
   [ -n "$DRYRUN" ] && exit 0
   # if above failed, script would bail (set -e)
   # so if we don't have the file it's probably has multiple echos
+  verbose "# checking '$outname' against *magnitude|*magnitude[12], *phase|*phasediff|*part-phase*, *bold|*sbref (multi-echo)"
+  multi_outs=0
   case $outname in
      *magnitude|*magnitude[12])
+       verbose "# mag '$outname'"
 
        rename-recent have? || exit 1 # dont convert if we have the wrong rename
        # 20210113
@@ -171,10 +181,14 @@ main(){
 
        # update output for 3dNotes and final check
        [[ $outname =~ magnitude$ ]] && nii_out="$outdir/${outname}1.nii.gz"
+       multi_outs=1
      ;;
      *phase|*phasediff|*part-phase*)
        rename-phase "$outdir" "$outname*"
-       #rename-recent 's/_e\d+(_ph)?(.nii.gz|.json)$/$2/' "$outdir" "$outname*"
+        
+       # 20210113 - recontwix phasediff_e2 - why no _e1?, no _ph either
+       [[ $outname =~ phasediff ]] &&
+         rename-recent 's/_e\d+(_ph)?(.nii.gz|.json)$/$2/' "$outdir" "$outname*"
      ;;
      *bold|*sbref)
         rename-epi-multiecho "$outdir" "$outname"
