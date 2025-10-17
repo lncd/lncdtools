@@ -43,6 +43,12 @@ HEREDOC
 #shellcheck disable=SC2089 # intentionally not an array
 FIND_EXCLUDE=" -not -name *echo-*"
 
+# does this session have func and/or dwi directories?
+func_andor_dwi(){
+   [[ -d func ]] && echo func/
+   [[ -d dir/dwi ]] && echo dwi/
+   return 0
+}
 csv_niifiles(){
    local sesdir="$1"; shift
    #local boldpat="${1:?need at least one bold or dwi file pattern}"
@@ -50,8 +56,10 @@ csv_niifiles(){
    # build a list of acceptable names
    find_names=$(printf " -iname %s -or" "$@"|sed 's/-or$//')
    # shellcheck disable=SC2086,SC2090 # sending multiple args in ea. var
-   (cd "$sesdir" &&
-    find func/ dwi/ \( $find_names \) $FIND_EXCLUDE ) |
+   (cd "$sesdir";
+    funcdwi=($(func_andor_dwi));
+    [ ${#funcdwi[@]} -le 0 ] && echo "ERROR: no '$sesdir' has no func/ nor dwi/" >&2 && return 1
+    find "${funcdwi[@]}" \( $find_names \) $FIND_EXCLUDE ) |
     sed 's/^\|$/"/g'|
     paste -sd,
 }
