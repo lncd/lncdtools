@@ -18,6 +18,10 @@ censor_rel=""                  # 3dTcat: truncate input
 MAXVOLSTOTAL=-1                #  "      truncate how many volumes are ultimately averaged.
 IDX_SAMPLE_METHOD="first"      # how to sample indexes (first, last, random) when MAXVOLS*
 tnorm_opt="-nzmean"            # 3dTstat: final output  (time normalized)
+FD_THRES=${FD_THRES:-0.3}      # framewise displacement applied to confounds_timeseries.tsv
+
+# GNU Parallel default options for per func/ files (added for -fmriprep, 20260102)
+PARALEL_OPTS=${PARALEL_OPTS:-"--eta --progress --total-jobs -P50%"}
 
 OUTPUT=tat2star.nii.gz
 TMPLOCATION=/tmp
@@ -25,12 +29,20 @@ CLEAN=1
 TMPD="" # will be folder specific to single invocation of tat2. removed at the end
 WRITE_JSON_LOG=1
 
+# run through fmriprep. -fmriprep option added 20260102
+FMRIPREP_DERIV_ROOT=""
+FMRIPREP_TASK_PATTERN=${FMRIPREP_TASK_PATTERN:-"*_task-*desc-preproc_bold.nii.gz"}
+
 # all the inputs (possibly globs) we want to work on
 declare -a GLOBFILES
 
 filedesc_whichvol=""
 
-TAT2_VER="20240719-calc_ln+BUGFIX-no_vol"
+TAT2_VER="1.0.0.20260102-fmriprep"
+# 1.0.0.20260102
+#   add -fmriprep option
+# 20240719-calc_ln+BUGFIX-no_vol
+#   novolume was 'x*1', fixed to be '(x/m)*m'
 # 20201116
 #  back to mean default
 # add
@@ -67,6 +79,20 @@ SYNOPSIS
   final '$OUTPUT' will be in the cwd
 
 OPTIONS (in order of relevance)
+  -fmriprep  /path/to/fmriprep/
+    Specify path to fmriprep root. Will run for all func directories within provided path
+
+    Will overwrite -censor_rel and -mask_rel options to new defaults.
+
+    To change new defaults, specify modifications after -fmriprep option
+    NB. without -fmriprep, tat2 creates a single file from all inputs
+        with -fmriprep, tat2start.nii.gz file PER func/ directory
+
+   GNU Parallel will be used when avalaible to parallelize.
+   Parameters set with environment variable
+      export PARALEL_OPTS='$PARALEL_OPTS'
+
+
   -censor_rel FILE
     specify the motion censor file. single column no header file. nLines = nVols. 0=exclude, 1=keep.
     either a filename or regexp
@@ -197,7 +223,8 @@ collapse_seq_idx(){
 
 parse_args(){
    # keep args around for 3dNotes history
-   allargs="$*"
+   allargs="$*"    # single long string, into json/log
+   ALLARGS_=("$@") # used to forward tat2 when -fmriprep
 
 
    # read in any arguments/paramaters
@@ -223,6 +250,15 @@ parse_args(){
      -inverse)    t2_inv=1; shift;;
      -no_voxscale)vox_scale=0; shift;;
      -noclean)    CLEAN=0; shift;;
+     -fmriprep)  
+        FMRIPREP_DERIV_ROOT="${2:?expect fmriprep deriviate directory}"; shift 2
+        [[ "$MASK_REL" != "subject_mask.nii.gz" ]] &&
+           echo "WARNING: -mask_rel '$MASK_REL' defined before -fmriprep, overwriting" >&2 
+        MASK_REL='s/_desc-preproc_bold/_desc-brain_mask/'
+        [ -n "$censor_rel" ] &&
+           echo "WARNING: -censor_rel '$censor_rel' defined before -fmriprep, overwriting" >&2 
+        censor_rel='s/(task-[^_]+(_run-[^_]+)?)_.*/\1_desc-confounds_timeseries.tsv/'
+        ;;
      -verbose)    set -x; shift;;
      -h*)         usage;;
      -*)          echo "unknown option '$1'"; usage;;
@@ -251,23 +287,50 @@ args_are_sane(){
       err "must use -no_voxscale with -calc_zscore or -calc_ln"
    fi
 
-   echo "#files/globs: ${#GLOBFILES[@]}"
-   # need to have at least one file to average
-   [ -z "${GLOBFILES[*]}" ] && usage
+   # only check globs/inputs if not running as fmriprep
+   if [ -z "$FMRIPREP_DERIV_ROOT" ]; then
+      echo "#files/globs: ${#GLOBFILES[@]}"
+      # need to have at least one file to average
+      [ -z "${GLOBFILES[*]}" ] && usage
 
-   # how many files do we have
-   nfiles=$(find -L ${GLOBFILES[@]} -maxdepth 0 | wc -l)
-   [ $nfiles -eq 0 ] && err "no files match input GLOBFILESs: ${GLOBFILES[@]}"
-   [ $nfiles -eq 1 ] && echo "WARNING: only one file matches '${GLOBFILES[@]}'. expected all (>1) runs"
-   [ $nfiles -gt 10 ] && echo "WARNING: running on $nfiles epi files! Are you sure you don't want to run one visit at a time?"
+      # how many files do we have
+      nfiles=$(find -L ${GLOBFILES[@]} -maxdepth 0 | wc -l)
+      [ $nfiles -eq 0 ] && err "no files match input GLOBFILESs: ${GLOBFILES[@]}"
+      [ $nfiles -eq 1 ] && echo "WARNING: only one file matches '${GLOBFILES[@]}'. expected all (>1) runs"
+      [ $nfiles -gt 10 ] && echo "WARNING: running on $nfiles epi files! Are you sure you don't want to run one visit at a time?"
 
-   [ -r "$OUTPUT" ] && echo "# have $OUTPUT; rm $OUTPUT # to redo" && exit 0
+      [ -r "$OUTPUT" ] && echo "# have $OUTPUT; rm $OUTPUT # to redo" && exit 0
+   fi
+
+
+
    [ "$MAXVOLS" == "1" ] && echo "-maxvols cannot be 1. 3dcalc doesn't like applying a single value 1D file to a 4D dataset" && exit 1
+   return 0
+}
+
+fmriprep_to_fd_censor(){
+   local tsvfile=${1:?expect framewise displacement file}
+   ! test -r $tsvfile &&
+      echo "ERROR: could not find expected file '$tsvfile'" >&2 &&
+      return 1
+
+   ! perl -slane 'BEGIN{
+      $i=-1;
+      @c=split/\t/,<>;
+      foreach (@c){
+         ++$i;
+         last if /framewise_displacement/;
+         exit 100 if $i >= $#c;
+      }}
+      print $F[$i]>$FD_THRES?0:1;' -- -FD_THRES="$FD_THRES" < $tsvfile &&
+         echo "ERROR: no 'framewise_displacement' in $tsvfile" >&2 &&
+         return 2
    return 0
 }
 
 update_with_censor(){
    declare -g input filedesc_whichvol censor_file
+   local tmpd=${1:-$TMPLOCATION} # only used if fmrirep/rewriting
    filedesc_whichvol=""
    readonly censor_rel
    local idxs nkeep tat2inputfile
@@ -275,6 +338,14 @@ update_with_censor(){
    # censor input
    if [ -n "$censor_rel" ]; then
       censor_file=$(find_rel_file "$input" "$censor_rel")
+      # SPECIAL CASE (20260102): fmriprep input is not 
+      if [[ $censor_file =~ desc-confounds_timeseries.tsv$ ]]; then
+         new_censor="$tmpd/$(basename $censor_file _timeseries.tsv)_fd-$FD_THRES.1D"
+         msg "apply fd<$FD_THRES from '$censor_file' to '$new_censor'"
+         test -r "$new_censor" && echo "WARNING: overwriting an existing censor file $new_censor" >&2
+         fmriprep_to_fd_censor "$censor_file" > $new_censor
+         censor_file=$new_censor
+      fi
       # if MAXVOLS is default "-1", firstn_cvs does nothing
       idxs=$(where1csv $censor_file| idx_shuffle $IDX_SAMPLE_METHOD | firstn_csv $MAXVOLS)
       nkeep=$(echo $idxs| tr ',' '\n' |wc -l)
@@ -364,7 +435,7 @@ one_ta(){
 
    # change $input and $filedesc_whichvol if $cesnor_rel exist
    censor_file="" # updated version of '$censor_rel' if used
-   update_with_censor
+   update_with_censor "$tmpd"
 
    # must match *_tat2.nii.gz to be picked up by 3dTstat at the end
    runoutput="$tmpd/${cnt}${filedesc_whichvol}${filedesc_volnorm}_tat2.nii.gz"
@@ -431,6 +502,11 @@ json_list(){
 }
 
 _tat2(){
+   # would see this message on arg check unless running w/-fmriprep
+   test -r "$OUTPUT" &&
+      msg "# have $OUTPUT. rm '$OUTPUT' # to redo" &&
+      return 0
+
    TMPD=$(mktemp -d $TMPLOCATION/tat2star_XXXX)
    cnt=0
    volcount=0
@@ -528,7 +604,7 @@ _tat2(){
    [ "${WRITE_JSON_LOG:-1}" -eq 1 ] &&
      cat <<- HEREDOC > "${OUTPUT/.nii.gz/.log.json}"
 	{
-	 "cmd": "$0 $allargs",
+    "cmd": "$0 $(sed 's:\\:\\\\:g' <<< "$allargs")",
 	 "roistats_cmds": "${all_roistats}",
 	 "volume_norm_cmds": "${all_calc_cmd}",
 	 "collapse_cmd": "${Tstat_cmd}",
@@ -561,11 +637,63 @@ _tat2(){
    return 0
 }
 
+_fmriprep_loop(){
+   # run all of fmripre func/ files
+   # 'deriv/sub-x/ses-y/func' or 'deriv/sub-x/func/'
+   mapfile -t bold_dirs < <(find "$FMRIPREP_DERIV_ROOT" -name 'func' -type d)
+   msg "found ${#bold_dirs[@]} 'func' folders (fmriprep sessions)"
+   [ ${#bold_dirs[@]} -eq 0 ] && 
+      err "No $FMRIPREP_DERIV_ROOT/**/func folders to work with!"
+
+   # ALLARGS_ includes two we want to remove: -fmriprep /path/to/deriv
+   noprepargs=(); i=0
+   while [ $i -lt ${#ALLARGS_[@]} ]; do
+      arg=${ALLARGS_[$i]}
+      [[ $arg == -fmriprep ]] && let i=i+2 && continue
+      noprepargs+=("$arg")
+      let ++i
+   done
+
+   if command -v env_parallel >/dev/null && [ -n "$PARALEL_OPTS" ]; then
+      export FMRIPREP_TASK_PATTERN FMRIPREP_DERIV_ROOT
+      export -f _tat2_fmriprep
+      parallel $PARALEL_OPTS -N1 _tat2_fmriprep {1} -censor_rel "'$censor_rel'" -mask_rel "'$MASK_REL'" "${noprepargs[@]}" ::: "${bold_dirs[@]}"
+   else
+      echo "WARNING: not parallelizing. install GNU Parallel to use mutliple cores." >&2
+      for session_func in "${bold_dirs[@]}"; do
+         msg "starting $session_func"
+         # continue across failures -- don't want one bad session to bring it all down
+         _tat2_fmriprep "$session_func" "${noprepargs[@]}" || :
+      done
+   fi
+}
+_tat2_fmriprep(){
+   # expect to be called by _fmriprep_loop after parse_args sets all bug GLOBFILES
+   local session_func=${1:?expect fmriprep func/ directory}; shift;
+   mapfile -t GLOBFILES < <(find $session_func -iname "$FMRIPREP_TASK_PATTERN" -not -iname '*echo-*')
+   [ ${#GLOBFILES[@]} -eq 0 ] &&
+      echo "WARNING: no non-echo task files in $session_func" >&2 &&
+      return 1
+
+   ! [[ ${GLOBFILES[0]} =~ sub-[^_/]+(_ses-[^_/]+)?_ ]] && 
+      echo "ERROR: no 'sub-*' in first input of $session_func: '${GLOBFILES[0]}'" &&
+      return 2
+
+   # TODO: option to save outside of fmrirep func dir
+   tat2 -output "$session_func/${BASH_REMATCH}desc-preproc_tat2star.nii.gz" "$@" ${GLOBFILES[@]}
+}
+
 # run if not sourced
 if ! [[ "$(caller)" != "0 "* ]]; then
    set -eou pipefail
    # 20210218WF - hygenic file usage -- tmp files after crash clog fileystem
    trap '[ -n "$TMPD" -a -d "$TMPD" -a $CLEAN -eq 1 ] && [[ "$TMPD" =~ $TMPLOCATION ]] && rm -r "$TMPD"' EXIT
    args_are_sane "$@"
-   _tat2
+
+   # running on many at once!
+   if [ -n "$FMRIPREP_DERIV_ROOT" ]; then
+      _fmriprep_loop
+   else
+      _tat2
+   fi
 fi
