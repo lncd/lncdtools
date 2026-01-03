@@ -5,6 +5,7 @@ docker: .make/docker
 coverage: .make/coverage
 depends: .make/depends
 TESTFILES := $(wildcard t/*)
+TAT2VER := `grep -Po '(?<=TAT2_VER=")[^"-]*' tat2`
 
 # 20230225: use perl version
 # 'warn' c version does not handle \t properly
@@ -26,6 +27,12 @@ dryrun.exe: src/dryrun.c
 
 .make/docker-test: .make/docker
 	docker run lncd/tools make check  > $@
+
+.make/docker-tat2: Dockerfile.tat2 tat2 | .make
+	docker build -f Dockerfile.tat2  -t lncd/tat2:$(TAT2VER)
+	TAT2_TEST_DOCKER=1 bats t/tat2-fmriprep.bats
+	docker image inspect lncd/tat2:$(TAT2VER) > $@
+
 
 .make/coverage: $(TESTFILES)
 	kcov --bash-dont-parse-binary-dir --exclude-path=/usr,/tmp t/coverage/ bats t/ | tee $@

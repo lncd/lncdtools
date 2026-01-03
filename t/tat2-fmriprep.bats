@@ -1,6 +1,16 @@
 setup(){
    export PATH="$PWD:$PATH"
-   cd $BATS_TEST_TMPDIR
+   if [ -n "${TAT2_TEST_DOCKER:-}" ]; then
+      tat2ver=$(grep -Po '(?<=TAT2_VER=")[^"-]*' "$PWD/tat2")
+      tat2ver=${tat2ver:-1.0.0.20260102}
+      tat2(){
+         docker run \
+            -t -v "$BATS_TEST_TMPDIR:$BATS_TEST_TMPDIR" \
+            "lncd/tat2:$tat2ver" "$@";
+         }
+      export -f tat2
+   fi
+   cd "$BATS_TEST_TMPDIR" || exit
 
    3dUndump -dimen 2 2 2 -overwrite  -ijk -prefix 3d.nii.gz  -fval 10 -dval 1
    3dcalc -a 3d.nii.gz -b '1D: 4@1' -expr 'gran(0,1)' -prefix 4d.nii.gz
