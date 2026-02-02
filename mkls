@@ -15,7 +15,7 @@ set -euo pipefail
 #  20190718 - init
 #  20191024 - outsource to mkifdiff
 
-[[ $# -lt 1 ]] && echo "USAGE: $0 dirlist.txt '/list/*/files'\n find -iname '*thing*' | $0 dirlist.txt" && exit 1
+[[ $# -lt 1 ]] && echo -e "USAGE: $0 dirlist.txt '/list/*/files'\n find -iname '*thing*' | $0 dirlist.txt" && exit 1
 ! command -v mkifdiff >/dev/null && echo "missing mkifdiff; cannot run $0!" && exit 1
 CMPFILE="$1"; shift
 
