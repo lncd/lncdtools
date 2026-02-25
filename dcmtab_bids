@@ -17,7 +17,8 @@ my %mode_folder = (dwi=>'dwi',
    'phase'=>'fmap', 'phase1'=>'fmap', 'phase2'=>'fmap', 'phasediff'=>'fmap');
 
 # https://bids-specification.readthedocs.io/en/stable/appendices/entities.html
-my @attributes_ordered = qw/task acq ce dir rec run echo part mode/;
+# NB. "mode" here is "suffix"
+my @attributes_ordered = qw/task acq ce rec dir run mod echo flip inv mt part recording chunck mode/;
 
 sub combine_attr($attr, $val){
    # mode (T1w, bold, dwi, ...) is by itself at the end of the file name
@@ -123,9 +124,22 @@ sub dsl($class, $cfgstring) {
    # TODO: support more entities. do not force order (currently dir then acq)
    # maybe write with a grammer
    # consider (runs=)?(?<n_expect>\d+)
-   $cfgstring =~ m/^(?<mode>[^;=]+)=?(?<task>[^;]+)?;(?<matches>[^;]+);?(?<n_expect>\d+)?(;dir=(?<dir>[^;=]+))?(;acq=(?<acq>[^;=]+))?(;part=(?<part>[^;=]+))?(;fixrun=(?<run>\d+))?;?$/ or
+   #
+   # for order see
+   # @attributes_ordered = qw/task acq ce rec dir run mod echo flip inv mt part recording chunck mode/;
+   $cfgstring =~ m/^(?<mode>[^;=]+)
+                  =?(?<task>[^;]+)?
+                  ;
+                  (?<matches>[^;]+);?
+                  (?<n_expect>\d+)?
+                  (;dir=(?<dir>[^;=]+))?
+                  (;acq=(?<acq>[^;=]+))?
+                  (;inv=(?<inv>[^;=]+))?
+                  (;part=(?<part>[^;=]+))?
+                  (;fixrun=(?<run>\d+))?
+                  ;?$/x or
      croak "criteria: failed to parse '$cfgstring'. $help_msg";
-   my %bids = %+{qw/mode task dir acq part run/};
+   my %bids = %+{qw/mode task dir acq inv part run/};
    my $n_expect = $+{n_expect};
    my %matches = map {split /=/} (split /,/, $+{matches});
    return new($class,
@@ -174,7 +188,7 @@ sub bids_out($sequences, @criteria){
         my $sesid = join "_", map {$_||""} @{$seq}{qw/subj ses/};
 
         # 20240401 - if given 'fixrun' will start with run at non-0
-        $run = ($crt->{bids}->{run}||0) if $prevsesid ne $sesid;
+        $run = ($crt->{bids}->{run}||0) if $prevsesid ne $sesid and ref $crt->{bids} eq "HASH";
         $prevsesid = $sesid;
 
         #print "seq: ", Dumper($seq), "\n";
@@ -447,6 +461,7 @@ use Perl::RunEND's C<perl-run-end>
 
 require 'dcmtab_bids';
 # in iperl, reply, or pdl2: Module::Refresh->refresh
+#  use lib '.'; require "dcmtab_bids";
 use Data::Dumper;
 use Test2::V0;
 use Test::Exception;
@@ -488,12 +503,6 @@ is @res, 1, "parse returns only one";
 ok $res[0][0] =~ m:sub-1/.*func:, "output is sub-1 rest xxx/yyyy";
 ok $res[0][1] =~ m:xxx/yyyy:, "input is xxx/yyyy";
 
-# criteral->{bids} function instead of {mode=>xxx, ...}
-$c{bids} = sub {return "./nonsense.nii.gz"};
-my $crtf = criteria->new(%c);
-@res = heuristic::parse($sequences,[$crtf]);
-is $res[0][0], "./nonsense.nii.gz", "use criteria->{bids} is function instead of template";
-
 # run numbers were previously off
 @res = heuristic::parse($sequences,[criteria->dsl('bold=rest;pname=rest,ndcm=76;2')]);
 is @res, 4, "found all short rests ";
@@ -508,6 +517,10 @@ is $cdsl->{bids}->{mode}, "epi", "criteria dsl: mode epi";
 $cdsl = criteria->dsl('sbref=mytask;pname=rest.*SBRef,ndcm=1');
 is $cdsl->{bids}->{mode}, "sbref", "criteria dsl: mode sbref";
 is $cdsl->{bids}->{task}, "mytask", "criteria dsl: single band task name";
+
+$cdsl = criteria->dsl('anat/MP2RAGE;pname=rest,ndcm=204;inv=2');
+is $cdsl->{bids}->{inv}, "2", "criteria dsl: inversion index";
+is $cdsl->{bids}->{mode}, "anat/MP2RAGE", "criteria dsl: mode anat/MP2RAGE (folder/suffix)";
 
 $cdsl = criteria->dsl('bold=mytask;pname=rest,ndcm=180;dir=PA;acq=xyz;');
 is $cdsl->{n_expect}, 1, "criteria dsl nexpect omited but have dir";
@@ -527,4 +540,11 @@ $cdsl = criteria->dsl('perf/asl;pname=asl,ndcm=180');
 is $cdsl->{bids}->{mode}, "perf/asl", "criteria dsl: mode from folder/mode";
 @res = heuristic::parse($sequences,[$cdsl]);
 is $res[0][0],  "sub-3/ses-2/perf/sub-3_ses-2_asl.nii.gz", "output is sub-3/perf/.*asl";
+
+# criteral->{bids} function instead of {mode=>xxx, ...}
+%c=(n_expect=>1, matches=>{pname => qr/rest/, ndcm=>180}, bids=>sub {return "./nonsense.nii.gz"});
+my $crtf = criteria->new(%c);
+@res = heuristic::parse($sequences,[$crtf]);
+is $res[0][0], "./nonsense.nii.gz", "use criteria->{bids} is function instead of template";
+
 done_testing;

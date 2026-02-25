@@ -365,7 +365,7 @@ main() {
             name_in_file id_in_file maskave_NA \
             already_exists maskave_filename_info \
             roistats_NA roistats_header_opts repna_roistats_opts \
-            roistats_extract
+            roistats_extract name_is_regex
 
   export IN_PATT ID_PATT OUTNAME REDO VERBOSE
 

@@ -4,6 +4,7 @@ env | grep ^DRYRUN= && DRYRUN=echo || DRYRUN=""
 [ -v NOECHOCHECK ] && NOECHOCHECK="check" || NOECHOCHECK=""
 [ ! -v VERBOSE ] && VERBOSE=""
 verbose(){ [ -n "$VERBOSE" ] && echo "$*" >&2 || :; }
+noquiet() { [ -z "${MKNII_QUIET:-}" ] && echo "$*" || return 0; }
 
 set_dcm2niix(){
   DCM2NIIX="${DCM2NII:-dcm2niix}"
@@ -42,6 +43,7 @@ ENVIRONMENT:
   MEPATT=mGRE     - additional output file name pattern that will have mutliecho output
   DCM2NIIX=/p/dcm - alternative path to dcm2niix binary
   VERBOSE=1       - show more of the process
+  MKNII_QUIET=1   - be quiet. Don't report "# have ..."
 
 
 HEREDOC
@@ -98,7 +100,7 @@ multiecho_exists(){
     "$(add_echo_name "$nii_out")"; do
    verbose "# checking for multiecho like '$ME_name'"
    ! test -r "$ME_name" && continue
-   echo "# have '$ME_name', considering that the same as '$nii_out' (set export NOECHOCHECK=1 to go anyway)"
+   noquiet "# have '$ME_name', considering that the same as '$nii_out' (set export NOECHOCHECK=1 to go anyway)"
    return 0
  done
  return 1
@@ -145,9 +147,9 @@ main(){
   [ $# -ne 2 ] && usage
   nii_out="$1"; shift
   dcm_folder="$*"; shift
-  [ -r "$nii_out" ] && echo "# have '$nii_out'" && exit 0
+  [ -r "$nii_out" ] && noquiet "# have '$nii_out'" && exit 0
   [ ${nii_out:(-7)} != ".nii.gz" ] &&
-     echo "output must have .nii.gz extention!" && exit 1
+     echo "ERROR: output must have .nii.gz extention!" >&2 && exit 1
 
   test -z "$NOECHOCHECK"  && multiecho_exists "$nii_out" && exit 0
 
