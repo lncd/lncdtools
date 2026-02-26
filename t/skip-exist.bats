@@ -65,7 +65,7 @@ test_skipexist_space() { # @test
 
 test_skipexist_SKIPFILE() { # @test
    o=$BATS_TEST_TMPDIR/"a b"
-   run skip-exist "$o" writedate _SKIPFILE
+   run skip-exist "$o" writedate __SKIPFILE
    test -s "$o"
    dt=$(cat "$o")
    run skip-exist "$o" writedate "$o"
