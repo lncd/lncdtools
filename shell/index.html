@@ -1,0 +1,1040 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../lncdtools_setup/">
+      
+      
+        <link rel="next" href="../tat2/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.3">
+    
+    
+      
+        <title>Shell Tools - LNCD Tools</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#shell-tools" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="LNCD Tools" class="md-header__button md-logo" aria-label="LNCD Tools" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            LNCD Tools
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Shell Tools
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="LNCD Tools" class="md-nav__button md-logo" aria-label="LNCD Tools" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    LNCD Tools
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    About
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../BIDS/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BIDS
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../colophon/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Colophon
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lncdtools_setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Shell Tools
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Shell Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#dryrun" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dryrun
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#drytee" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        drytee
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#warn" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        warn
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#waitforjobs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        waitforjobs
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="waitforjobs">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#arguments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Arguments
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#iffmain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        iffmain
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="iffmain">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#sourcing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sourcing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#template" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Template
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-script" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example Script
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Example Script">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#in-use" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In Use
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sourcedebug" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Source/Debug
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tat2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Time averaged T2*
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#dryrun" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dryrun
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#drytee" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        drytee
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#warn" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        warn
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#waitforjobs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        waitforjobs
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="waitforjobs">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#arguments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Arguments
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#iffmain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        iffmain
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="iffmain">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#sourcing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sourcing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#template" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Template
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-script" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example Script
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Example Script">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#in-use" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In Use
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sourcedebug" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Source/Debug
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="shell-tools">Shell Tools</h1>
+<p>Jump right into with an <a href="#example-script">example</a>.</p>
+<h2 id="dryrun"><code>dryrun</code></h2>
+<p><code>dryrun</code> runs a command only when the <code>$DRYRUN</code> environmental variable is not set. <sup id="fnref:dryrun_name"><a class="footnote-ref" href="#fn:dryrun_name">1</a></sup>
+Also see <a href="https://github.com/binpash/try"><code>try</code></a>, comparable to <code>make -n</code></p>
+<div class="language-shell highlight"><span class="filename">dryrun'ed</span><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>$<span class="w"> </span><span class="nb">echo</span><span class="w"> </span>hi<span class="w"> </span>&gt;<span class="w"> </span>myfile
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">DRYRUN</span><span class="o">=</span><span class="m">1</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>$<span class="w"> </span>dryrun<span class="w"> </span>rm<span class="w"> </span>myfile<span class="w">  </span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>rm<span class="w"> </span>myfile<span class="w">  </span><span class="c1"># (1)!</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>$<span class="w"> </span>cat<span class="w"> </span>myfile
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>hi
+</span></code></pre></div>
+<ol>
+<li>this is printed but not run</li>
+</ol>
+<div class="language-shell highlight"><span class="filename">actually run</span><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>$<span class="w"> </span><span class="nb">echo</span><span class="w"> </span>hi<span class="w"> </span>&gt;<span class="w"> </span>myfile
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">DRYRUN</span><span class="o">=</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>$<span class="w"> </span>dryrun<span class="w"> </span>rm<span class="w"> </span>myfile<span class="w"> </span><span class="c1"># (1)!</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>$<span class="w"> </span>cat<span class="w"> </span>myfile
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>cat:<span class="w"> </span>myfile:<span class="w"> </span>No<span class="w"> </span>such<span class="w"> </span>file<span class="w"> </span>or<span class="w"> </span>directory
+</span></code></pre></div>
+<ol>
+<li>nothing is printed. <code>rm</code> runs silently as if <code>dryrun</code> was not there</li>
+</ol>
+<p>It's worth noting bash allows environmental variables to be set and scoped to a single command by prefacing the call with <code>var=val</code>. For <code>dryrun</code> enabled scripts and functions, this means staring with <code>DRYRUN=1</code> for the "just print" version.</p>
+<div class="language-shell highlight"><span class="filename">compact</span><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>$<span class="w"> </span>example<span class="o">(){</span><span class="w"> </span>dryrun<span class="w"> </span>rm<span class="w"> </span>myfile<span class="p">;</span><span class="w"> </span><span class="o">}</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>$<span class="w"> </span><span class="nv">DRYRUN</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>example
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>rm<span class="w"> </span>myfile<span class="w"> </span><span class="c1"># (1)!</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>$<span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="nv">$DRYRUN</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="c1"># (2)!</span>
+</span></code></pre></div>
+<ol>
+<li><code>rm myfile</code> is printed but not run</li>
+<li>empty line showing <code>$DRYRUN</code> is not set but was for the call above (where it was explicitly declared)</li>
+</ol>
+<h2 id="drytee"><code>drytee</code></h2>
+<p><code>drytee</code> works like <code>dryrun</code> but for capturing output you may want to be written to a file unless <code>$DRYRUN</code> is set. It's like the command <code>tee</code> but for writing to standard error when the user wants a dry run.</p>
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>$<span class="w"> </span><span class="nb">echo</span><span class="w"> </span>hi<span class="w"> </span><span class="p">|</span><span class="w"> </span>drytee<span class="w"> </span>myfile
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>$<span class="w"> </span>cat<span class="w"> </span>myfile
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>hi<span class="w"> </span><span class="c1"># (1)!</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>$<span class="w"> </span><span class="nv">DRYRUN</span><span class="o">=</span><span class="m">1</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>$<span class="w"> </span><span class="nb">echo</span><span class="w"> </span>bye<span class="w"> </span><span class="p">|</span><span class="w"> </span>drytee<span class="w"> </span>myfile
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="c1">#       bye</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># would be written to myfile</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>$<span class="w"> </span>cat<span class="w"> </span>myfile
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>hi<span class="w"> </span><span class="c1"># (2)!</span>
+</span></code></pre></div>
+<ol>
+<li><code>myfile</code> was written ("hi") b/c <code>DRYRUN</code> is not set</li>
+<li><code>myfile</code> is unchanged. <code>bye</code> was not written</li>
+</ol>
+<h2 id="warn"><code>warn</code></h2>
+<p><code>warn</code> could be written <code>echo "$@" &gt; &amp;2</code>. It simply writes it's arguments to standard error (2) instead of standard output. This is useful to avoid shell capture to either a variable or a file.
+<div class="language-shell highlight"><span class="filename">avoid capture</span><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>$<span class="w"> </span><span class="nv">a</span><span class="o">=</span><span class="k">$(</span>warn<span class="w"> </span><span class="s2">&quot;oh no&quot;</span><span class="p">;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;results&quot;</span><span class="k">)</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>oh<span class="w"> </span>no<span class="w"> </span><span class="c1"># (1)!</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>$<span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="nv">$a</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>results
+</span></code></pre></div></p>
+<ol>
+<li>'oh no' seen on the terminal b/c it's written to stderr. "resutls" on stdout is captured into <code>$a</code></li>
+</ol>
+<p>A contrived example for giving a warning that doesn't end up in the output (but still potentially notifies the user)
+<div class="language-shell highlight"><span class="filename">no warning in file</span><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># create a file of n lines sequentally numbered</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>filelines<span class="o">(){</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nv">n</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$1</span><span class="s2">&quot;</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="o">[</span><span class="w"> </span><span class="nv">$n</span><span class="w"> </span>-lt<span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="o">]</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>warn<span class="w"> </span><span class="s2">&quot;# WARNING: n=</span><span class="nv">$n</span><span class="s2"> &lt; 2. limited output&quot;</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span><span class="nb">printf</span><span class="w"> </span><span class="s2">&quot;%s\n&quot;</span><span class="w"> </span><span class="k">$(</span>seq<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="nv">$n</span><span class="k">)</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="o">}</span>
+</span></code></pre></div></p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>$ filelines 1 &gt; myfile
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a># WARNING: n=1 &lt; 2. limited output
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>$ cat myfile
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>1
+</span></code></pre></div>
+<h2 id="waitforjobs"><code>waitforjobs</code></h2>
+<p><code>waitforjobs</code> tracks the number of forked child processes. It waits <code>SLEEPTIME</code> and polls the count until there are fewer than <code>MAXJOBS</code> jobs running. It uses shell job control facilities and is useful for local, single user, or small servers. On HPC, you'd use <code>sbatch</code> from e.g. <code>slurm</code> or <code>torque</code>. Other alternatives include <a href="https://github.com/sitaramc/bq"><code>bq</code></a> and <a href="https://github.com/justanhduc/task-spooler"><code>task-spooler</code></a>. <a href="https://blog.ronin.cloud/gnu-parallel/">GNU Parallel</a> and Make also have job dispatching facilities.</p>
+<div class="language-shell highlight"><span class="filename">waitforjobs</span><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">for</span><span class="w"> </span>i<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="o">{</span><span class="m">1</span>..20<span class="o">}</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span>sleep<span class="w"> </span><span class="m">5</span><span class="w"> </span><span class="p">&amp;</span><span class="w"> </span><span class="c1"># (1)!</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span>waitforjobs
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="k">done</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="nb">wait</span><span class="w">  </span><span class="c1"># (2)!</span>
+</span></code></pre></div>
+<ol>
+<li><code>sleep</code> here is a stand in for a more useful long running command to be parallelized</li>
+<li>waitforjobs will exit the final loop with MAXJOBS-1 still running. this <code>wait</code> will wait for those (but wont have the the notifications every SLEEPTIME. could consider <code>waitforjobs -p 1</code> instead.</li>
+</ol>
+<p>when running locally, output looks like:
+<div class="language-text highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>2023-05-24T15:38: sleep 60s on 3: sleep 5;sleep 5;bash /home/foranw/src/work/lncdtools/waitforjobs;
+</span></code></pre></div></p>
+<h3 id="arguments">Arguments</h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>USAGE:
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>  waitforjobs [-j numjobs] [-s sleeptimesecs] [-c &quot;auto&quot;]  [-h|--help]&quot;
+</span></code></pre></div>
+<p><code>-c auto</code> is worth exploring in more detail. Using this option, a temporary file like <code>/tmp/host-user-basename.jobcfg</code> is created. Modifying the sleep and job settings in that file will affect the waitforjobs process watching it. You can change the number of cores to use in real time!</p>
+<h2 id="iffmain"><code>iffmain</code></h2>
+<p>In a scripts where <code>main_function</code> is a deifned function, <code>iffmain</code> use at the end like </p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span>iffmain<span class="w"> </span>main_function<span class="k">)</span><span class="s2">&quot;</span>
+</span></code></pre></div>
+<p>Defensive shell scripting calls for <code>set -euo pipefail</code> but running that (e.g. via <code>source</code>) on the command line will break other scripts and normal interactive shell <sup id="fnref:sete_break"><a class="footnote-ref" href="#fn:sete_break">2</a></sup>. <code>iffmain</code> is modeled after the python idiom <code>if __name__ == "__main__"</code>. When the script is not sourced, it toggles the ideal settings and sets a standard <code>trap</code> to notify on error.</p>
+<h3 id="sourcing">Sourcing</h3>
+<p>Using <code>iffmain</code> makes it easier to write bash scripts that are primarily functions. Scripts styled this way are easy to source and test.</p>
+<p>A bash file that can be sourced can be reused and is able to be tested. See
+<a href="https://neuro-programmers.pitt.edu/wiki/doku.php?id=public:bash_tdd">Bash Test Driven Development</a></p>
+<h3 id="template">Template</h3>
+<p><code>iffmain</code> generates shell code that looks like
+<div class="language-shell highlight"><span class="filename">iffmain template</span><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="k">if</span><span class="w"> </span><span class="o">[[</span><span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span><span class="nb">caller</span><span class="k">)</span><span class="s2">&quot;</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="s2">&quot;0 &quot;</span>*<span class="w"> </span><span class="o">]]</span><span class="p">;</span><span class="w"> </span><span class="k">then</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="nb">set</span><span class="w"> </span>-euo<span class="w"> </span>pipefail
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">  </span><span class="nb">trap</span><span class="w"> </span><span class="s1">&#39;e=$?; [ $e -ne 0 ] &amp;&amp; echo &quot;$0 exited in error $e&quot;&#39;</span><span class="w"> </span>EXIT
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">  </span>MAINFUNCNAME<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$@</span><span class="s2">&quot;</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">  </span><span class="nb">exit</span><span class="w"> </span><span class="nv">$?</span>
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="k">fi</span>
+</span></code></pre></div></p>
+<h2 id="example-script">Example Script</h2>
+<p>As an example, we'll use <code>drytee</code>, <code>dryrun</code>, and <code>waitforjobs</code> in the script <code>tat2all.bash</code> to</p>
+<ul>
+<li>run <a href="tat2"><code>tat2</code></a> (<code>tat2_single</code>) on a collection of bold files</li>
+<li>in parallel (<code>all_parallel</code>) and </li>
+<li>need to do a few checks (<code>input_checks</code>) before hand.</li>
+</ul>
+<p>We'll support </p>
+<ul>
+<li>printing what the script would do instead of actually doing it (<code>dryrun</code> and <code>drytee</code>) and</li>
+<li>using hygienic shell settings (e.g. <code>set -euo pipefail</code>) only when run as a file but not when sourced <sup id="fnref:sourcetest"><a class="footnote-ref" href="#fn:sourcetest">3</a></sup></li>
+</ul>
+<div class="language-shell highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">tat2_all.bash</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-12-1"> 1</a></span>
+<span class="normal"><a href="#__codelineno-12-2"> 2</a></span>
+<span class="normal"><a href="#__codelineno-12-3"> 3</a></span>
+<span class="normal"><a href="#__codelineno-12-4"> 4</a></span>
+<span class="normal"><a href="#__codelineno-12-5"> 5</a></span>
+<span class="normal"><a href="#__codelineno-12-6"> 6</a></span>
+<span class="normal"><a href="#__codelineno-12-7"> 7</a></span>
+<span class="normal"><a href="#__codelineno-12-8"> 8</a></span>
+<span class="normal"><a href="#__codelineno-12-9"> 9</a></span>
+<span class="normal"><a href="#__codelineno-12-10">10</a></span>
+<span class="normal"><a href="#__codelineno-12-11">11</a></span>
+<span class="normal"><a href="#__codelineno-12-12">12</a></span>
+<span class="normal"><a href="#__codelineno-12-13">13</a></span>
+<span class="normal"><a href="#__codelineno-12-14">14</a></span>
+<span class="normal"><a href="#__codelineno-12-15">15</a></span>
+<span class="normal"><a href="#__codelineno-12-16">16</a></span>
+<span class="normal"><a href="#__codelineno-12-17">17</a></span>
+<span class="normal"><a href="#__codelineno-12-18">18</a></span>
+<span class="normal"><a href="#__codelineno-12-19">19</a></span>
+<span class="normal"><a href="#__codelineno-12-20">20</a></span>
+<span class="normal"><a href="#__codelineno-12-21">21</a></span>
+<span class="normal"><a href="#__codelineno-12-22">22</a></span>
+<span class="normal"><a href="#__codelineno-12-23">23</a></span>
+<span class="normal"><a href="#__codelineno-12-24">24</a></span>
+<span class="normal"><a href="#__codelineno-12-25">25</a></span>
+<span class="normal"><a href="#__codelineno-12-26">26</a></span>
+<span class="normal"><a href="#__codelineno-12-27">27</a></span>
+<span class="normal"><a href="#__codelineno-12-28">28</a></span>
+<span class="normal"><a href="#__codelineno-12-29">29</a></span>
+<span class="normal"><a href="#__codelineno-12-30">30</a></span>
+<span class="normal"><a href="#__codelineno-12-31">31</a></span>
+<span class="normal"><a href="#__codelineno-12-32">32</a></span>
+<span class="normal"><a href="#__codelineno-12-33">33</a></span>
+<span class="normal"><a href="#__codelineno-12-34">34</a></span>
+<span class="normal"><a href="#__codelineno-12-35">35</a></span>
+<span class="normal"><a href="#__codelineno-12-36">36</a></span>
+<span class="normal"><a href="#__codelineno-12-37">37</a></span>
+<span class="normal"><a href="#__codelineno-12-38">38</a></span>
+<span class="normal"><a href="#__codelineno-12-39">39</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1"></a><span class="ch">#!/usr/bin/env bash</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2"></a>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3"></a><span class="c1"># create a 1D 0/1 binary censor file based on FD &gt; 0.3mm</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4"></a>create_censor<span class="o">(){</span>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5"></a><span class="w">   </span><span class="nv">mot</span><span class="o">=</span><span class="si">${</span><span class="nv">1</span><span class="p">//bold.nii.gz/motion.txt</span><span class="si">}</span><span class="w"> </span><span class="c1"># sub*rest_motion.txt</span>
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6"></a><span class="w">   </span><span class="nv">out</span><span class="o">=</span><span class="si">${</span><span class="nv">1</span><span class="p">//bold.nii.gz/fdcen.1D</span><span class="si">}</span><span class="w">   </span><span class="c1"># sub*rest_fdcen.1D</span>
+</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7"></a><span class="w">   </span><span class="o">[</span><span class="w"> </span>!<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$mot</span><span class="s2">&quot;</span><span class="w"> </span><span class="o">]</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>warn<span class="w"> </span><span class="s2">&quot;no </span><span class="nv">$mot</span><span class="s2">!&quot;</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="c1"># (5)!</span>
+</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8"></a><span class="w">   </span>fd_calc<span class="w"> </span><span class="m">1</span>:3<span class="w"> </span><span class="m">4</span>:6<span class="w"> </span>deg<span class="w"> </span>.3<span class="w"> </span>&lt;<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">mot</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span><span class="p">|</span>
+</span><span id="__span-12-9"><a id="__codelineno-12-9" name="__codelineno-12-9"></a><span class="w">     </span>drytee<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$out</span><span class="s2">&quot;</span><span class="w"> </span><span class="c1"># (1)!</span>
+</span><span id="__span-12-10"><a id="__codelineno-12-10" name="__codelineno-12-10"></a>
+</span><span id="__span-12-11"><a id="__codelineno-12-11" name="__codelineno-12-11"></a><span class="w">   </span><span class="c1"># pass output censor file name so it can be captured</span>
+</span><span id="__span-12-12"><a id="__codelineno-12-12" name="__codelineno-12-12"></a><span class="w">   </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$out</span><span class="s2">&quot;</span>
+</span><span id="__span-12-13"><a id="__codelineno-12-13" name="__codelineno-12-13"></a><span class="o">}</span>
+</span><span id="__span-12-14"><a id="__codelineno-12-14" name="__codelineno-12-14"></a>
+</span><span id="__span-12-15"><a id="__codelineno-12-15" name="__codelineno-12-15"></a><span class="c1"># run tat2 for a given bold epi</span>
+</span><span id="__span-12-16"><a id="__codelineno-12-16" name="__codelineno-12-16"></a><span class="c1"># remove high motion timepoints from calculation</span>
+</span><span id="__span-12-17"><a id="__codelineno-12-17" name="__codelineno-12-17"></a>tat2_single<span class="o">(){</span>
+</span><span id="__span-12-18"><a id="__codelineno-12-18" name="__codelineno-12-18"></a><span class="w">   </span><span class="nb">local</span><span class="w"> </span>input
+</span><span id="__span-12-19"><a id="__codelineno-12-19" name="__codelineno-12-19"></a><span class="w">   </span><span class="nv">input</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">1</span><span class="p">:?input.nii.gz needed</span><span class="si">}</span><span class="s2">&quot;</span>
+</span><span id="__span-12-20"><a id="__codelineno-12-20" name="__codelineno-12-20"></a><span class="w">   </span><span class="nv">out</span><span class="o">=</span><span class="k">$(</span>create_censor<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$input</span><span class="s2">&quot;</span><span class="k">)</span>
+</span><span id="__span-12-21"><a id="__codelineno-12-21" name="__codelineno-12-21"></a><span class="w">   </span>dryrun<span class="w"> </span>tat2<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$input</span><span class="s2">&quot;</span><span class="w"> </span>-censor<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$out</span><span class="s2">&quot;</span><span class="w"> </span><span class="c1"># (2)!</span>
+</span><span id="__span-12-22"><a id="__codelineno-12-22" name="__codelineno-12-22"></a><span class="o">}</span>
+</span><span id="__span-12-23"><a id="__codelineno-12-23" name="__codelineno-12-23"></a>
+</span><span id="__span-12-24"><a id="__codelineno-12-24" name="__codelineno-12-24"></a><span class="c1"># run tat2 for all bold image files in parallel</span>
+</span><span id="__span-12-25"><a id="__codelineno-12-25" name="__codelineno-12-25"></a>tat2_parallel<span class="o">(){</span>
+</span><span id="__span-12-26"><a id="__codelineno-12-26" name="__codelineno-12-26"></a><span class="w">  </span><span class="nv">FILES</span><span class="o">=(</span>sub-*/ses-*/func/*bold.nii.gz<span class="o">)</span>
+</span><span id="__span-12-27"><a id="__codelineno-12-27" name="__codelineno-12-27"></a>
+</span><span id="__span-12-28"><a id="__codelineno-12-28" name="__codelineno-12-28"></a><span class="w">  </span><span class="k">for</span><span class="w"> </span>input<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">FILES</span><span class="p">[@]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+</span><span id="__span-12-29"><a id="__codelineno-12-29" name="__codelineno-12-29"></a><span class="w">     </span>tat2_single<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$input</span><span class="s2">&quot;</span><span class="w"> </span><span class="p">&amp;</span>
+</span><span id="__span-12-30"><a id="__codelineno-12-30" name="__codelineno-12-30"></a><span class="w">     </span>waitforjobs<span class="w"> </span><span class="c1"># (3)!</span>
+</span><span id="__span-12-31"><a id="__codelineno-12-31" name="__codelineno-12-31"></a><span class="w">     </span><span class="c1"># for testing, just run one using:</span>
+</span><span id="__span-12-32"><a id="__codelineno-12-32" name="__codelineno-12-32"></a><span class="w">     </span><span class="c1"># break</span>
+</span><span id="__span-12-33"><a id="__codelineno-12-33" name="__codelineno-12-33"></a><span class="w">  </span><span class="k">done</span>
+</span><span id="__span-12-34"><a id="__codelineno-12-34" name="__codelineno-12-34"></a>
+</span><span id="__span-12-35"><a id="__codelineno-12-35" name="__codelineno-12-35"></a><span class="w">  </span><span class="c1"># hold until the final set of jobs to finish</span>
+</span><span id="__span-12-36"><a id="__codelineno-12-36" name="__codelineno-12-36"></a><span class="w">  </span><span class="nb">wait</span>
+</span><span id="__span-12-37"><a id="__codelineno-12-37" name="__codelineno-12-37"></a><span class="o">}</span>
+</span><span id="__span-12-38"><a id="__codelineno-12-38" name="__codelineno-12-38"></a>
+</span><span id="__span-12-39"><a id="__codelineno-12-39" name="__codelineno-12-39"></a><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span>iffmain<span class="w"> </span>tat2_parallel<span class="k">)</span><span class="s2">&quot;</span><span class="w"> </span><span class="c1"># (4)!</span>
+</span></code></pre></div></td></tr></table></div>
+<ol>
+<li><code>drytee</code> writes to the specified file unless <code>DRYRUN</code> is set, then it truncates the output and writes output to stderr.</li>
+<li><code>dryrun</code> echos everything after it to <code>stderr</code> if <code>DRYRUN</code> is set. Otherwise, it runs the command.</li>
+<li><code>waitforjobs</code> watches the children of the current process and sleeps until there are fewer than 10 running.</li>
+<li><code>iffmain</code> generates bash code. It runs <code>set -euo pipefail</code> and the specified function only if file is not sourced -- e.g. <code>bash tat2_all.bash</code> or <code>./tat2_all.bash</code> <sup id="fnref2:sourcetest"><a class="footnote-ref" href="#fn:sourcetest">3</a></sup></li>
+<li><code>warn</code> sends a message to <code>stderr</code> so it doesn't get included in any eval/capture -- <code>a=$(warn 'oh no'; echo 'yes')</code> yields <code>a="yes"</code></li>
+</ol>
+<h3 id="in-use">In Use</h3>
+<p>If we have files like
+<div class="language-text highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>sub-1
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>└── ses-1
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>    └── func
+</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>        ├── sub-1_ses-1_func_task-rest_bold.nii.gz
+</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>        └── sub-1_ses-1_func_task-rest_motion.txt
+</span></code></pre></div></p>
+<p>If we set <code>DRYRUN</code>, we'll see what the script would do: a "dry run".
+<div class="language-shell highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="nv">DRYRUN</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>./tat2_all.bash
+</span></code></pre></div></p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="c1">#       1</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="c1">#       1</span>
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="c1">#       1</span>
+</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="c1">#       0</span>
+</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="c1">#       1 # (1)</span>
+</span><span id="__span-15-6"><a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="c1"># would be written to sub-1/ses-1/func/sub-1_ses-1_func_task-rest_fdcen.1D  # (2)</span>
+</span><span id="__span-15-7"><a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>tat2<span class="w"> </span>sub-1/ses-1/func/sub-1_ses-1_func_task-rest_bold.nii.gz<span class="w"> </span>-censor<span class="w"> </span>sub-1/ses-1/func/sub-1_ses-1_func_task-rest_fdcen.1D
+</span><span id="__span-15-8"><a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="c1"># (3)!</span>
+</span></code></pre></div>
+<ol>
+<li>output of <code>fd_calc</code>, <code>drytee</code> truncated, prefixed with <code>#\t</code> and sent to stderr</li>
+<li><code>drytee</code> also mentions what file it would have created. This file still does not exist</li>
+<li><code>dryrun</code> shows but does not run the <code>tat2</code> command.</li>
+</ol>
+<h3 id="sourcedebug">Source/Debug</h3>
+<p>Because the bash file is only functions and <code>iffmain</code> does not run if sourced, we can debug with <code>source</code>.
+Here we'll run the <code>create_censor</code> function defined in <code>tat2_all.bash</code> to check that it does what we expect.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="nb">source</span><span class="w"> </span>tat2_all.bash
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>create_censor<span class="w"> </span>sub-1/ses-1/func/sub-1_ses-1_func_task-rest_bold.nii.gz
+</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>cat<span class="w"> </span>sub-1/ses-1/func/sub-1_ses-1_func_task-rest_fdcen.1D
+</span></code></pre></div>
+<div class="language-text highlight"><span class="filename">sub-1/ses-1/func/sub-1_ses-1_func_task-rest_fdcen.1D</span><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>1
+</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>1
+</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>1
+</span><span id="__span-17-4"><a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>0
+</span><span id="__span-17-5"><a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>1
+</span><span id="__span-17-6"><a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>1
+</span></code></pre></div>
+<div class="footnote">
+<hr />
+<ol>
+<li id="fn:dryrun_name">
+<p>"dryrun"'s name is taken from the rsync "--dryrun" option. <code>perl-rename</code> alias <code>--dry-run</code> with <code>--just-print</code>&#160;<a class="footnote-backref" href="#fnref:dryrun_name" title="Jump back to footnote 1 in the text">&#8617;</a></p>
+</li>
+<li id="fn:sete_break">
+<p><code>set -e</code> "exit on an error" is especially disruptive.  One typo command and your interactive shell closes itself.&#160;<a class="footnote-backref" href="#fnref:sete_break" title="Jump back to footnote 2 in the text">&#8617;</a></p>
+</li>
+<li id="fn:sourcetest">
+<p>sourcing a shell script is useful for running same-file tests with bats and/or embedding the current file in other scripts to reuse function definitions. See [Sourcing][#sourcing]&#160;<a class="footnote-backref" href="#fnref:sourcetest" title="Jump back to footnote 3 in the text">&#8617;</a><a class="footnote-backref" href="#fnref2:sourcetest" title="Jump back to footnote 3 in the text">&#8617;</a></p>
+</li>
+</ol>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.code.annotate"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
