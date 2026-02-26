@@ -2,8 +2,10 @@
 set -euo pipefail
 #
 # 20260226WF - init
-# 
+#
 # TODO: add 'verb' or 'warn' instead of echo >&2
+#       or some way to suppress SKIP and already have messsages
+#
 
 REDO=${REDO:-0} # default: skip if exists. REDO !=0 means overwrite
 
@@ -15,9 +17,14 @@ USAGE:
 
   $0 sub-1/mri/aseg.nii.gz recon-all -s sub-1
   $0 sub-1/mri/aseg.nii.gz dryrun recon-all -s sub-1
+  REDO=1 $0 sub-1/mri/aseg.nii.gz recon-all -s sub-1
+
+  $0 /tmp/date.txt sh -c "date > _SKIPFILE"
 
 SYNOPSIS:
   'test -s' wrapper with REDO and verbose messaging support
+
+   _SKIPFILE in cmd will be replaced by first argument
 
 ENVIRONMENT:
    REDO=1  - overwrite (redo) even if output file exists
@@ -34,7 +41,7 @@ NOTES:
   or a dedicated shell
 
      $0 /tmp/date.txt sh -c 'date > /tmp/date.txt'
-  
+
   But maybe '$0' is overkill for your usage. Consider:
 
      test -s /tmp/date.txt || date > \$_
@@ -53,10 +60,22 @@ outfile="${1:?need two args. first is outfile}"; shift
    usage "ERROR: no command to run if '$outfile' doesn't exist" >&2 &&
    exit 1
 
+cmd=("${@//_SKIPFILE/"$outfile"}")
 if [ -s "$outfile" ]; then
    [ "$REDO" == 0 ] &&
       echo "# SKIP: Already have '$outfile', not running '$*'; set REDO=1 to overwrite." >&2 &&
       exit 0
    echo " # Already have '$outfile' but overwritting: REDO=$REDO." >&2
 fi
-"$@"
+
+# run the thing that should make the input
+"${cmd[@]}"
+
+# check that what we did worked
+cmd_status=$?
+
+# if there is an error (cmd_status > 0), should we still warn?
+test $cmd_status -eq 0 -a -s "$outfile" ||
+   echo "# WARNING: '$outfile' DNE or is empty after '$*'" >&2
+
+exit $cmd_status
