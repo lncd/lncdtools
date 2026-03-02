@@ -83,8 +83,8 @@ rename-phase(){
 rename-epi-multiecho(){
   local outdir="$1"; shift
   local outname="$1"; shift
-  local rename_patt='s/([^_-]+)_e(\d+).(json|nii.gz)/echo-$2_$1.$3/'
-  if [ -r "$outdir/${outname}_e1.nii.gz" ]; then
+  local rename_patt='s/([^_-]+)_[ie](\d+).(json|nii.gz)/echo-$2_$1.$3/'
+  if [ -r "$outdir/${outname}_e1.nii.gz" -o -r  "$outdir/${outname}_i00001.nii.gz" ]; then
      echo "# trying to rename multiecho seq $outname";
      _rename-recent "$rename_patt" "$outdir" "${outname}_e*"
   fi
@@ -96,6 +96,7 @@ multiecho_exists(){
   # will have been caught earlier
   local nii_out="$1"
   for ME_name in "${nii_out/.nii.gz/_e1.nii.gz}" \
+    "${nii_out/.nii.gz/_i00001.nii.gz}" \
     "${nii_out/magnitude.nii.gz/magnitude1.nii.gz}" \
     "$(add_echo_name "$nii_out")"; do
    verbose "# checking for multiecho like '$ME_name'"
@@ -143,6 +144,7 @@ add_json_task(){
 main(){
   set -euo pipefail
   set_dcm2niix # DCM2NIIX might be dcm2niix_afni or given by user
+  local unzip_tmp="" # if input is zip file, track to rm tmp folder later
 
   [ $# -ne 2 ] && usage
   nii_out="$1"; shift
@@ -150,6 +152,16 @@ main(){
   [ -r "$nii_out" ] && noquiet "# have '$nii_out'" && exit 0
   [ "${nii_out:(-7)}" != ".nii.gz" ] &&
      echo "ERROR: output '$nii_out' must have .nii.gz extention!" >&2 && exit 1
+
+  if [[ $dcm_folder =~ .zip$ ]]; then
+     unzip_tmp=$(mktemp -d ${TMPDIR:-/tmp}/dcmzip_XXXX)
+     zip_file=$dcm_folder
+     [ ! -d "$unzip_tmp" ] && echo "ERROR: failed to create temporary folder for unzipping!" && return 1
+     echo "# unzipping $zip_file to $unzip_tmp" >&2
+     $DRYRUN unzip -d "$unzip_tmp" "$zip_file"
+     # TODO: trap to cleanup zip file?
+     dcm_folder=$unzip_tmp
+  fi
 
   test -z "$NOECHOCHECK"  && multiecho_exists "$nii_out" && exit 0
 
@@ -226,5 +238,9 @@ main(){
   for nii_out_me in "${nii_outs[@]}"; do
      $DRYRUN 3dNotes -h "$0 $dcm_folder $nii_out" "$nii_out_me"
   done
+
+  # cleanup unziped file
+  [[ -n "$unzip_tmp" && -d "$unzip_tmp" && "$unzip_tmp" =~ dcmzip_ ]] && rm -r "$unzip_tmp"
+  return 0
 }
 [[ "$(caller)" != "0 "* ]] && set +u || main "$@"
