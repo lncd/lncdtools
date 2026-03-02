@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# quick dicom dump of single dicom in folder
+if [[ $# -eq 0  || $* =~ ^-+h ]]; then
+  echo "USAGE: $0 dcmdir1 dcmdir2"
+  exit
+fi
+DCMPROG=${DCMPROG:-dicom_hdr} # dicom_hinfo # gdcmdump
+for d in "$@"; do
+  find "$d" -type f,l  -exec $DCMPROG {} \; -quit
+done
+
+
