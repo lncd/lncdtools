@@ -148,8 +148,8 @@ main(){
   nii_out="$1"; shift
   dcm_folder="$*"; shift
   [ -r "$nii_out" ] && noquiet "# have '$nii_out'" && exit 0
-  [ ${nii_out:(-7)} != ".nii.gz" ] &&
-     echo "ERROR: output must have .nii.gz extention!" >&2 && exit 1
+  [ "${nii_out:(-7)}" != ".nii.gz" ] &&
+     echo "ERROR: output '$nii_out' must have .nii.gz extention!" >&2 && exit 1
 
   test -z "$NOECHOCHECK"  && multiecho_exists "$nii_out" && exit 0
 
