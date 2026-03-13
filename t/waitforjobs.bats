@@ -72,7 +72,7 @@ function test_config { # @test
   #sleep 2 &
   #sleep 2 &
   TMPDIR=$BATS_TEST_TMPDIR run waitforjobs -s .5 -j 2 -c auto
-  f=$(ls $BATS_TEST_TMPDIR/$HOSTNAME-$USER-*.jobcfg)
+  f=$(ls $BATS_TEST_TMPDIR/${HOSTNAME:-NOHOST}-${USER:-NOUSER}-*.jobcfg)
   [ -n "$f" -a -r "$f" ]
   grep maxjobs=2 "$f"
   grep sleeptime=.5 "$f"

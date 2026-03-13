@@ -179,6 +179,7 @@ roistats_extract(){ perl -slane 'print join ",", @F;'; }
 ## @param options flags forwarded to 3droistats. Default to using -nomeanout, -nzmean, and -nzvoxels
 ## @return results of 3dROIstats or string of NAs
 roistats_NA() {
+   # 3dROIstats. default to usising nomeanout, nzmean, and nzvoxels
    local opts NA mask_file cfile
    mask_file="$1";shift
    cfile="$1";shift
@@ -370,7 +371,7 @@ main() {
             name_in_file id_in_file maskave_NA \
             already_exists maskave_filename_info \
             roistats_NA roistats_header_opts repna_roistats_opts \
-            roistats_extract
+            roistats_extract name_is_regex
 
   export IN_PATT ID_PATT OUTNAME REDO VERBOSE
 

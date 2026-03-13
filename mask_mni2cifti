@@ -11,7 +11,10 @@ import os
 import re
 import nibabel as nib
 import numpy as np
-import matplotlib.cm as cm
+try:
+    from matplotlib.cm import get_cmap
+except ImportError:
+    from matplotlib.pyplot import get_cmap
 from tempfile import TemporaryDirectory
 from neuromaps.transforms import mni152_to_fsaverage, mni152_to_fslr, mni152_to_civet, _vol_to_surf
 
@@ -51,16 +54,19 @@ def nii_to_dlabel(mask_fname, density='91k', space='fsLR', outname=None):
 
     #Save out giftis
     with TemporaryDirectory() as tmpdirname:
-        nib.save(lh, "L.shape.gii")
-        nib.save(rh, "R.shape.gii")
-        with open('labels.txt','w') as f:
+        l_gii = os.path.join(tmpdirname, "L.shape.gii")
+        r_gii = os.path.join(tmpdirname, "R.shape.gii")
+        lab_txt = os.path.join(tmpdirname, "labels.txt")
+        nib.save(lh, l_gii)
+        nib.save(rh, r_gii)
+        with open(lab_txt,'w') as f:
             f.write(gen_label(rois))
 
         ## Merge EEG atlas fsaverage giftis into a cifti
-        os.system(f"wb_command -cifti-create-dense-scalar -left-metric L.shape.gii -right-metric R.shape.gii {outname}")
+        os.system(f"wb_command -cifti-create-dense-scalar -left-metric '{l_gii}' -right-metric '{r_gii}' {outname}")
 
         ## Turn the metric data into a valid cifti label file
-        os.system(f"wb_command -cifti-label-import {outname} labels.txt {outname} -discard-others -unlabeled-value 0")
+        os.system(f"wb_command -cifti-label-import {outname} {lab_txt} {outname} -discard-others -unlabeled-value 0")
 
         ## Dilate the cifti labels
         #nearest neighborhood ROI dilation using surface geometry
@@ -69,7 +75,7 @@ def nii_to_dlabel(mask_fname, density='91k', space='fsLR', outname=None):
 
 def gen_label(rois, cmap='hsv') -> str:
     nroi = len(rois)
-    colors = cm.get_cmap(cmap,nroi)
+    colors = get_cmap(cmap,nroi)
     colors = [[int(c*255) for c in colors(i)] for i in range(nroi)]
     return "\n".join([f"roi_{rois[i]}\n{rois[i]} {colors[i][0]} {colors[i][1]} {colors[i][2]} 255"
                       for i in range(nroi)])

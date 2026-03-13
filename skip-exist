@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+set -euo pipefail
+#
+# 20260226WF - init
+#
+# TODO: add 'verb' or 'warn' instead of echo >&2
+#       or some way to suppress SKIP and already have messsages
+#
+
+REDO=${REDO:-0} # default: skip if exists. REDO !=0 means overwrite
+
+usage(){
+   [ $# -gt 0 ] && echo "$*"
+   local c=$(basename $0)
+  cat <<HERE
+USAGE:
+  $c 'path/file/to/check' cmd
+
+  $c sub-1/mri/aseg.nii.gz recon-all -s sub-1
+  $c sub-1/mri/aseg.nii.gz dryrun recon-all -s sub-1
+  REDO=1 $c sub-1/mri/aseg.nii.gz recon-all -s sub-1
+
+  $c /tmp/date.txt sh -c "date > __SKIPFILE"
+
+SYNOPSIS:
+  'test -s' wrapper with REDO and verbose messaging support
+
+   __SKIPFILE in cmd will be replaced by first argument
+
+ENVIRONMENT:
+   REDO=1  - overwrite (redo) even if output file exists
+
+NOTES:
+  Watch out for redirection. DONT DO THIS
+     $c /tmp/date.txt date > /tmp/date.txt # BAD BAD BAD
+
+  Instead, use an exported function
+
+     writedate() { date > \$1; }; export -f writedate
+     $c /tmp/date.txt writedate /tmp/date.txt
+
+  or a dedicated shell
+
+     $c /tmp/date.txt sh -c 'date > /tmp/date.txt'
+
+  But maybe '$c' is overkill for your usage. Consider:
+
+     test -s /tmp/date.txt || date > \$_
+
+
+ALSO SEE:
+  dryrun drytee
+HERE
+}
+
+[[ $# -eq 0 || "${1:-}" =~ ^-+h(help)?$ ]] && usage && exit 0
+
+outfile="${1:?need two args. first is outfile}"; shift
+
+[ $# -eq 0 ] &&
+   usage "ERROR: no command to run if '$outfile' doesn't exist" >&2 &&
+   exit 1
+
+cmd=("${@//__SKIPFILE/"$outfile"}")
+if [ -s "$outfile" ]; then
+   [ "$REDO" == 0 ] &&
+      echo "# SKIP: Already have '$outfile', not running '${cmd[*]}'; set REDO=1 to overwrite." >&2 &&
+      exit 0
+   echo " # Already have '$outfile' but overwritting: REDO=$REDO." >&2
+fi
+
+# run the thing that should make the input
+"${cmd[@]}"
+
+# check that what we did worked
+cmd_status=$?
+
+# if there is an error (cmd_status > 0), should we still warn?
+test $cmd_status -eq 0 -a -s "$outfile" ||
+   echo "# WARNING: '$outfile' DNE or is empty after '${cmd[*]}'" >&2
+
+exit $cmd_status

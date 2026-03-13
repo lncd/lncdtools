@@ -1,7 +1,10 @@
 *p12
 *ini
 *.swp
+.make
+*.gii
 t/coverage
+# building documentation
 doc_compile/doxygen
 doc_compile/src
 doc_compile/_build
