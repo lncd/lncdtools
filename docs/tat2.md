@@ -1,7 +1,8 @@
 # Time averaged T2*
 
 > [!TIP]
-> For the 2026 manuscript, `tat2` has been moved and renamed to [`dR2star`](https://github.com/Larsen-Lab/dR2star)).
+> For the 2026 manuscript, `tat2` has been moved and renamed to [`dR2star`](https://github.com/Larsen-Lab/dR2star).
+>
 > Validation code for that is hosted in [own repository `tat2-validation`](https://github.com/LabNeuroCogDevel/tat2-validation)
 
 `tat2` ([code](https://github.com/LabNeuroCogDevel/lncdtools/blob/master/tat2)) wraps around `3dROIstats`, `3dcalc`, and `3dTstat` to reduce 4D EPI BOLD data to a per-voxel (3D) measure (`nT2*`) that is inversely related to iron concentration.
@@ -39,14 +40,14 @@ Will combine all of the matching `*preroc_bold.nii.gz` (presumably multiple 4D t
 Very limited fmriprep support is provided. More support is offered by [`dR2star`](https://github.com/Larsen-Lab/dR2star).
 
 ```
-exort FD_THRES=0.3
+export FD_THRES=0.3
 tat2 -fmriprep /path/to/fmriprep-deriv/
 # will make a tat2star file for each func folder found.
 # e.g. /path/to/fmriprep-deriv/sub-1/ses-1/func/sub-1_ses-1_desc-preproc_tat2star.nii.gz
 ```
 
 ### With options and relative paths
-See https://regex101.com/r/bM6p7X/1 for visual representation and playground of the regular expressions explored below.
+See [https://regex101.com/r/bM6p7X/1](https://regex101.com/r/bM6p7X/1) for a visual representation and playground of the regular expressions explored below.
 
 The reference region mask and/or censor files may be in another folder or named specific to a participant's visit and run input file.
 `-mask_rel` and `-censor_rel` support `s/search/replace/` regular expressions to transform the input `*.nii.gz` name into a matching motion or censor file.
@@ -90,7 +91,7 @@ tat2 \
    ```
     1. searches each input file for `desc-preproc_bold.nii.gz`
     2. and replaces that with `brain_maks.nii.gz`
-  * to match censor files across directories, `censor_regex` uses `s/.*func\/(.*)_desc-preproc_bold.nii.gz/censor_files\/\1\/preproc_censor-fd0.3.1D/`). Also see https://regex101.com/r/bM6p7X/1
+  * to match censor files across directories, `censor_regex` uses `s/.*func\/(.*)_desc-preproc_bold.nii.gz/censor_files\/\1\/preproc_censor-fd0.3.1D/`). Also see [https://regex101.com/r/bM6p7X/1](https://regex101.com/r/bM6p7X/1)
    ```
    func/sub-1_ses-2_run-1_desc-preproc_bold.nii.gz        # becomes
    censor_files/sub-1_ses-2_run-1/preproc_censor-fd0.3.1D
