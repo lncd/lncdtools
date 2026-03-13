@@ -71,10 +71,10 @@ Imagine a somewhat pathological file organization like
 
 ```
 sub_ses="sub-01/ses-01"
-censor_regex='s/.*func\/(.*)-preproc_bold.nii.gz/censor_files\/\1\/preproc_censor-fd0.3.1D/'
+censor_regex='s/.*func\/(.*)_desc-preproc_bold.nii.gz/censor_files\/\1\/preproc_censor-fd0.3.1D/'
 tat2 \
     -output "deriv/$sub_ses/func/${sub_ses//\//_}_space-MNI152NLin2009cAsym_tat2.nii.gz" \
-    -mask_rel 's/preproc_bold.nii.gz/brain_mask.nii.gz/' \
+    -mask_rel 's/desc-preproc_bold.nii.gz/brain_mask.nii.gz/' \
     -censor_rel "$censor_regex" \
     -median_time \
     -median_vol \
@@ -83,14 +83,22 @@ tat2 \
     deriv/$sub_ses/func/*space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz
 ```
 
-* sibling mask files are matched using `-mask_rel 's/preproc_bold.nii.gz/brain_mask.nii.gz/'` 
-   1. searches each input file for `preproc_bold.nii.gz`
-   2. and replaces that with `brain_maks.nii.gz`
-* to match censor files across directories, `censor_regex` uses `s/.*func\/(.*)-preproc_bold.nii.gz/censor_files\/\1\/preproc_censor-fd0.3.1D/`). Also see https://regex101.com/r/bM6p7X/1
-  1.  searches each input file for  `.*func\/(.*)-preproc_bold.nii.gz`, where
-    * `\/` "escapes" the directory slash, escape to distinguish it from the search-replace deliminator in `s///`
-    *  where `(.*)` captures the matching part to reuse as `\\1`  in
-  3. the replacement like `censor_files\/\1\/preproc_censor-fd0.3.1D`
+  * sibling mask files are matched using `-mask_rel 's/desc-preproc_bold.nii.gz/brain_mask.nii.gz/'` 
+   ```
+   func/sub-1_ses-2_run-1_desc-preproc_bold.nii.gz  # becomes
+   func/sub-1_ses-2_run-1_desc-brain_mask.nii.gz
+   ```
+    1. searches each input file for `desc-preproc_bold.nii.gz`
+    2. and replaces that with `brain_maks.nii.gz`
+  * to match censor files across directories, `censor_regex` uses `s/.*func\/(.*)_desc-preproc_bold.nii.gz/censor_files\/\1\/preproc_censor-fd0.3.1D/`). Also see https://regex101.com/r/bM6p7X/1
+   ```
+   func/sub-1_ses-2_run-1_desc-preproc_bold.nii.gz        # becomes
+   censor_files/sub-1_ses-2_run-1/preproc_censor-fd0.3.1D
+   ```
+    1.  searches each input file for  `.*func\/(.*)_desc-preproc_bold.nii.gz`, where
+        * `\/` "escapes" the directory slash, escape to distinguish it from the search-replace deliminator in `s///`
+      *  where `(.*)` captures the matching part to reuse as `\\1`  in
+    3. the replacement like `censor_files\/\1\/preproc_censor-fd0.3.1D`
 
 Also see [issue#5](https://github.com/lncd/lncdtools/issues/5).
 
