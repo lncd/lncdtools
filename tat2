@@ -83,6 +83,8 @@ OPTIONS (in order of relevance)
     Specify path to fmriprep root. Will run for all func directories within provided path
 
     Will overwrite -censor_rel and -mask_rel options to new defaults.
+    'export FD_THRES' to modify the framewise displacement threshold.
+    The current setting is FD_THRES=$FD_THRES
 
     To change new defaults, specify modifications after -fmriprep option
     NB. without -fmriprep, tat2 creates a single file from all inputs
