@@ -1,0 +1,227 @@
+#!/usr/bin/env bash
+PNOTEVER=0.1.0.20260313
+set -euo pipefail
+usage(){
+   cat <<HEREDOC
+Provenance tracking for any command and any input/output graph.
+Like datalad, but not linked to source control versioning
+
+ USAGE:
+   $0 -o test.txt -- touch test.txt
+   $0 --stdout date.txt -- date
+   $0 show path/to/file
+ OPTIONS:
+   -o OUTPUT_FILE       output, can repeat
+   -i INPUT_FILE        input file, can repeat
+   -s|--stdout FILE     capture stdoutput to FILE 
+   -e|--ifneeded        only run if output(s) older than input(s)
+                        pnumoic for 'e': *e*xisting skipped
+                        or if hashes changed
+   -d|--db DBPATH       specify sqlite3 db path. Alt set env PNOTEDB
+                        if git, goes into .pnote.sqlite3
+                        otherwise \$PWD/.pnote.sqlite3
+   -c|--sidecar         write to first output file sidecar .output.pnote
+   -n|--dryrun          save as setting DRYRUN=1. show don't do
+TODO:
+  * faketime for reproducabilty?
+PRIOR ART:
+  * datalad 
+  * 3dNotes, niinote
+  * cram (cli driven tests)
+  * make
+HEREDOC
+}
+[[ "${1:--help}" =~ ^-h ]] && usage && exit 0
+
+SCHEMA="
+create table prov (
+   hash text not null, -- user@host:pwd cmd
+   cmd text not null,
+   user text,
+   host text,
+   pwd text,
+   verinfo text, -- git branch, commit, dirty or clean?
+   stime datetime not null,
+   etime datetime,
+   status int);
+create table inf  (hash text, stime int, file text, modtime int);
+create table outf (hash text, stime int, file text);
+create table meta (inittime datetime, version text, inithost text);
+insert into meta values (datetime('now'), '$PNOTEVER', '$HOSTNAME');"
+
+record_to(){
+   declare -g DBFILE
+   local backend="${1:?need provenance backend}"; local cmd_output=${2:-$PWD}
+   case $backend in
+      db)
+         # PNOTEDB overwrite, otherwise git root, otherwise PWD
+         db="${PNOTEDB:-}"
+         [ -z "$db" ] &&
+            db=$(git rev-parse --show-toplevel || echo "$PWD")/.pnote.sqlite3
+
+         if ! test -r "$db"; then
+            echo "# NOTE: make '$db'" >&2
+            dryrun sqlite3 "$db" <<< "$SCHEMA"
+         fi
+         DBFILE=$db
+         ;;
+      sidecar)
+         sidecar=$(dirname "$cmd_output")/.$(basename "$cmd_output")
+         # make we don't have a trailing slash to make this a directory
+         sidecar=$(sed 's:/+$::' <<< "$sidecar")
+         echo "$sidecar"
+         DBFILE=$sidecar
+         ;;
+   esac
+}
+record_start(){
+   declare -g DBFILE
+   local cmd_hash="$1"; shift
+   local now="$1"; shift
+   local cmd=$(printf "%q" "$1"); shift
+   # TODO: pathological PWD need special care as with cmd?
+   sqlite3 "$DBFILE" <<HERE
+.param set :cmd "$cmd"
+insert into prov
+(       hash, cmd,   user,   host,    pwd, stime) values
+('$cmd_hash',:cmd,'$USER','$HOSTNAME', '$PWD','$now');
+HERE
+
+}
+record_in(){
+   declare -g DBFILE
+   local h=${1:?cmd hash from start}; shift
+   local n=${1:?start time of command}; shift
+   # all other inputs are like 'moddate file'
+   while [ $# -gt 0 ]; do
+      if ! [[ $1 =~ ^([0-9]+)\ (.+)$ ]]; then
+         echo "# INTERNAL ERROR: bad time/file name split on '$1'" >&2
+         shift
+         continue
+      fi
+      m=${BASH_REMATCH[1]}
+      f=${BASH_REMATCH[2]};
+      sqlite3 "$DBFILE" \
+         "insert into inf (hash, stime, file, modtime) values ('$h','$n','$f','$m');"
+      shift;
+   done
+}
+record_out(){
+   declare -g DBFILE
+   local h=${1:?cmd hash from start}; shift
+   local n=${1:?start time of command}; shift
+   while [ $# -gt 0 ]; do
+      sqlite3 "$DBFILE" "insert into outf (hash, stime, file) values ('$h','$n','$1');"
+      shift;
+   done
+}
+
+record_done(){
+  local h=${1:?} n=${2:?} s=${3:?}
+  sqlite3 "$DBFILE" "
+  update prov set
+     etime=datetime('now'), status = '$s'
+     where hash='$h' and stime='$s';"
+}
+
+show_db(){
+  record_to "$BACKEND"
+  sqlite3 -separator $'\t' -header "$DBFILE" <<HERE
+select status, o.stime, etime, cmd from prov p join outf o on p.hash=o.hash where file like '$1';
+HERE
+}
+
+_OUT=()
+_IN=()
+stdout=
+ifneeded=0
+BACKEND="db"
+while [ $# -ne 0 ]; do
+ case "$1" in
+   show) show_db "$2"; shift 2; exit ;;
+   --) shift; break;;
+   -o|--output)
+      _OUT+=("${2:?$1 must be followed by an output file}"); shift 2;;
+   --stdout|-s)
+      _OUT+=("${2:?$1 must be followed by an output file}");
+      stdout=$2;
+      shift 2;;
+   -i|--input)
+      _IN+=("${2:?$1 must be following by an input file}"); shift 2;;
+   -e|--ifneeded) ifneeded=1; shift;;
+   -c|--sidecar) BACKEND="db"; shift;
+                 echo "sidecar not implemented yet"; exit 1;;
+   -n|--dryrun) DRYRUN=echo; shift;;
+   -d|--db) PNOTEDB=${2:?--db requires db path}; shift 2;;
+
+   # die on unknown options
+   -*)
+      echo "ERROR: unknown option $1" >&2; exit 1;;
+
+   # anything else is likely a command
+   *) break;;
+  esac
+done
+
+stat_exist(){
+   default=${1?:missing file number. '0' for oldest; 'error' to break}; shift;
+   for f in "$@"; do
+      test -e "$f" && stat -c "%Y %n" "$f" && continue
+      
+      [[ $default == "error" ]] && echo "ERROR: missing file '$f'" >&2 && return 1
+      echo "$default $f"
+   done
+}
+
+#cmd_and_args=("$(printf "%q " "$@")")
+cmd_and_args=("$@")
+cmd_hash=$(md5sum <<< "$USER@$HOSTNAME:$PWD ${cmd_and_args[*]}" | sed 's/ -$//')
+now=$(date +%s)
+out_times=("$now") # default for no output: set as always up-to-date
+in_times=()
+if [ ${#_IN[@]} -gt 0 ]; then
+   mapfile -t in_times < <(stat_exist error "${_IN[@]}" | sort -n)
+   [ ${#in_times[@]} -ne ${#_IN[@]} ] &&
+      echo "ERROR: not all input files exist" >&2 &&
+      exit 1
+fi
+[ ${#_OUT[@]} -gt 0 ] &&
+   mapfile -t out_times < <(stat_exist 0 "${_OUT[@]}" | sort -nr) # oldest first
+newest_in="${in_times[0]:-0// */}" # remove name, just stat
+oldest_out="${out_times[0]// */}"
+#  TODO: if no output but still want run if needed?
+oldest_out=${oldest_out?-0} # no output, make start of time.
+# if newest output is older than newest input AND cmd_hash is same, nothing to do?
+if [[ $ifneeded -eq 1 && \
+   -n "${newest_in}" && -n "${oldest_out}" && \
+   ${newest_in} -lt ${oldest_out} \
+   ]]; then  # `# check cmd_hash?` 
+echo "# not rerunning: input '${in_times[0]}' $(bc -l <<< "$oldest_out - $newest_in") seconds older than output '${out_times[0]}'" >&2
+ exit 0
+fi
+
+# nothing to do, just exit
+if [ -n "${DRYRUN:-}" ]; then
+   echo "${cmd_and_args[*]}"
+   exit 0
+fi
+
+# set DBFILE
+record_to "$BACKEND"
+
+record_start "$cmd_hash" "$now" "${cmd_and_args[*]}"
+record_in "$cmd_hash" "$now" "${in_times[@]}"
+record_out "$cmd_hash" "$now" "${_OUT[@]}"
+
+if [ -n "$stdout" ]; then
+   set +e  # allow this to fail
+   "${cmd_and_args[@]}" > "$stdout"
+else
+   set +e  # allow this to fail
+   "${cmd_and_args[@]}"
+fi
+cmd_status=$?
+set -e
+record_done "$cmd_hash" "$now" "$cmd_status"
+
+# TODO: check all output files exist
