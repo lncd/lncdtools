@@ -1,0 +1,285 @@
+#!/usr/bin/env bash
+PNOTEVER=0.1.0.20260313
+set -euo pipefail
+usage(){
+   cat <<HEREDOC
+Provenance tracking for any command and any input/output graph.
+Like datalad, but not linked to source control versioning
+
+ USAGE:
+   $0 -o test.txt -- touch test.txt
+   $0 --stdout date.txt -- date
+   $0 show path/to/file
+ OPTIONS:
+   -o OUTPUT_FILE       output, can repeat
+   -i INPUT_FILE        input file, can repeat
+   -l FILELIST          file to pull list of inputs from
+                        can be named pipe like: <(ls *.nii.gz)
+                        NB. newline in file names will be a problem
+   -s|--stdout FILE     capture stdoutput to FILE 
+   -e|--ifneeded        only run if output(s) older than input(s)
+                        pnumoic for 'e': *e*xisting skipped
+                        or if hashes changed
+   -d|--db DBPATH       specify sqlite3 db path. Alt set env PNOTEDB
+                        if git, goes into .pnote.sqlite3
+                        otherwise \$PWD/.pnote.sqlite3
+   -C|--no-sidecar      SKIP writing output file sidecar like .output.pnote
+   -D|--no-db           SKIP writing to DB
+   -n|--dryrun          save as setting DRYRUN=1. show don't do
+TODO:
+  * faketime for reproducabilty?
+PRIOR ART:
+  * datalad 
+  * 3dNotes, niinote
+  * cram (cli driven tests)
+  * make
+HEREDOC
+}
+[[ "${1:--help}" =~ ^-h ]] && usage && exit 0
+
+SCHEMA="
+create table prov (
+   hash text not null, -- user@host:pwd cmd
+   cmd text not null,
+   user text,
+   host text,
+   pwd text,
+   verinfo text, -- git branch, commit, dirty or clean?
+   stime datetime not null,
+   etime datetime,
+   status int);
+create table inf  (hash text, stime int, file text, modtime int);
+create table outf (hash text, stime int, file text);
+create table meta (inittime datetime, version text, inithost text);
+insert into meta values (unixepoch('now'), '$PNOTEVER', '$HOSTNAME');"
+
+set_db(){
+   declare -g DBFILE DO_DB
+   # disalbed DB has empty DBFILE
+   if [ "${DO_DB:-1}" -ne 1 ]; then
+      DBFILE=""
+      return 0
+   fi
+   # PNOTEDB overwrite, otherwise git root, otherwise PWD
+   db="${PNOTEDB:-}"
+   [ -z "$db" ] &&
+      db=$(git rev-parse --show-toplevel || echo "$PWD")/.pnote.sqlite3
+
+   if ! test -r "$db"; then
+      echo "# NOTE: make '$db'" >&2
+      dryrun sqlite3 "$db" <<< "$SCHEMA"
+   fi
+   DBFILE=$db
+}
+record_start(){
+   declare -g DBFILE
+   [ -z "$DBFILE" ] && return 0
+   local cmd_hash="$1"; shift
+   local now="$1"; shift
+   local cmd=$(printf "%q" "$1"); shift
+   # TODO: pathological PWD need special care as with cmd?
+   sqlite3 "$DBFILE" <<HERE
+.param set :cmd "$cmd"
+insert into prov
+(       hash, cmd,   user,   host,    pwd, stime) values
+('$cmd_hash',:cmd,'$USER','$HOSTNAME', '$PWD','$now');
+HERE
+
+}
+record_in(){
+   declare -g DBFILE
+   [ -z "$DBFILE" ] && return 0
+   local h=${1:?cmd hash from start}; shift
+   local n=${1:?start time of command}; shift
+   # all other inputs are like 'moddate file'
+   while [ $# -gt 0 ]; do
+      if ! [[ $1 =~ ^([0-9]+)\ (.+)$ ]]; then
+         echo "# INTERNAL ERROR: bad time/file name split on '$1'" >&2
+         shift
+         continue
+      fi
+      m=${BASH_REMATCH[1]}
+      f=${BASH_REMATCH[2]};
+      sqlite3 "$DBFILE" \
+         "insert into inf (hash, stime, file, modtime) values ('$h','$n','$f','$m');"
+      shift;
+   done
+}
+record_out(){
+   declare -g DBFILE
+   [ -z "$DBFILE" ] && return 0
+   local h=${1:?cmd hash from start}; shift
+   local n=${1:?start time of command}; shift
+   while [ $# -gt 0 ]; do
+      sqlite3 "$DBFILE" "insert into outf (hash, stime, file) values ('$h','$n','$1');"
+      shift;
+   done
+}
+
+record_done(){
+   declare -g DBFILE
+   [ -z "$DBFILE" ] && return 0
+   local h=${1:?} n=${2:?} s=${3:?}
+   sqlite3 "$DBFILE" "
+   update prov set
+      etime=unixepoch('now'), status = '$s'
+      where hash='$h' and stime='$n';"
+}
+
+# TODO: show sidecar version?
+show_db(){
+  declare -g DBFILE
+  set_db
+  sqlite3 -separator $'\t' -header "$DBFILE" <<HERE
+select p.status, strftime('%F %T',p.etime) etime, p.cmd from prov p join outf o on p.hash=o.hash where file like '$1' order by p.etime desc limit 1;
+HERE
+}
+
+_OUT=()
+_IN=()
+STDOUT=
+IFNEEDED=0
+DO_SIDECAR=1
+DO_DB=1
+cmd_and_args=()
+pnote_parse(){
+  declare -g _OUT _IN STDOUT IFNEEDED DO_SIDECAR DO_DB cmd_and_args
+  while [ $# -ne 0 ]; do
+   case "$1" in
+     --) shift; break;; # rest is command
+     show) show_db "$2"; shift 2; exit ;;
+     -o|--output)
+        _OUT+=("${2:?$1 must be followed by an output file}"); shift 2;;
+     --stdout|-s)
+        _OUT+=("${2:?$1 must be followed by an output file}");
+        STDOUT=$2;
+        shift 2;;
+     -i|--input)
+        _IN+=("${2:?$1 must be following by an input file}"); shift 2;;
+     -l|--input_list)
+        mapfile inlinst -t < "${2:?must have input file list}"
+        _IN+=("${inlinst[@]}");
+        shift 2;;
+
+     -d|--db) PNOTEDB=${2:?--db requires db path}; shift 2;;
+
+     -e|--ifneeded) IFNEEDED=1; shift;;
+     -n|--dryrun) DRYRUN='echo'; shift;;
+     # disable things
+     -C|--no-sidecar) DO_SIDECAR=0; shift;;
+     -D|--no-db)      DO_DB=0;      shift;;
+  
+     # die on unknown options
+     -*)
+        echo "ERROR: unknown option $1" >&2; exit 1;;
+  
+     # anything else is likely a command
+     *) break;;
+    esac
+  done
+
+  cmd_and_args=("$@")
+}
+
+stat_exist(){
+   default=${1:?missing file number. '0' for oldest; 'error' to break}; shift;
+   for f in "$@"; do
+      test -e "$f" && stat -c "%Y %n" "$f" && continue
+      
+      [[ $default == "error" ]] && echo "ERROR: missing file '$f'" >&2 && return 1
+      echo "$default $f"
+   done
+}
+mkhash(){
+  machine=''
+  # maybe we want to include machine info? disabled for now
+  : || machine="$USER@$HOSTNAME:$PWD"
+  md5sum <<< "$machine$*" | sed 's/ \+-$//'
+}
+
+# given 'path/x.txt'; return 'path/.x.txt.pnote'
+find_sidecar(){ 
+   local sidecar cmd_output=${1:?output file}
+   sidecar=$(dirname "$cmd_output")/.$(basename "$cmd_output").pnote
+   # make we don't have a trailing slash to make this a directory
+   sidecar=$(sed 's:/\+$::' <<< "$sidecar")
+   echo "$sidecar"
+}
+write_sidecar(){
+   [ "${DO_SIDECAR:-1}" -ne 1 ] && return 0
+   local cmd_output=${1:?output file needed}; shift
+   local cmd=${1:?command that was run needed}; shift
+   local input_files="$*"
+   
+   sidecar=$(find_sidecar "$cmd_output")
+   # test permissions
+   s=0
+   touch "$sidecar" 2>/dev/null || s=$?
+   if [ $s -ne 0 ]; then
+      echo "WARNING: cannot write to sidecar '$sidecar' (err $s)" >&2
+      return $s
+   fi
+   printf "%s # %s\n" "$cmd" "$input_files" >> "$sidecar"
+}
+
+pnote_main(){ 
+  pnote_parse "$@" # set
+  #cmd_and_args=("$(printf "%q " "$@")")
+  cmd_hash=$(mkhash "$@")
+  started=$(date +%s)
+  out_times=("$started") # default for no output: set as always up-to-date
+  in_times=()
+  if [ ${#_IN[@]} -gt 0 ]; then
+     mapfile -t in_times < <(stat_exist error "${_IN[@]}" | sort -n)
+     [ ${#in_times[@]} -ne ${#_IN[@]} ] &&
+        echo "ERROR: not all input files exist" >&2 &&
+        exit 1
+  fi
+  [ ${#_OUT[@]} -gt 0 ] &&
+     mapfile -t out_times < <(stat_exist 0 "${_OUT[@]}" | sort -nr) # oldest first
+  newest_in="${in_times[0]:-0// */}" # remove name, just stat
+  oldest_out="${out_times[0]// */}"
+  #  TODO: if no output but still want run if needed?
+  oldest_out=${oldest_out:-0} # no output, make start of time.
+  # if newest output is older than newest input AND cmd_hash is same, nothing to do?
+  if [[ $IFNEEDED -eq 1 && \
+     -n "${newest_in}" && -n "${oldest_out}" && \
+     ${newest_in} -lt ${oldest_out} \
+     ]]; then  # `# check cmd_hash?` 
+  echo "# not rerunning: input '${in_times[0]}' $(bc -l <<< "$oldest_out - $newest_in") seconds older than output '${out_times[0]}'" >&2
+   exit 0
+  fi
+  
+  # nothing to do, just exit
+  if [ -n "${DRYRUN:-}" ]; then
+     echo "${cmd_and_args[*]}"
+     exit 0
+  fi
+  
+  
+  set_db # DBFILE=sqlite location (PNOTEDB, git root, or PWD)
+  record_start "$cmd_hash" "$started" "${cmd_and_args[*]}"
+  record_in "$cmd_hash" "$started" "${in_times[@]}"
+  record_out "$cmd_hash" "$started" "${_OUT[@]}"
+  
+  if [ -n "$STDOUT" ]; then
+     set +e  # allow this to fail
+     "${cmd_and_args[@]}" > "$STDOUT"
+  else
+     set +e  # allow this to fail
+     "${cmd_and_args[@]}"
+  fi
+  cmd_status=$?
+  set -e
+  record_done "$cmd_hash" "$started" "$cmd_status"
+  
+  # side cars
+  for out in "${_OUT[@]}"; do
+    test -z "$out" && continue
+    ! test -r "$out" && echo "# WARNING: '$out' expected but not made!" >&2 &&
+        continue
+    write_sidecar "$out" "${cmd_and_args[*]}" "${_IN[@]}" || :
+  done
+}
+
+eval "$(iffmain pnote_main)"

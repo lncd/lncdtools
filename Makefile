@@ -1,4 +1,4 @@
-.PHONY: docker check experiments coverage docker-test install depends install-make install-shell
+.PHONY: docker check experiments coverage docker-test install depends install-make install-shell mkdocs
 check: .make/check
 docker-test:  .make/docker-test
 docker: .make/docker
@@ -38,6 +38,9 @@ dryrun.exe: src/dryrun.c
 
 .make/:
 	mkdir -p $@
+
+mkdocs:
+	uv tool run --with mkdocs-material --with mkdocs-github-admonitions-plugin  mkdocs serve
 
 ## make install
 # move all exec files in top level to install directory (/usr/bin)
