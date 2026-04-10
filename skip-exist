@@ -76,7 +76,7 @@ fi
 cmd_status=$?
 
 # if there is an error (cmd_status > 0), should we still warn?
-test $cmd_status -eq 0 -a -s "$outfile" ||
+[[ ( $cmd_status -eq 0 && -s "$outfile" ) || -n "${DRYRUN:-}" ]] ||
    echo "# WARNING: '$outfile' DNE or is empty after '${cmd[*]}'" >&2
 
 exit $cmd_status
