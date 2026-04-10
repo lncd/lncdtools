@@ -1,24 +1,25 @@
 #!/usr/bin/env bash
-env | grep ^DRYRUN= && DRYRUN=echo || DRYRUN=""
+#
+#run dcm2niix with 3dNotes wrapper. check for existing file
+#
+#  20201016WF  init
+#  20210113WF  use rename-recent. nest into "main" (source for testing)
+#  2026        support .zip
+
+[ -n "${DRYRUN:-}" ] && DRYRUN='echo' || DRYRUN=""
 # when we are give, change value to "check"
 [ -v NOECHOCHECK ] && NOECHOCHECK="check" || NOECHOCHECK=""
 [ ! -v VERBOSE ] && VERBOSE=""
 verbose(){ [ -n "$VERBOSE" ] && echo "$*" >&2 || :; }
-noquiet() { [ -z "${MKNII_QUIET:-}" ] && echo "$*" || return 0; }
+noquiet() { [ -z "${MKNII_QUIET:-}" ] && echo "$*"; return 0; }
 
 set_dcm2niix(){
   DCM2NIIX="${DCM2NII:-dcm2niix}"
   command -v "$DCM2NIIX" >/dev/null || DCM2NIIX=dcm2niix_afni
   ! command -v "$DCM2NIIX" >/dev/null && warn "cannot find dcm2niix or dcm2niix_afni; try export DCM2NIIX=..." && exit 2
   return 0
- }
+}
 
-
-#
-#run dcm2niix with 3dNotes wrapper. check for existing file
-#
-#  20201016WF  init
-#  20210113WF  use rename-recent. nest into "main" (source for testing)
 usage() {
 cat <<HEREDOC
 USAGE:
@@ -149,9 +150,10 @@ main(){
   [ $# -ne 2 ] && echo "given $# not 2 arguments! '$*'" >&2 && usage
   nii_out="$1"; shift
   dcm_folder="$*"; shift
+  # not a definiative check. multi-echo might not catch here.
   [ -r "$nii_out" ] && noquiet "# have '$nii_out'" && exit 0
-  [ ${nii_out:(-7)} != ".nii.gz" ] &&
-     echo "ERROR: output must have .nii.gz extention!" >&2 && exit 1
+  [ "${nii_out:(-7)}" != ".nii.gz" ] &&
+     echo "ERROR: output '$nii_out' must have .nii.gz extention!" >&2 && exit 1
 
   if [[ $dcm_folder =~ .zip$ ]]; then
      unzip_tmp=$(mktemp -d ${TMPDIR:-/tmp}/dcmzip_XXXX)
@@ -172,8 +174,9 @@ main(){
   outdir="$(dirname "$nii_out")"
   [ ! -d "$outdir" ] && $DRYRUN mkdir -p "$outdir"
 
-  #pretimestamp=$(mktemp /tmp/dcmnii_XXXXXX) # -newercm $pretimestamp
   # TODO: add trap to cleanup file?
+  #pretimestamp=$(mktemp /tmp/dcmnii_XXXXXX) # -newercm $pretimestamp
+
   $DRYRUN $DCM2NIIX -z y -b y -f "$outname" -o "$outdir" "$dcm_folder"
   [ -n "$DRYRUN" ] && exit 0
   # if above failed, script would bail (set -e)
