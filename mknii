@@ -147,7 +147,7 @@ main(){
   set_dcm2niix # DCM2NIIX might be dcm2niix_afni or given by user
   local unzip_tmp="" # if input is zip file, track to rm tmp folder later
 
-  [ $# -ne 2 ] && usage
+  [ $# -ne 2 ] && echo "given $# not 2 arguments! '$*'" >&2 && usage
   nii_out="$1"; shift
   dcm_folder="$*"; shift
   # not a definiative check. multi-echo might not catch here.

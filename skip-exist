@@ -2,13 +2,12 @@
 set -euo pipefail
 #
 # 20260226WF - init
-#
-# TODO: add 'verb' or 'warn' instead of echo >&2
-#       or some way to suppress SKIP and already have messsages
+# 20260405WF - noquiet checking SKIP_QUIET
 #
 
 REDO=${REDO:-0} # default: skip if exists. REDO !=0 means overwrite
 
+noquiet() { [ -n "${SKIP_QUIET:-}" ] && return 0; echo "$*" >&2; }
 usage(){
    [ $# -gt 0 ] && echo "$*"
    local c=$(basename $0)
@@ -29,6 +28,7 @@ SYNOPSIS:
 
 ENVIRONMENT:
    REDO=1  - overwrite (redo) even if output file exists
+   SKIP_QUIET - dont echo when skipping
 
 NOTES:
   Watch out for redirection. DONT DO THIS
@@ -64,9 +64,9 @@ outfile="${1:?need two args. first is outfile}"; shift
 cmd=("${@//__SKIPFILE/"$outfile"}")
 if [ -s "$outfile" ]; then
    [ "$REDO" == 0 ] &&
-      echo "# SKIP: Already have '$outfile', not running '${cmd[*]}'; set REDO=1 to overwrite." >&2 &&
+      noquiet "# SKIP: Already have '$outfile', not running '${cmd[*]}'; set REDO=1 to overwrite." &&
       exit 0
-   echo " # Already have '$outfile' but overwritting: REDO=$REDO." >&2
+   noquiet " # Already have '$outfile' but overwritting: REDO=$REDO."
 fi
 
 # run the thing that should make the input
