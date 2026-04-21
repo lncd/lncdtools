@@ -6,7 +6,7 @@
 # 20220308WF - init
 # 20250710WF - no oblique warn. no need for just notes?
 #
-export AFNI_NO_OBLIQUE_WARNING=YES
+export AFNI_NO_OBLIQUE_WARNING=YES AFNI_NIFTI_TYPE_WARN=NO
 [ -v DRYRUN ] && DRYRUN=echo || DRYRUN=
 warn(){ echo "$@" >&2; }
 
@@ -24,7 +24,7 @@ _3dNotes_each() {
   
   for f in "$@"; do
      echo "# $f"
-     (3dNotes "$f" || :) | $prepend_func "$f"
+     (3dNotes "$f" || echo "ERROR: no notes in '$f'") | $prepend_func "$f"
   done
   return 0
 }
