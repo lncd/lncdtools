@@ -70,7 +70,7 @@ if [ -s "$outfile" ]; then
 fi
 
 # run the thing that should make the input
-"${cmd[@]}"
+dryrun "${cmd[@]}"
 
 # check that what we did worked
 cmd_status=$?
