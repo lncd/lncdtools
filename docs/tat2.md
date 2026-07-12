@@ -21,7 +21,7 @@ And is initially from [Predicting Individuals' Learning Success from Patterns of
 Also see [Relative Concentration of Brain Iron (rcFe)](https://www.biorxiv.org/content/biorxiv/early/2019/03/16/579763.full.pdf).
 
 ## Setup
-See the [setup instructions](lncdtools_setup) for all of lncdtools. Breifely, `git clone https://github.com/lncd/lncdtools` and add the new directory to your path.
+See the [setup instructions](/lncdtools_setup) for all of lncdtools. Breifely, `git clone https://github.com/lncd/lncdtools` and add the new directory to your path.
 
 The [raw tat2 script](https://raw.githubusercontent.com/lncd/lncdtools/master/tat2) can stand alone, but will uses other [lncdtools](https://github.com/LabNeuroCogDevel/lncdtools) scripts if avaiable -- namely [`gitver`](https://github.com/lncd/lncdtools/blob/master/gitver). It's also a lot easier to fetch and track updates when the script is within source control. You get that when you clone the repo.
 
