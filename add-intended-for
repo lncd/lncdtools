@@ -49,6 +49,22 @@ func_andor_dwi(){
    [[ -d dir/dwi ]] && echo dwi/
    return 0
 }
+
+check_shims(){
+   sesdir=${1:?session dir}; shift;
+   se=${1:?spin echo}; shift;
+   args=("$@")
+   mapfile -t args < <( echo $se; cd ${sesdir}; readlink -f ${args[@]//\"/})
+   res=($(AFNI_NIFTI_TYPE_WARN=NO 3dinfo -ad3 -ni -nj -nk ${args[@]/.json/.nii.gz} | sort -u))
+   shim=($(jq -r '.ShimSetting|@csv' $se ${args[@]/.nii.gz/.json} | sort -u))
+   [ ${#res[@]} -ne 6 ] &&
+	   echo -e "WARNING: inconsistant dimensions for ${args[@]}\n$(printf "\t%s %s %s %s %s %s\n" "${res[@]}")"  >&2 
+   [ ${#shim[@]} -ne 1 ] &&
+	   echo -e "WARNING: inconsisant shims for ${args[@]}\n$(printf "\t%s\n" "${shim[@]}")"  >&2 
+   # TODO: if verbose
+   # echo "# res ${res[*]} shim ${shim[*]} for ${args[*]}"
+   return 0
+}
 csv_niifiles(){
    local sesdir="$1"; shift
    #local boldpat="${1:?need at least one bold or dwi file pattern}"
@@ -117,6 +133,7 @@ _intendedFor() {
         forfilescsv=$(csv_niifiles "$sesdir" "${boldpatt[@]}")
         [ -z "$forfilescsv" ] &&
            warn "no matching files in $sesdir/{func,dwi}/ matching ${boldpatt[*]}" && return 1
+	check_shims "$sesdir" "$sefile" ${forfilescsv//,/ }
         add_intended_for "$sefile" "$forfilescsv" || :
      done
   done
