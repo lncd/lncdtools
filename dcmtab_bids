@@ -45,7 +45,9 @@ sub new($class, %opts){
 
    # given e.g. anat/T1w or perf/asl instead of hard coded suffix
    # add to folder and update mode
-   if($opts{mode} =~ m:^(anat|func|fmap|dwi|perf)/([^/]+)$:){
+   # 20260423 - added 'raw' (could be 'sourcedata')
+   #            https://bids.neuroimaging.io/getting_started/folders_and_files/derivatives.html
+   if($opts{mode} =~ m:^(anat|func|fmap|dwi|perf|raw)/([^/]+)$:){
       $opts{folder}=$1;
       $opts{mode}  =$2;
    } else {
