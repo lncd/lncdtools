@@ -13,11 +13,14 @@ usage(){
    local c=$(basename $0)
   cat <<HERE
 USAGE:
-  $c 'path/file/to/check' cmd
+  $c  [-o] 'path/ouput/file/to/check' cmd-to-run
+
+EXAMPLES:
+  $c -o /tmp/date.txt date
 
   $c sub-1/mri/aseg.nii.gz recon-all -s sub-1
-  $c sub-1/mri/aseg.nii.gz dryrun recon-all -s sub-1
-  REDO=1 $c sub-1/mri/aseg.nii.gz recon-all -s sub-1
+  DRYRUN=1 $c sub-1/mri/aseg.nii.gz recon-all -s sub-1
+  REDO=1   $c sub-1/mri/aseg.nii.gz recon-all -s sub-1
 
   $c /tmp/date.txt sh -c "date > __SKIPFILE"
 
@@ -28,13 +31,18 @@ SYNOPSIS:
 
 ENVIRONMENT:
    REDO=1  - overwrite (redo) even if output file exists
-   SKIP_QUIET - dont echo when skipping
+   DRYRUN=1   - only show what would be run
+   SKIP_QUIET - dont report when skipping
 
 NOTES:
   Watch out for redirection. DONT DO THIS
      $c /tmp/date.txt date > /tmp/date.txt # BAD BAD BAD
 
-  Instead, use an exported function
+  Instead, use the -o or --output, like
+     $c -o /tmp/date.txt date
+
+
+  Alternatively, use an exported function
 
      writedate() { date > \$1; }; export -f writedate
      $c /tmp/date.txt writedate /tmp/date.txt
@@ -55,10 +63,21 @@ HERE
 
 [[ $# -eq 0 || "${1:-}" =~ ^-+h(help)?$ ]] && usage && exit 0
 
+# check for argumetns
+write_stdout=0
+while [ $# -gt 0 ]; do
+    case $1 in
+        -o|--output) write_stdout=1; shift;;
+        -*) echo "ERROR: unknown option $1. if '$1' is a file, use './$1''"; exit 1;;
+        *) break;; # not an input argument to parse. skip to next
+    esac
+done
+
+
 outfile="${1:?need two args. first is outfile}"; shift
 
 [ $# -eq 0 ] &&
-   usage "ERROR: no command to run if '$outfile' doesn't exist" >&2 &&
+   usage "ERROR: not given a command to run if '$outfile' doesn't exist" >&2 &&
    exit 1
 
 cmd=("${@//__SKIPFILE/"$outfile"}")
@@ -70,7 +89,11 @@ if [ -s "$outfile" ]; then
 fi
 
 # run the thing that should make the input
-dryrun "${cmd[@]}"
+if [ $write_stdout -eq 0 ]; then
+    dryrun "${cmd[@]}"
+else
+    dryrun "${cmd[@]}" | drytee "$outfile"
+fi
 
 # check that what we did worked
 cmd_status=$?
