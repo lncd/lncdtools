@@ -46,7 +46,7 @@ FIND_EXCLUDE=" -not -name *echo-*"
 # does this session have func and/or dwi directories?
 func_andor_dwi(){
    [[ -d func ]] && echo func/
-   [[ -d dir/dwi ]] && echo dwi/
+   [[ -d dwi ]] && echo dwi/
    return 0
 }
 
@@ -76,6 +76,8 @@ csv_niifiles(){
     funcdwi=($(func_andor_dwi));
     [ ${#funcdwi[@]} -le 0 ] && echo "ERROR: no '$sesdir' has no func/ nor dwi/" >&2 && return 1
     find "${funcdwi[@]}" \( $find_names \) $FIND_EXCLUDE ) |
+    # if ses-xyz, we need that in the file path
+    sed "s:^:$(echo $sesdir/|grep -m1 -Po 'ses-[^/_-]+/'):" |
     sed 's/^\|$/"/g'|
     paste -sd,
 }
@@ -131,6 +133,7 @@ _intendedFor() {
      mapfile -t sefiles < <(find_se_file "$sesdir" "$sepatt")
      for sefile in "${sefiles[@]}"; do
         forfilescsv=$(csv_niifiles "$sesdir" "${boldpatt[@]}")
+	#echo "XX: $forfilescsv" >&2
         [ -z "$forfilescsv" ] &&
            warn "no matching files in $sesdir/{func,dwi}/ matching ${boldpatt[*]}" && return 1
 	check_shims "$sesdir" "$sefile" ${forfilescsv//,/ }
