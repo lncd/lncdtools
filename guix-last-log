@@ -1,0 +1,1 @@
+find /var/log/guix/drvs -mmin -5 -iname '*.drv.gz' -printf "%T+\t%p\n"|sort -nr | sed 1q |cut -f2|xargs -r zcat
