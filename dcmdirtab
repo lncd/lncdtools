@@ -88,6 +88,7 @@ sub get_config(){
       # 20230510 -- for identifing the scanner. at some point we should just use the DICOM cpan module to get names
       "station"=>"0008,1010",  # ID Station Name//MRC18914
       "model"=>"0008,1090",    # ID Manufacturer Model Name//Investigational_Device_7T
+      "ftype" => "0008,9007",  # frame type; eg DERIVED\PRIMARY\DIFFUSION\TENSOR_B0; use to exclude deriviates (added 2028-08-18)
       "seqname"=>"0018,0024",  # ACQ Sequence Name//*fl2d1
       "strength"=>"0018,0087", # ACQ Magnetic Field Strength//6.98
       "software"=>"0018,1020", # ACQ Software Version//syngo MR B17
