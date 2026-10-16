@@ -40,7 +40,7 @@ find_rename(){
  if command -v perl-rename >/dev/null; then 
    cmd="perl-rename"
  else
-   cmd="$(which rename)"
+   cmd="$(which rename || :)"
  fi
  # perl's rename has "perl" in the man output
  # system name just prints "call: rename from to files..."
