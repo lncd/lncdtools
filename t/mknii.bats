@@ -118,6 +118,18 @@ teardown() {
   [ -r sub-1_task-rest_echo-1_sbref.json ]
   [ -r sub-1_task-rest_echo-2_sbref.json ]
 }
+@test "mknii: epi multiecho sbref start at e2 (SPE-DEV)" {
+  source $BATS_TEST_DIRNAME/../mknii
+  name=sub-1_task-rest_sbref
+  touch ${name}_e{2,4}.{nii.gz,json}
+  rename-epi-multiecho ./ $name
+  ls
+  [ ! -r $name.nii.gz ]; [ ! -r $name.json ]
+  [ ! -r ${name}_e4.nii.gz ]; [ ! -r ${name}_e4.json ]
+  [ -r sub-1_task-rest_echo-2_sbref.nii.gz ]
+  [ -r sub-1_task-rest_echo-2_sbref.json ]
+  [ -r sub-1_task-rest_echo-4_sbref.json ]
+}
 @test "mknii: epi multiecho nothing on normal" {
   source $BATS_TEST_DIRNAME/../mknii
   name=sub-1_task-rest_sbref

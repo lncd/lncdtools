@@ -85,8 +85,11 @@ rename-epi-multiecho(){
   local outdir="$1"; shift
   local outname="$1"; shift
   local rename_patt='s/([^_-]+)_[ie](\d+).(json|nii.gz)/echo-$2_$1.$3/'
-  if [ -r "$outdir/${outname}_e1.nii.gz" -o -r  "$outdir/${outname}_i00001.nii.gz" ]; then
-     echo "# trying to rename multiecho seq $outname";
+  # previously checked like [ -r "$outdir/${outname}_e1.nii.gz" -o -r  "$outdir/${outname}_i00001.nii.gz" ]; then
+  # 20261015: doesn't have to start at e1. SPE-DEV sbref starts at e2
+  local echos=$(find $outdir -maxdepth 1 -regex ".*/${outname}_[ei][0-9]+.nii.gz")
+  if [ -n "$echos" ]; then
+     echo "# trying to rename multiecho seq '$outname' in '$outdir' using '$rename_patt'";
      _rename-recent "$rename_patt" "$outdir" "${outname}_e*"
   fi
 }
@@ -229,7 +232,7 @@ main(){
 
   if [ ${#nii_outs[@]} -le 0 ]; then
      echo -e "ERROR: did not create '$nii_out'.\n\t'$dcm_folder' has a multi echo sequence??!"
-     echo "NOTE: $0 can deal with this! Set mutliecho file output name pattern like 'export MEPATT=mGRE'."
+     echo "NOTE: $0 can deal with this! Set mutliecho file output name pattern like 'export MEPATT=mGRE' (currently set as '$MEPATT')."
      echo "Or if the output name ends with 'magnitude1.nii.gz' or 'phase.nii.gz'"
      echo "     or for _bold and _sbref files"
      exit 1
