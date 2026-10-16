@@ -156,6 +156,15 @@ teardown() {
 
 }
 
+@test "mknii: multiecho_exists at 2 only" {
+  source $BATS_TEST_DIRNAME/../mknii
+
+  touch sub-1_task-rest_echo-2_sbref.nii.gz
+  multiecho_exists sub-1_task-rest_sbref.nii.gz
+
+
+}
+
 @test "mknii: add_json_task" {
   source $BATS_TEST_DIRNAME/../mknii
   echo '{' > task-rest.json

@@ -94,15 +94,20 @@ rename-epi-multiecho(){
   fi
 }
 
-add_echo_name(){ perl -pe 's/_([^_-]+).nii.gz/_echo-1_$1.nii.gz/' <<< "$*"; }
+add_echo_name(){ perl -pe 's/_([^_-]+).nii.gz/_echo-*_$1.nii.gz/' <<< "$*"; }
 multiecho_exists(){
   # okay to flag nii_out as mutliecho even if it's not
   # will have been caught earlier
   local nii_out="$1"
-  for ME_name in "${nii_out/.nii.gz/_e1.nii.gz}" \
+
+  # search for echo-1 or echo-*
+  any_echo=($(add_echo_name "$nii_out"))
+
+  for ME_name in \
+    "${nii_out/.nii.gz/_e1.nii.gz}" \
     "${nii_out/.nii.gz/_i00001.nii.gz}" \
     "${nii_out/magnitude.nii.gz/magnitude1.nii.gz}" \
-    "$(add_echo_name "$nii_out")"; do
+    "${any_echo[@]}"; do
    verbose "# checking for multiecho like '$ME_name'"
    ! test -r "$ME_name" && continue
    noquiet "# have '$ME_name', considering that the same as '$nii_out' (set export NOECHOCHECK=1 to go anyway)"
@@ -159,6 +164,8 @@ main(){
   [ "${nii_out:(-7)}" != ".nii.gz" ] &&
      echo "ERROR: output '$nii_out' must have .nii.gz extention!" >&2 && exit 1
 
+  test -z "$NOECHOCHECK"  && multiecho_exists "$nii_out" && exit 0
+
   if [[ $dcm_folder =~ .zip$ ]]; then
      unzip_tmp=$(mktemp -d ${TMPDIR:-/tmp}/dcmzip_XXXX)
      zip_file=$dcm_folder
@@ -169,7 +176,6 @@ main(){
      dcm_folder=$unzip_tmp
   fi
 
-  test -z "$NOECHOCHECK"  && multiecho_exists "$nii_out" && exit 0
 
   # should let dcm2niix just fail instead of doing the work here?
   # [ $(find -L "$dcm_folder" \( -type f -or -type l \) -print -quit|wc -l) -le 0  ] && echo "# '$dcm_folder' DNE or is empty?" && exit 1
