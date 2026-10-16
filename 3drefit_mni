@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+3dinfo -space "${1:?required first arugment is nifti file to label as MNI space}" | grep -q MNI && exit 0
+3drefit -space MNI -view MNI "$1"
