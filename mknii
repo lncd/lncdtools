@@ -121,7 +121,8 @@ find_multiechos(){
 
    me_name=$(perl -pe 's/_([^_-]*)$/_echo-*_$1/' <<< "$outname");
    find "$outdir" -maxdepth 1 -type f \
-      \( -name "$outname$ext" -or -name "$me_name$ext" "${fmap_mag[@]}" \)
+      \( -name "$outname$ext" -or -name "$me_name$ext" "${fmap_mag[@]}" \) || :
+   return 0
 }
 
 add_json_task(){
@@ -221,7 +222,7 @@ main(){
   # add rest taskname to json sidecar
 
   [[ $outname =~ task-.*_bold ]] &&
-     add_json_task "$outdir" "$outname"
+     add_json_task "$outdir" "$outname" || :
 
   local nii_outs
   mapfile -t nii_outs < <(find_multiechos "$outdir" "$outname" .nii.gz)
@@ -237,7 +238,7 @@ main(){
   # 3dNotes likes to complain. silence it
   export AFNI_NIFTI_TYPE_WARN=NO
   export AFNI_NO_OBLIQUE_WARNING="YES"
-  verbose "# adding 3dNotes"
+  verbose "# adding 3dNotes to ${#nii_outs[@]} like '$outname'"
   for nii_out_me in "${nii_outs[@]}"; do
      $DRYRUN 3dNotes -h "$0 $dcm_folder $nii_out" "$nii_out_me"
   done
