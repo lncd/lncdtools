@@ -13,22 +13,28 @@ proc bnames {list} {
       # if file doesn't exist, it's probably an afni command, like:
       # '-com' or  'SET_UNDERLAY ...'
       if { [ file exist $real_name ] } {
-         lappend res [file tail $real_name]
+         lappend res [string cat [file tail $real_name] " (" [file tail [file dirname $real_name]]  "/)"]
       }
    }
    set res
 }
 
+proc dryputs {args} { puts [string cat [join $args " "]] }
+
 # for testing we can use noop instead of exec
 proc noop {args} {}
 set DRY exec
 #set DRY noop
+#set DRY dryputs
 
 ## globals
 # widgets
 listbox .lb
 scrollbar .sb
 label .note
+
+# actual file path indexed the same as .lb
+set LB_PATH [list]
 
 array set COLORED_IDX { 
   SET_UNDERLAY -1 
@@ -104,13 +110,19 @@ proc afni_plug {cmd} {
    variable PORT_BLOCK
    variable DRY
    #exec plugout_drive -npb $PORT_BLOCK -com [join $cmd "-com"] -quit &
-   exec plugout_drive -npb $PORT_BLOCK -com  $cmd -quit &
+   $DRY plugout_drive -npb $PORT_BLOCK -com  $cmd -quit &
 }
 proc select_img {how coord} {
    # send e.g. 'SET_UNDERLAY mprage.nii.gz'
+   variable LB_PATH
    set idx [.lb index $coord]
-   set img [.lb get $idx]
+   set img [lindex $LB_PATH $idx]
    update_color $how $idx 
+   # doesn't work how we want! need to setup directory sessions in afni
+   # command line inputs are all in a dedicated session
+   #afni_plug [string cat "SWITCH_DIRECTORY " [file dirname $img]]
+   # try first with tail and then with full path
+   afni_plug [string cat "$how " [file tail $img]]
    afni_plug "$how $img"
 }
 proc swap_over_under {} {
@@ -126,9 +138,9 @@ proc swap_over_under {} {
 proc fuzzy {how} {
     # use e.g. rofi as a popup fuzzy selector
     variable SELECTOR
+    variable LB_PATH
     set sel ""
-    set opts [.lb get 0 end]
-    catch {set sel [exec echo [join $opts \n] | {*}$SELECTOR]}
+    catch {set sel [exec echo [join $LB_PATH \n] | {*}$SELECTOR]}
     if {$sel ne ""} {
       select_img $how [lsearch -exact $opts $sel]
     }
@@ -136,6 +148,8 @@ proc fuzzy {how} {
 
 
 ## run
+# full path of all inputs
+set LB_PATH [list_files $::argv]
 # basename of all inputs.
 .lb insert 0 {*}[bnames [list_files $::argv]]
 
