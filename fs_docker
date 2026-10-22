@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# setup and run freesurfer from a container
+# forwards FS_LICENSE and SUBJECTS_DIR
+# uses FS_VER to set container version for docker
+# or FS_CONTAINER directly
+# if FS_COINTAINER is sif, use singularity/apptainer instead
+#
+# 20261022WF - init. extracted from TerraX human eval
+#
+FS_LICENSE=${FS_LICENSE:-$(cd $(dirname "$0");pwd)/fs.lic}
+
+# FS_VER to set docker version or specify explicity 
+# if FS_CONTAINER is set to .sif file, will use singularity/apptainer
+FS_CONTAINER=${FS_CONTAINER:-freesurfer/freesurfer:${FS_VER:-8.2.0}}
+
+_fs_docker(){
+  #pgrep -af "fs_docker $*" && echo "# already running" && return 0
+
+  # USAGE: fs_docker "$f" recon-all -hires -all -i "$f" -s "$sub_ses"
+  [ $# -eq 0 ] && echo 'USAGE: fs_docker "$f" recon-all -hires -all -i "$f" -s "$sub_ses"' && return 5
+  local f=${1?-input anatomicla image}; shift
+  [ ! -r "$FS_LICENSE" ] && echo "ERROR: cannot read FS_LICENSE='$FS_LICENSE'" >&2 && return 6
+  [ ! -r "$f" ] && echo "ERROR: cannot read input file '$f'" >&2 && return 2
+  [ -z "${SUBJECTS_DIR:-}" ] && echo "ERROR: SUBJECTS_DIR is not in global env. 'export SUBJECTS_DIR=...'" >&2 && return 3
+  [ $# -eq 0 ] && echo 'ERROR: expect fs commands to run within container but given none' >&2 && return 4
+
+  dryrun mkdir -p "$SUBJECTS_DIR"
+
+  # get abs path before docker mount
+  [ -z "${DRYRUN:-}" ] && SUBJECTS_DIR=$(readlink -f "$SUBJECTS_DIR")
+  FS_LICENSE=$(readlink -f "$FS_LICENSE")
+
+  #f=$(readlink -f "$f") #WARNING. if "$f" used elsewhere, wont be abs
+
+  if [ ${FS_CONTAINER,,} =~ .sif$ ]; then # to lowercase for case-insensitive match
+     dryrun singularity run \
+          -B $FS_LICENSE:$FS_LICENSE:ro \
+          -B "$SUBJECTS_DIR:$SUBJECTS_DIR:rw" \
+          -B "$f:$f:ro" \
+          --env FS_ALLOW_DEEP=1 \
+          --env SUBJECTS_DIR="$SUBJECTS_DIR" \
+          --env FS_LICENSE="$FS_LICENSE" \
+          "$FS_CONTAINER" \
+          "$@"
+  else
+     dryrun docker run \
+          -v $FS_LICENSE:$FS_LICENSE:ro \
+          -v "$SUBJECTS_DIR:$SUBJECTS_DIR:rw" \
+          -v "$f:$f:ro" \
+          --env FS_ALLOW_DEEP=1 \
+          --env SUBJECTS_DIR="$SUBJECTS_DIR" \
+          --env FS_LICENSE="$FS_LICENSE" \
+          --rm \
+          "$FS_CONTAINER" \
+          "$@"
+   fi
+
+       # matlab compiled runtime. only valid fod FS_VER=7.4.1 (?) needed for 02.2_fs-hcseg.bash
+       #-v "/opt/ni_tools/freesurfer$FS_VER/MCRv97/:/usr/local/freesurfer/MCRv97:ro:
+
+}
+eval "$(iffmain _fs_docker)"
